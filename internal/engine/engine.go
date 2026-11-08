@@ -186,8 +186,7 @@ func New(factory Factory) *Engine {
 		updates: make(chan Snapshot, 1),
 		rate:    1,
 		volume:  100,
-		scale:   1,
-		snap:    Snapshot{Phase: Idle, Rate: 1, Volume: 100, Scale: 1},
+		snap:    Snapshot{Phase: Idle, Rate: 1, Volume: 100},
 	}
 }
 

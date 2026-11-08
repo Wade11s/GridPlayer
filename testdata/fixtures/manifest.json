@@ -49,5 +49,10 @@
       "audio_tracks": 2,
       "subtitle_tracks": 2
     }
-  ]
+  ],
+  "hls": {
+    "name": "master.m3u8",
+    "dir": "hls",
+    "secs": 10
+  }
 }

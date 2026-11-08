@@ -444,11 +444,17 @@ func (p *Player) SetMedia(path string, loop bool) error {
 	if p.released || p.mp == nil {
 		return errors.New("vlcmac: released")
 	}
+	isURL := strings.Contains(path, "://")
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
-	md := C.libvlc_media_new_path(p.inst.inst, cpath)
+	var md *C.libvlc_media_t
+	if isURL {
+		md = C.libvlc_media_new_location(p.inst.inst, cpath)
+	} else {
+		md = C.libvlc_media_new_path(p.inst.inst, cpath)
+	}
 	if md == nil {
-		return fmt.Errorf("vlcmac: media_new_path failed for %s", path)
+		return fmt.Errorf("vlcmac: media_new failed for %s", path)
 	}
 	if loop {
 		opt := C.CString(":input-repeat=10000")

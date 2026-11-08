@@ -133,6 +133,40 @@ def make_feature(root: Path, secs: int = 12):
         return out
 
 
+def make_hls(root: Path, secs: int = 10):
+    """Deterministic VOD HLS with three renditions (360/180/90p)."""
+    import subprocess
+
+    hls_dir = root / "hls"
+    hls_dir.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg", "-nostdin", "-loglevel", "error", "-y",
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+        "-f", "lavfi", "-i", f"sine=frequency=440:duration={secs}",
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline", "-s", "640x360",
+        "-hls_time", "5", "-hls_segment_filename", str(hls_dir / "seg360-%03d.ts"), str(hls_dir / "360.m3u8"),
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline", "-s", "320x180",
+        "-hls_time", "5", "-hls_segment_filename", str(hls_dir / "seg180-%03d.ts"), str(hls_dir / "180.m3u8"),
+        "-map", "0:v", "-map", "1:a",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline", "-s", "160x90",
+        "-hls_time", "5", "-hls_segment_filename", str(hls_dir / "seg90-%03d.ts"), str(hls_dir / "90.m3u8"),
+    ]
+    feed(cmd, secs, "H")
+    master = [
+        "#EXTM3U",
+        '#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360',
+        "360.m3u8",
+        '#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=320x180',
+        "180.m3u8",
+        '#EXT-X-STREAM-INF:BANDWIDTH=200000,RESOLUTION=160x90',
+        "90.m3u8",
+    ]
+    (hls_dir / "master.m3u8").write_text("\n".join(master) + "\n")
+    return hls_dir / "master.m3u8"
+
+
 def main():
     ROOT.mkdir(parents=True, exist_ok=True)
     files = []
@@ -146,6 +180,7 @@ def main():
             "secs": secs, "size": size, "freq": freq, "label": label,
         })
     feature = make_feature(ROOT)
+    hls = make_hls(ROOT)
     fdata = feature.read_bytes()
     features = [{
         "name": feature.name,
@@ -154,7 +189,8 @@ def main():
         "secs": 12, "chapters": 3, "audio_tracks": 2, "subtitle_tracks": 2,
     }]
     manifest = {"generator": "scripts/make_fixtures.py", "ffmpeg": "9.0.2",
-                "planes": files, "features": features}
+                "planes": files, "features": features,
+                "hls": {"name": hls.name, "dir": str(hls.parent.name), "secs": 10}}
     MANIFEST.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"fixtures -> {ROOT}")
     for f in files:

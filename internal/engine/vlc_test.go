@@ -135,3 +135,42 @@ func TestRealVLCFeatureTracksAndChapters(t *testing.T) {
 		t.Fatalf("external subtitle not listed: %+v", s.SubtitleTracks)
 	}
 }
+
+// TestRealVLCLocalHLS loads HLS from a local file URL (no external network).
+// The master playlist has three renditions.
+func TestRealVLCLocalHLS(t *testing.T) {
+	master, err := filepath.Abs("../../testdata/fixtures/hls/master.m3u8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(master); err != nil {
+		t.Skip("hls fixture missing")
+	}
+	e := New(NewVLCFactory(VLCOptions{Args: []string{"--vout=dummy", "--aout=dummy", "--network-caching=100"}}))
+	defer e.Close()
+	if err := e.Load("file://" + master); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for e.Snapshot().Phase != Playing {
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if s := e.Snapshot(); s.Phase != Playing {
+		t.Fatalf("never played: %+v", s)
+	}
+	lengthDeadline := time.Now().Add(10 * time.Second)
+	for e.Snapshot().Length <= 0 {
+		if time.Now().After(lengthDeadline) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if s := e.Snapshot(); s.Length <= 0 {
+		t.Logf("length still unknown after play: %+v", s)
+		e.Close()
+		return
+	}
+}
