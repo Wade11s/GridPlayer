@@ -1,8 +1,14 @@
 // Package dummy is a fake playback backend for layout tests: a deterministic
-// 100s clock at 25fps with no decoding. It never claims hardware decode.
+// 100s clock at 25fps (frame = time / 40ms) with no decoding. It never
+// claims hardware decode.
 package dummy
 
 import (
+	"errors"
+	"image"
+	"image/color"
+	"image/png"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,41 +19,85 @@ import (
 const (
 	LengthMs = 100000
 	FPS      = 25
+	FrameMs  = 1000 / FPS
 )
 
 type Backend struct {
-	mu     sync.Mutex
-	events chan engine.Event
-	start  atomic.Int64 // UnixNano of play start
-	offset int64
-	paused bool
-	closed atomic.Bool
+	mu      sync.Mutex
+	events  chan engine.Event
+	start   atomic.Int64 // UnixNano of play start
+	offset  int64
+	paused  bool
+	stopped bool
+	closed  atomic.Bool
 }
 
 // New returns a dummy backend whose clock starts now.
 func New() *Backend {
-	b := &Backend{
-		events: make(chan engine.Event, 32),
-	}
+	b := &Backend{events: make(chan engine.Event, 32)}
 	b.start.Store(time.Now().UnixNano())
 	return b
 }
 
 func (b *Backend) now() int64 {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if b.paused {
 		return b.offset
 	}
-	return b.offset + (time.Now().UnixNano()-b.start.Load())/1e6
+	elapsed := (time.Now().UnixNano() - b.start.Load()) / 1e6
+	return (b.offset + elapsed) % LengthMs
 }
 
-func (b *Backend) Play()  { b.paused = false; b.start.Store(time.Now().UnixNano()) }
-func (b *Backend) Pause() { b.offset = b.now(); b.paused = true }
-func (b *Backend) Stop()  { b.offset = 0; b.paused = false; b.start.Store(time.Now().UnixNano()) }
+func (b *Backend) Play() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.paused {
+		b.paused = false
+		b.stopped = false
+		b.start.Store(time.Now().UnixNano())
+	} else if b.stopped {
+		b.offset = 0
+		b.paused = false
+		b.stopped = false
+		b.start.Store(time.Now().UnixNano())
+	}
+	// Already playing: do nothing (idempotent; does not rewind).
+}
+
+func (b *Backend) Pause() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if !b.paused && !b.stopped {
+		b.offset = b.nowLocked()
+		b.paused = true
+	}
+}
+
+func (b *Backend) nowLocked() int64 {
+	if b.paused {
+		return b.offset
+	}
+	return (b.offset + (time.Now().UnixNano()-b.start.Load())/1e6) % LengthMs
+}
+
+func (b *Backend) Stop() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.offset = 0
+	b.paused = false
+	b.stopped = true
+}
+
 func (b *Backend) SeekTo(ms int64) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	if ms < 0 {
 		ms = 0
 	}
 	b.offset = ms % LengthMs
+	b.stopped = false
+	b.paused = false
 	b.start.Store(time.Now().UnixNano())
 }
 func (b *Backend) SetRate(float64)            {}
@@ -79,8 +129,12 @@ func (b *Backend) Time() int64                    { return b.now() }
 func (b *Backend) Length() int64                  { return LengthMs }
 func (b *Backend) VideoSize() (int, int, bool)    { return 640, 360, true }
 func (b *Backend) Events() <-chan engine.Event    { return b.events }
+
 func (b *Backend) Tick() {
-	if b.closed.Load() {
+	b.mu.Lock()
+	stopped, paused := b.stopped, b.paused
+	b.mu.Unlock()
+	if b.closed.Load() || stopped || paused {
 		return
 	}
 	select {
@@ -88,10 +142,34 @@ func (b *Backend) Tick() {
 	default:
 	}
 }
-func (b *Backend) Screenshot(string) error { return nil }
+
+// Screenshot writes a deterministic placeholder PNG (a single color indexed
+// by the current frame) so layout acceptance has a file artifact. It is
+// not a decode.
+func (b *Backend) Screenshot(path string) error {
+	if path == "" {
+		return errors.New("dummy: empty screenshot path")
+	}
+	t := b.now()
+	img := image.NewRGBA(image.Rect(0, 0, 64, 36))
+	c := color.RGBA{R: uint8(t % 256), G: uint8((t / 256) % 256), B: 64, A: 255}
+	for y := 0; y < 36; y++ {
+		for x := 0; x < 64; x++ {
+			img.SetRGBA(x, y, c)
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return png.Encode(f, img)
+}
 
 func (b *Backend) State() engine.BackendState {
-	if b.closed.Load() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.closed.Load() || b.stopped {
 		return engine.BackendIdle
 	}
 	if b.paused {
