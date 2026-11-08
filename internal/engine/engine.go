@@ -653,10 +653,6 @@ func (e *Engine) SetCrop(crop string) {
 
 // AddSubtitle attaches a subtitle file, remembering it across reloads.
 func (e *Engine) AddSubtitle(path string) bool {
-	be, _, ok := e.backend()
-	if !ok || !be.AddSubtitle(path) {
-		return false
-	}
 	e.mu.Lock()
 	for _, p := range e.subtitles {
 		if p == path {
@@ -664,6 +660,12 @@ func (e *Engine) AddSubtitle(path string) bool {
 			return true
 		}
 	}
+	e.mu.Unlock()
+	be, _, ok := e.backend()
+	if !ok || !be.AddSubtitle(path) {
+		return false
+	}
+	e.mu.Lock()
 	e.subtitles = append(e.subtitles, path)
 	e.mu.Unlock()
 	return true
@@ -671,10 +673,6 @@ func (e *Engine) AddSubtitle(path string) bool {
 
 // AddAudio attaches an audio file, remembering it across reloads.
 func (e *Engine) AddAudio(path string) bool {
-	be, _, ok := e.backend()
-	if !ok || !be.AddAudio(path) {
-		return false
-	}
 	e.mu.Lock()
 	for _, p := range e.audioFiles {
 		if p == path {
@@ -682,6 +680,12 @@ func (e *Engine) AddAudio(path string) bool {
 			return true
 		}
 	}
+	e.mu.Unlock()
+	be, _, ok := e.backend()
+	if !ok || !be.AddAudio(path) {
+		return false
+	}
+	e.mu.Lock()
 	e.audioFiles = append(e.audioFiles, path)
 	e.mu.Unlock()
 	return true

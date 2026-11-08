@@ -28,6 +28,8 @@ type fakeBackend struct {
 	videoID       int
 	subID         int
 	chapter       int
+	addSubCalls   int
+	addAudioCalls int
 	aspect        string
 	scale         float64
 	crop          string
@@ -143,12 +145,14 @@ func (f *fakeBackend) SetCrop(crop string) bool {
 func (f *fakeBackend) AddSubtitle(path string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.addSubCalls++
 	f.subs = append(f.subs, Track{ID: 99, Name: path})
 	return true
 }
 func (f *fakeBackend) AddAudio(path string) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.addAudioCalls++
 	f.audio = append(f.audio, Track{ID: 88, Name: path})
 	return true
 }
@@ -353,11 +357,14 @@ func TestViewSettingsAndExternalTracks(t *testing.T) {
 	if gotAspect != "16:9" || gotScale != 1.5 || gotCrop != "2.35:1" {
 		t.Fatalf("settings aspect=%q scale=%v crop=%q", gotAspect, gotScale, gotCrop)
 	}
-	if !e.AddSubtitle("/tmp/a.srt") || !e.AddAudio("/tmp/a.m4a") {
+	if !e.AddSubtitle("/tmp/a.srt") || !e.AddSubtitle("/tmp/a.srt") || !e.AddAudio("/tmp/a.m4a") {
 		t.Fatal("external attach failed")
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.addSubCalls != 1 || f.addAudioCalls != 1 {
+		t.Fatalf("duplicate external attach calls %d/%d", f.addSubCalls, f.addAudioCalls)
+	}
 	if len(f.subs) != 1 || len(f.audio) != 1 {
 		t.Fatalf("subs=%v audio=%v", f.subs, f.audio)
 	}

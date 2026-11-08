@@ -820,6 +820,7 @@ func (a *app) setScale(scale float64) {
 			c.eng.SetScale(scale)
 		}
 	}
+	a.saveSettings()
 }
 
 func (a *app) setCrop(crop string) {
@@ -829,6 +830,7 @@ func (a *app) setCrop(crop string) {
 			c.eng.SetCrop(crop)
 		}
 	}
+	a.saveSettings()
 }
 
 func (a *app) setViewMode(fill bool, stretch bool) {
