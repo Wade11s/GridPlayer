@@ -59,6 +59,9 @@
 - #3 external file drop: cell drop inserts files before that cell, window drop
   appends, a single `.gpls` opens. `insertCells` preserves live engines; unit
   test covers insert/append. Free/mosaic still open.
+- #3 free tiles (partial): `internal/grid.FreeLayout` auto-rows tiles as
+  fractions + gap inset; app toggles Free Tiles (no free drag/resize yet).
+  Tests for bounds/overlap/one-tile. Mosaic still open.
 - #3 single mode (merged 15bfc12): `internal/grid.SingleLayout` (Auto/Right/
   Left/Bottom/Top, share clamp 5%..40%, STRIP_PER_LINE=4, tiles centered) +
   menu + `playlist/single_mode_strip{,_side}` settings; screenshots 1/2/4/single.

@@ -53,6 +53,8 @@ type app struct {
 	single        bool
 	singleSide    grid.StripSide
 	singleShare   *float64
+	free          bool
+	freeTiles     []grid.Tile
 	aspect        string
 	scale         float64
 	crop          string
@@ -92,6 +94,7 @@ func (a *app) loadSettings() {
 		Cols: atoi(st.Get("playlist/grid_cols", "3"), 3),
 	}
 	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
+	a.free = st.Get("playlist/grid_free", "false") == "true"
 	switch st.Get("playlist/single_mode_strip_side", "auto") {
 	case "right":
 		a.singleSide = grid.StripRight
@@ -166,6 +169,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_mode", modeName(a.cfg.Mode))
 	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
+	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	strip := "off"
 	if a.single {
 		strip = "swap"
@@ -535,6 +539,13 @@ func (a *app) view(c *ui.Context) {
 	w, h := c.Size()
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
+	if a.free {
+		tiles := grid.FreeLayout(len(a.cells))
+		rects = make([]grid.Rect, len(tiles))
+		for i, t := range tiles {
+			rects[i] = t.Rect(area, 4)
+		}
+	}
 	if a.single && len(a.cells) > 1 {
 		rects, _ = grid.SingleLayout(len(a.cells), a.active, area, 4, a.singleSide, a.singleShare, 16.0/9.0)
 	}
@@ -1160,6 +1171,14 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Fixed 4×4", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4})
 			}},
+			{Label: "Free Tiles", Type: mygo.MenuItemCheckbox, Checked: a.free, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.free = !a.free
+				a.saveSettings()
+				a.refreshMenu()
+				if a.win != nil {
+					a.win.Invalidate()
+				}
+			}},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.single = !a.single
@@ -1237,6 +1256,7 @@ func main() {
 	savePath := flag.String("save-playlist", "", "save the current playlist after 3s (automation)")
 	screenshot := flag.String("screenshot", "", "save a frame of the active cell to path after 2s")
 	single := flag.Bool("single", false, "start in single mode")
+	free := flag.Bool("free", false, "start with free tiles")
 	userData := flag.String("user-data-dir", "", "override the user data directory")
 	flag.Parse()
 	if *userData != "" {
@@ -1270,6 +1290,9 @@ func main() {
 		a.loadSettings()
 		if *single {
 			a.single = true
+		}
+		if *free {
+			a.free = true
 		}
 		if *playlistPath != "" {
 			if err := a.loadPlaylist(*playlistPath); err != nil {
