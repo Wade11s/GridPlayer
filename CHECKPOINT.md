@@ -49,9 +49,12 @@
   menu (File/Playback/Grid/View/Tracks), per-cell overlay controls, Fill cover via
   clip view + Fit, shortcuts (Space/arrows/M/L/B/N/[/]), active-cell border.
   Local screenshots: 1-cell, 2-cell fill, 4-cell.
-- #3 drag reorder: cells are `Drag(i)` sources and `Drop[int]` targets; a drop
-  swaps cell structs (path/engine/view) and re-frames both slots. Unit test for
-  swap bounds. Free/mosaic/single mode still open.
+- #3 drag reorder (merged a0d5cc6): cells are `Drag(i)` sources and `Drop[int]`
+  targets; a drop swaps cell structs (path/engine/view) and re-frames slots.
+- #2 view/external tracks (merged 467e843): aspect/scale/crop settings, external
+  subtitle/audio loaded via file://, remembered across reloads, feature.de.srt
+  fixture + real attach test; View/Tracks menus; only pinned pixel/scalable
+  fields implemented. Free/mosaic/single mode still open.
 - #2 view/external tracks: aspect/scale/crop in engine+vlcmac, `file://` subtitle/audio
   slaves remembered across reloads, View + Tracks file menus, settings persistence
   for `cell_view_mode` (fill/fit/stretch) plus aspect/scale/crop. Real libVLC
