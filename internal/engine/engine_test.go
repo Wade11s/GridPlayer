@@ -158,6 +158,9 @@ func (f *fakeBackend) AddAudio(path string) bool {
 	return true
 }
 func (f *fakeBackend) Screenshot(path string) error {
+	if f.closed {
+		return errors.New("closed")
+	}
 	if path == "" {
 		return errors.New("empty")
 	}
