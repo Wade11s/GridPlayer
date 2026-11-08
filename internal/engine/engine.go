@@ -137,6 +137,7 @@ type Backend interface {
 	SetCrop(crop string) bool
 	AddSubtitle(path string) bool
 	AddAudio(path string) bool
+	Screenshot(path string) error
 	Events() <-chan Event
 	Close()
 }
@@ -712,6 +713,18 @@ func (e *Engine) RefreshTracks() {
 		e.publishLocked()
 	}
 	e.mu.Unlock()
+}
+
+// Screenshot saves the current video frame to path.
+func (e *Engine) Screenshot(path string) error {
+	be, _, ok := e.backend()
+	if !ok {
+		return ErrClosed
+	}
+	if path == "" {
+		return errors.New("engine: empty screenshot path")
+	}
+	return be.Screenshot(path)
 }
 
 // Stop stops playback and leaves the engine idle.

@@ -30,6 +30,7 @@ type fakeBackend struct {
 	chapter       int
 	addSubCalls   int
 	addAudioCalls int
+	shots         []string
 	aspect        string
 	scale         float64
 	crop          string
@@ -155,6 +156,13 @@ func (f *fakeBackend) AddAudio(path string) bool {
 	f.addAudioCalls++
 	f.audio = append(f.audio, Track{ID: 88, Name: path})
 	return true
+}
+func (f *fakeBackend) Screenshot(path string) error {
+	if path == "" {
+		return errors.New("empty")
+	}
+	f.shots = append(f.shots, path)
+	return nil
 }
 func (f *fakeBackend) Events() <-chan Event { return f.events }
 func (f *fakeBackend) Close() {
@@ -367,5 +375,11 @@ func TestViewSettingsAndExternalTracks(t *testing.T) {
 	}
 	if len(f.subs) != 1 || len(f.audio) != 1 {
 		t.Fatalf("subs=%v audio=%v", f.subs, f.audio)
+	}
+	if err := e.Screenshot("/tmp/shot.png"); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.shots) != 1 || f.shots[0] != "/tmp/shot.png" {
+		t.Fatalf("shots=%v", f.shots)
 	}
 }

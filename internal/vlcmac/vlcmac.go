@@ -719,6 +719,21 @@ func (p *Player) AddAudio(path string) (ok bool) {
 	return ok
 }
 
+// Screenshot writes the current video frame to path.
+func (p *Player) Screenshot(path string) (err error) {
+	if path == "" {
+		return errors.New("vlcmac: empty screenshot path")
+	}
+	p.with(func(mp *C.libvlc_media_player_t) {
+		c := C.CString(path)
+		defer C.free(unsafe.Pointer(c))
+		if C.libvlc_video_take_snapshot(mp, 0, c, 0, 0) != 0 {
+			err = errors.New("vlcmac: video not found for snapshot")
+		}
+	})
+	return err
+}
+
 // Release runs the fixed teardown: unbind NSView -> release player ->
 // release media. Call Stop first; detach the AppKit view (caller, main
 // thread) between unbind and release.

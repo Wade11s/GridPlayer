@@ -607,6 +607,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 				if ui.Button(c.Key(fmt.Sprintf("mute-%d", i)), mute).Width(88).Clicked() && cell.eng != nil {
 					cell.eng.SetMute(!s.Muted)
 				}
+				if ui.Button(c.Key(fmt.Sprintf("shot-%d", i)), "Shot").Width(64).Clicked() && cell.eng != nil {
+					a.saveFrame(cell.eng)
+				}
 			})
 		})
 	if el.Clicked() {
@@ -1046,6 +1049,32 @@ func (a *app) setRate(rate float64) {
 	}
 }
 
+func (a *app) saveFrame(eng *engine.Engine) {
+	if eng == nil {
+		return
+	}
+	path, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+		Parent: a.win,
+		Title:  "Save frame",
+		Filters: []mygo.FileFilter{{
+			Name:       "PNG image",
+			Extensions: []string{"png"},
+		}},
+	})
+	if err != nil || path == "" {
+		return
+	}
+	if !strings.HasSuffix(strings.ToLower(path), ".png") {
+		path += ".png"
+	}
+	if err := eng.Screenshot(path); err != nil {
+		a.status = err.Error()
+		return
+	}
+	a.addRecent(path)
+	a.status = "saved " + filepath.Base(path)
+}
+
 func (a *app) menu() *mygo.Menu {
 	recentItems := make([]*mygo.MenuItem, 0, len(a.recent))
 	for _, p := range a.recent {
@@ -1085,6 +1114,7 @@ func (a *app) menu() *mygo.Menu {
 					eng.Stop()
 				}
 			}},
+			{Label: "Save Frame…", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Seek -5s", Accelerator: "Left", Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
@@ -1205,6 +1235,7 @@ func main() {
 	files := flag.String("files", "", "comma-separated media paths (default: 4 fixtures)")
 	playlistPath := flag.String("playlist", "", "load a .gpls playlist")
 	savePath := flag.String("save-playlist", "", "save the current playlist after 3s (automation)")
+	screenshot := flag.String("screenshot", "", "save a frame of the active cell to path after 2s")
 	single := flag.Bool("single", false, "start in single mode")
 	userData := flag.String("user-data-dir", "", "override the user data directory")
 	flag.Parse()
@@ -1282,6 +1313,20 @@ func main() {
 			}
 		})
 		mygo.App.SetMenu(a.menu())
+		if *screenshot != "" {
+			go func() {
+				time.Sleep(3 * time.Second)
+				mygo.RunOnMain(func() {
+					if eng := a.activeEngine(); eng != nil {
+						if err := eng.Screenshot(*screenshot); err != nil {
+							log.Printf("screenshot: %v", err)
+						} else {
+							log.Printf("screenshot saved: %s", *screenshot)
+						}
+					}
+				})
+			}()
+		}
 		if *savePath != "" {
 			go func() {
 				time.Sleep(3 * time.Second)
