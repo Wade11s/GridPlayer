@@ -25,14 +25,14 @@ func Mosaic(n int) []Tile {
 	out[0] = Tile{Box: [4]float64{0, 0, big, 1}}
 	rest := n - 1
 	rows := int(math.Ceil(math.Sqrt(float64(rest))))
+	cols := int(math.Ceil(float64(rest) / float64(rows)))
 	for i := 0; i < rest; i++ {
-		r := i / rows
-		c := i % rows
-		x0 := big
-		x1 := 1.0
+		r := i / cols
+		c := i % cols
+		x0 := big + float64(c)*(1-big)/float64(cols)
+		x1 := big + float64(c+1)*(1-big)/float64(cols)
 		y0 := float64(r) / float64(rows)
 		y1 := float64(r+1) / float64(rows)
-		_ = c
 		out[i+1] = Tile{Box: [4]float64{x0, y0, x1, y1}}
 	}
 	return out

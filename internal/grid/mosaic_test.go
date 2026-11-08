@@ -32,6 +32,14 @@ func TestMosaic(t *testing.T) {
 			if ox > 1e-9 && oy > 1e-9 {
 				t.Fatalf("n=%d big overlaps %d", n, j)
 			}
+			for k := j + 1; k < len(tiles); k++ {
+				p := tiles[k].Box
+				ox2 := math.Max(0, math.Min(o[2], p[2])-math.Max(o[0], p[0]))
+				oy2 := math.Max(0, math.Min(o[3], p[3])-math.Max(o[1], p[1]))
+				if ox2 > 1e-9 && oy2 > 1e-9 {
+					t.Fatalf("n=%d rest tiles %d/%d overlap", n, j, k)
+				}
+			}
 		}
 	}
 }

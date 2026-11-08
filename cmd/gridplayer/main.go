@@ -1259,6 +1259,7 @@ func (a *app) menu() *mygo.Menu {
 					a.free = false
 					a.single = false
 				}
+				a.saveSettings()
 				a.refreshMenu()
 				if a.win != nil {
 					a.win.Invalidate()
@@ -1379,6 +1380,8 @@ func main() {
 		}
 		if *mosaic {
 			a.mosaic = true
+			a.free = false
+			a.single = false
 		}
 		if *free {
 			a.free = true
