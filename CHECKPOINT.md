@@ -77,6 +77,10 @@
   dialog + overlay Shot, `--screenshot` automation flag verified to write a PNG.
   Zoom/anchor/shift/transform, free tiles/mosaic, streams, settings UI and
   VLC bundling still open.
+- #2 frame screenshots (merged c7fa9a2): libVLC `video_take_snapshot` through
+  engine, Save Frame dialog + Shot overlay + `--screenshot` automation;
+  PNG verified from a playing fixture. Zoom/shift/transform, free tiles/
+  mosaic, streams, settings UI, VLC bundling still open.
 - #5 local .app: `mygo.json` + pinned `go tool mygo`, icon, `scripts/build_app.sh`,
   `scripts/smoke_app.sh`. `dist/darwin-arm64/GridPlayer.app` (ad-hoc signed)
   launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;
