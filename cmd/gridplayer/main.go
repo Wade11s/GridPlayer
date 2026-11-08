@@ -14,7 +14,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -38,8 +38,7 @@ type app struct {
 	fixDir  string
 	resolve func() (cv, sv uintptr, h float64, ok bool)
 	cells   [4]*cell
-	mu      sync.Mutex
-	closed  bool
+	closed  atomic.Bool
 	status  string
 }
 
@@ -60,7 +59,7 @@ func newApp(fixDir string) *app {
 // ensure creates the native view + libVLC player for cell i and sizes it to
 // r (DIPs, top-left). Main thread only (Draw callback).
 func (a *app) ensure(i int, r ui.Rect) {
-	if a.win == nil {
+	if a.win == nil || a.closed.Load() {
 		return
 	}
 	cv, sv, h, ok := a.resolve()
@@ -75,24 +74,34 @@ func (a *app) ensure(i int, r ui.Rect) {
 			a.status = "vlc: " + err.Error()
 			return
 		}
-		c.inst = inst
 		pl, err := vlcmac.NewPlayer(inst)
 		if err != nil {
+			inst.Release()
 			a.status = "vlc: " + err.Error()
 			return
 		}
-		c.pl = pl
-		c.view = nativehost.NewView()
-		nativehost.AddBelow(cv, sv, c.view)
+		view := nativehost.NewView()
+		if view == 0 {
+			pl.Release()
+			inst.Release()
+			a.status = "nativehost: no view"
+			return
+		}
+		nativehost.AddBelow(cv, sv, view)
 		// Size BEFORE binding: the macosx vout latches the drawable size
 		// when output opens (PoC-A sized views before SetNSObject).
-		nativehost.SetFrame(c.view, nativehost.ToMac(
+		nativehost.SetFrame(view, nativehost.ToMac(
 			nativehost.DIP{X: float64(r.X), Y: float64(r.Y), W: float64(r.W), H: float64(r.H)}, h))
-		pl.SetNSObject(c.view)
+		pl.SetNSObject(view)
 		if err := pl.SetMedia(c.path); err != nil {
+			pl.Release()
+			nativehost.Remove(view)
+			nativehost.Release(view)
+			inst.Release()
 			a.status = "vlc: " + err.Error()
 			return
 		}
+		c.inst, c.pl, c.view = inst, pl, view
 		if c.mute {
 			pl.SetMute(true)
 		} else {
@@ -105,31 +114,29 @@ func (a *app) ensure(i int, r ui.Rect) {
 }
 
 func (a *app) teardown() {
-	a.mu.Lock()
-	if a.closed {
-		a.mu.Unlock()
+	if !a.closed.CompareAndSwap(false, true) {
 		return
 	}
-	a.closed = true
-	a.mu.Unlock()
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
-		if c == nil || c.pl == nil {
+		if c == nil {
 			continue
 		}
-		fmt.Printf("gridplayer: cell %d time=%dms state=%d\n", i, c.pl.Time(), c.pl.State())
-		c.pl.Stop()
-		time.Sleep(50 * time.Millisecond)
-		c.pl.Release() // unbinds NSView
+		if c.pl != nil {
+			fmt.Printf("gridplayer: cell %d time=%dms state=%d\n", i, c.pl.Time(), c.pl.State())
+			c.pl.Stop()
+			time.Sleep(50 * time.Millisecond)
+			c.pl.Release() // unbinds NSView
+			c.pl = nil
+		}
 		if c.view != 0 {
 			nativehost.Remove(c.view) // detach
 			nativehost.Release(c.view)
+			c.view = 0
 		}
-		c.pl = nil
-	}
-	for _, c := range a.cells {
-		if c != nil && c.inst != nil {
+		if c.inst != nil {
 			c.inst.Release()
+			c.inst = nil
 		}
 	}
 	fmt.Println("gridplayer: teardown done")
@@ -232,11 +239,11 @@ func main() {
 		go func() {
 			for {
 				time.Sleep(100 * time.Millisecond)
+				if a.closed.Load() {
+					return
+				}
 				if a.win != nil {
 					a.win.Invalidate()
-				}
-				if a.closed {
-					return
 				}
 			}
 		}()

@@ -15,11 +15,16 @@ Every PR merges only when ALL hold for the exact head SHA:
    Post-bootstrap, CI is a required status check.
 6. SHA re-check immediately before merge (head/base drift ⇒ reviews/results invalid ⇒ re-run).
 
-Bootstrap exception (first PR only): the repository starts with zero commits and no
-branch protection, so no required check can report on a base that does not exist yet.
-The bootstrap PR still needs (2)+(3)+(4); after it merges, main gains the workflow and
-required checks. If branch protection/costs later prevent checks, merge waits (no
-local-green substitution), per §4.2.
+Bootstrap path (empty repository): the first commit (`029ec3c`) creates `main` because
+GitHub cannot open a pull request before a base branch exists. The PoC content landed
+in `94753c1` before that PR could exist; it is recorded as pre-gate scaffolding and is
+**not** claimed as a gated merge. This PR re-validates the whole tree at its head SHA
+with the independent review, local acceptance and hosted checks below; every later
+change is PR-first. No required check is waived: same-repo `pull_request` workflows run
+from the PR head branch, so the bootstrap PR's own CI is real.
+
+After this PR, enable branch protection with the `ci` check if the repository plan
+supports it; if it does not, report the limitation rather than substituting local green.
 
 Post-merge: full local regression on main before the next PR; red ⇒ freeze merges,
 land a minimal revert PR. No force push, no history rewrite, no release, no public publish.

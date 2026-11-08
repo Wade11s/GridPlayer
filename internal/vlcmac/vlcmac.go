@@ -212,7 +212,12 @@ func GoVLCDisplay(opaque unsafe.Pointer, picture unsafe.Pointer) {
 // before SetMedia. Honest caveat: libVLC docs warn this path disables HW
 // decode or forces a slow copy; callers must read decoder logs.
 func (p *Player) EnableCallbackVideo() {
-	if p == nil || p.mp == nil {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released || p.mp == nil {
 		return
 	}
 	opaque := unsafe.Pointer(p.mp)
@@ -251,7 +256,9 @@ func GoVLCEvent(player unsafe.Pointer, evType C.int, timeMs C.int64_t) {
 
 // Instance is a libVLC instance (one per HW_SP player, mirroring upstream).
 type Instance struct {
-	inst *C.libvlc_instance_t
+	mu       sync.Mutex
+	inst     *C.libvlc_instance_t
+	released bool
 }
 
 // NewInstance creates a libVLC instance with the upstream option set.
@@ -287,23 +294,40 @@ func NewInstance(verbose int) (*Instance, error) {
 
 // Release frees the instance. Call after each player's Release.
 func (in *Instance) Release() {
-	if in == nil || in.inst == nil {
+	if in == nil {
 		return
 	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.released || in.inst == nil {
+		return
+	}
+	in.released = true
 	C.libvlc_release(in.inst)
 	in.inst = nil
 }
 
 // Player wraps one libvlc_media_player_t.
 type Player struct {
-	inst *Instance
-	mp   *C.libvlc_media_player_t
-	md   *C.libvlc_media_t
+	mu       sync.Mutex
+	inst     *Instance
+	mp       *C.libvlc_media_player_t
+	md       *C.libvlc_media_t
+	attached bool
+	released bool
 }
 
 // NewPlayer creates a player. The caller must SetNSObject before SetMedia,
 // mirroring upstream init_player order.
 func NewPlayer(in *Instance) (*Player, error) {
+	if in == nil {
+		return nil, errors.New("vlcmac: nil instance")
+	}
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	if in.released || in.inst == nil {
+		return nil, errors.New("vlcmac: instance released")
+	}
 	mp := C.libvlc_media_player_new(in.inst)
 	if mp == nil {
 		return nil, errors.New("vlcmac: media_player_new failed")
@@ -317,16 +341,22 @@ func NewPlayer(in *Instance) (*Player, error) {
 // libvlc_media_player_set_nsobject is invoked through purego SyscallN so
 // no Go<->C uintptr roundtrip exists (go vet clean; same style as MyGo).
 func (p *Player) SetNSObject(view uintptr) {
-	if p == nil || p.mp == nil {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released || p.mp == nil {
 		return
 	}
 	setNSObjectPurego(p.mp, view)
 }
 
 var setNSObjectFn uintptr
+var setNSObjectOnce sync.Once
 
 func setNSObjectPurego(mp *C.libvlc_media_player_t, view uintptr) {
-	if setNSObjectFn == 0 {
+	setNSObjectOnce.Do(func() {
 		layout, _ := Discover()
 		path := "/Applications/VLC.app/Contents/MacOS/lib/libvlc.dylib"
 		if layout != nil {
@@ -340,15 +370,20 @@ func setNSObjectPurego(mp *C.libvlc_media_player_t, view uintptr) {
 		if err != nil {
 			panic(err)
 		}
-	}
+	})
 	_, _, _ = purego.SyscallN(setNSObjectFn, uintptr(unsafe.Pointer(mp)), view)
 }
 
 // SetMedia loads a file path and enables in-place file repeat loop
 // (upstream INPUT_REPEAT_PASSES semantics: no demuxer restart).
 func (p *Player) SetMedia(path string) error {
-	if p == nil || p.mp == nil {
+	if p == nil {
 		return errors.New("vlcmac: nil player")
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released || p.mp == nil {
+		return errors.New("vlcmac: released")
 	}
 	cpath := C.CString(path)
 	defer C.free(unsafe.Pointer(cpath))
@@ -364,56 +399,99 @@ func (p *Player) SetMedia(path string) error {
 		C.libvlc_media_release(p.md)
 	}
 	p.md = md
-	mgr := C.libvlc_media_player_event_manager(p.mp)
-	types := []C.int{C.libvlc_MediaPlayerTimeChanged, C.libvlc_MediaPlayerPlaying,
-		C.libvlc_MediaPlayerPaused, C.libvlc_MediaPlayerStopped,
-		C.libvlc_MediaPlayerEndReached, C.libvlc_MediaPlayerEncounteredError,
-		C.libvlc_MediaPlayerMediaChanged, C.libvlc_MediaPlayerVout}
-	typesC := make([]C.int, len(types))
-	copy(typesC, types)
-	if rc := C.attach_player_events(mgr, unsafe.Pointer(p.mp), &typesC[0], C.size_t(len(typesC))); rc != 0 {
-		return fmt.Errorf("vlcmac: event attach failed rc=%d", int(rc))
+	if !p.attached {
+		mgr := C.libvlc_media_player_event_manager(p.mp)
+		types := []C.int{C.libvlc_MediaPlayerTimeChanged, C.libvlc_MediaPlayerPlaying,
+			C.libvlc_MediaPlayerPaused, C.libvlc_MediaPlayerStopped,
+			C.libvlc_MediaPlayerEndReached, C.libvlc_MediaPlayerEncounteredError,
+			C.libvlc_MediaPlayerMediaChanged, C.libvlc_MediaPlayerVout}
+		typesC := make([]C.int, len(types))
+		copy(typesC, types)
+		if rc := C.attach_player_events(mgr, unsafe.Pointer(p.mp), &typesC[0], C.size_t(len(typesC))); rc != 0 {
+			return fmt.Errorf("vlcmac: event attach failed rc=%d", int(rc))
+		}
+		p.attached = true
 	}
 	return nil
 }
 
-func (p *Player) Play()             { C.libvlc_media_player_play(p.mp) }
-func (p *Player) Pause()            { C.libvlc_media_player_pause(p.mp) }
-func (p *Player) Stop()             { C.libvlc_media_player_stop(p.mp) }
-func (p *Player) SetTime(ms int64)  { C.libvlc_media_player_set_time(p.mp, C.libvlc_time_t(ms)) }
-func (p *Player) SetRate(r float32) { C.libvlc_media_player_set_rate(p.mp, C.float(r)) }
-func (p *Player) SetVolume(v int)   { C.libvlc_audio_set_volume(p.mp, C.int(v)) }
-func (p *Player) SetMute(m bool) {
-	if m {
-		C.libvlc_audio_set_mute(p.mp, 1)
-	} else {
-		C.libvlc_audio_set_mute(p.mp, 0)
+func (p *Player) with(fn func(mp *C.libvlc_media_player_t)) bool {
+	if p == nil {
+		return false
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released || p.mp == nil {
+		return false
+	}
+	fn(p.mp)
+	return true
 }
-func (p *Player) Time() int64   { return int64(C.libvlc_media_player_get_time(p.mp)) }
-func (p *Player) Length() int64 { return int64(C.libvlc_media_player_get_length(p.mp)) }
-func (p *Player) State() int    { return int(C.libvlc_media_player_get_state(p.mp)) }
+
+func (p *Player) Play() { p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_play(mp) }) }
+func (p *Player) Pause() {
+	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_pause(mp) })
+}
+func (p *Player) Stop() { p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_stop(mp) }) }
+func (p *Player) SetTime(ms int64) {
+	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_set_time(mp, C.libvlc_time_t(ms)) })
+}
+func (p *Player) SetRate(r float32) {
+	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_set_rate(mp, C.float(r)) })
+}
+func (p *Player) SetVolume(v int) {
+	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_audio_set_volume(mp, C.int(v)) })
+}
+func (p *Player) SetMute(m bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		if m {
+			C.libvlc_audio_set_mute(mp, 1)
+		} else {
+			C.libvlc_audio_set_mute(mp, 0)
+		}
+	})
+}
+func (p *Player) Time() (ms int64) {
+	p.with(func(mp *C.libvlc_media_player_t) { ms = int64(C.libvlc_media_player_get_time(mp)) })
+	return ms
+}
+func (p *Player) Length() (ms int64) {
+	p.with(func(mp *C.libvlc_media_player_t) { ms = int64(C.libvlc_media_player_get_length(mp)) })
+	return ms
+}
+func (p *Player) State() (state int) {
+	p.with(func(mp *C.libvlc_media_player_t) { state = int(C.libvlc_media_player_get_state(mp)) })
+	return state
+}
 
 func (p *Player) VideoSize() (w, h int, ok bool) {
-	var px, py C.unsigned
-	if C.libvlc_video_get_size(p.mp, 0, &px, &py) != 0 {
-		return 0, 0, false
-	}
-	return int(px), int(py), true
+	p.with(func(mp *C.libvlc_media_player_t) {
+		var px, py C.unsigned
+		if C.libvlc_video_get_size(mp, 0, &px, &py) == 0 {
+			w, h, ok = int(px), int(py), true
+		}
+	})
+	return w, h, ok
 }
 
 // Release runs the fixed teardown: unbind NSView -> release player ->
 // release media. Call Stop first; detach the AppKit view (caller, main
 // thread) between unbind and release.
 func (p *Player) Release() {
-	if p == nil || p.mp == nil {
+	if p == nil {
 		return
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released || p.mp == nil {
+		return
+	}
+	p.released = true
 	mp := p.mp
 	md := p.md
 	p.mp = nil
 	p.md = nil
-	C.libvlc_media_player_set_nsobject(mp, nil)
+	setNSObjectPurego(mp, 0)
 	C.libvlc_media_player_release(mp)
 	if md != nil {
 		C.libvlc_media_release(md)

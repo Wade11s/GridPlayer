@@ -1,3 +1,5 @@
+//go:build darwin
+
 // Command poc-hw is Attempt A: isolated hardware-path proof.
 //
 // One AppKit window, 4 NSViews, 4 libVLC players bound with

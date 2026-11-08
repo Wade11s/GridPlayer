@@ -15,6 +15,8 @@
 //
 // Every function requires the process main thread (AppKit rule); callers
 // use mygo.RunOnMain or run inside a ui view builder / Draw callback.
+//go:build darwin
+
 package nativehost
 
 import (
@@ -45,6 +47,7 @@ var (
 	msgInitRec func(obj id, sel objc.SEL, r NSRect) id
 	msgSetRec  func(obj id, sel objc.SEL, r NSRect)
 	msgRect    func(obj id, sel objc.SEL) NSRect
+	msgUint    func(obj id, sel objc.SEL, n uint64) uint64
 )
 
 // nsWindowBelow is NSWindowBelow (-1), for addSubview:positioned:relativeTo:.
@@ -74,6 +77,7 @@ func initAppKit() {
 	purego.RegisterFunc(&msgInitRec, p)
 	purego.RegisterFunc(&msgSetRec, p)
 	purego.RegisterFunc(&msgRect, stret)
+	purego.RegisterFunc(&msgUint, p)
 }
 
 func sel(name string) objc.SEL { return objc.RegisterName(name) }
@@ -84,27 +88,23 @@ func send(obj id, name string, args ...any) id { return msgSend(obj, sel(name), 
 
 func nsString(s string) id { return send(class("NSString"), "stringWithUTF8String:", s) }
 
-// goString reads an NSString* (class names are ASCII, so byte length works).
+// goString reads an NSString* as UTF-8 with its exact byte length.
 func goString(str id) string {
 	if str == 0 {
 		return ""
 	}
-	// No typed wrapper for NSString length; read the C string with a
-	// bounded scan (class names are short).
+	// NSUTF8StringEncoding = 4.
+	n := msgUint(str, sel("lengthOfBytesUsingEncoding:"), 4)
+	if n == 0 {
+		return ""
+	}
 	ptr := uintptr(send(str, "UTF8String"))
 	if ptr == 0 {
 		return ""
 	}
-	// vet-clean idiom (as in MyGo): copy the address into a variable and
-	// take its address so the conversion keeps provenance.
 	a := ptr
 	cptr := *(*unsafe.Pointer)(unsafe.Pointer(&a))
-	buf := unsafe.Slice((*byte)(cptr), 256)
-	n := 0
-	for n < len(buf) && buf[n] != 0 {
-		n++
-	}
-	return string(buf[:n])
+	return string(unsafe.Slice((*byte)(cptr), int(n)))
 }
 
 // Resolve maps an NSWindow* (Window.NativeHandle) to its contentView and
