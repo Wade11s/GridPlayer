@@ -121,6 +121,8 @@ def make_feature(root: Path, secs: int = 12):
             "-map_metadata", "5", "-map_chapters", "5",
             "-c:v", "libx264", "-pix_fmt", "yuv420p", "-profile:v", "baseline",
             "-c:a", "aac", "-b:a", "96k", "-c:s", "srt",
+            "-fflags", "+bitexact",
+            "-flags:v", "+bitexact", "-flags:a", "+bitexact", "-flags:s", "+bitexact",
             "-metadata:s:a:0", "language=eng", "-metadata:s:a:0", "title=English",
             "-metadata:s:a:1", "language=spa", "-metadata:s:a:1", "title=Spanish",
             "-metadata:s:s:0", "language=eng", "-metadata:s:s:0", "title=English",
