@@ -43,6 +43,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `media_player_add_slave` with a `file://` MRL. The engine applies stored
   settings at `Load` and keeps external attachments across reloads. The UI
   exposes aspect/scale/crop and file loading for the active cell.
+- Streams: `SetMedia` uses `libvlc_media_new_location` for `scheme://` media,
+  so `file://` HLS and `http(s)://` URLs open through libVLC directly.
+  `testdata/fixtures/hls/` is a deterministic local VOD HLS (3 renditions);
+  yt-dlp/streamlink resolvers, cookies and proxy settings are not yet wired.
 - Frames: `Screenshot(path)` maps to `libvlc_video_take_snapshot` at the
   video's own size. The UI saves via a native dialog; `--screenshot PATH`
   saves the active cell after 3s for automation and tests.

@@ -80,6 +80,10 @@
   dialog + overlay Shot, `--screenshot` automation flag verified to write a PNG.
   Zoom/anchor/shift/transform, free tiles/mosaic, streams, settings UI and
   VLC bundling still open.
+- #8 streams (partial): deterministic local HLS fixture (3 renditions), URL MRL
+  loading via `libvlc_media_new_location`, `file://` HLS GUI playback verified,
+  Open URL dialog; scale default fixed to fit (0) after the 1x regression.
+  HTTP/RTSP + yt-dlp/streamlink, cookies, proxy, adaptive quality still open.
 - #2 frame screenshots (merged c7fa9a2): libVLC `video_take_snapshot` through
   engine, Save Frame dialog + Shot overlay + `--screenshot` automation;
   PNG verified from a playing fixture. Zoom/shift/transform, free tiles/

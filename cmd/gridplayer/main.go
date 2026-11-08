@@ -64,6 +64,8 @@ type app struct {
 	dirty         bool
 	forceQuit     bool
 	playlistPath  string
+	urlWin        *mygo.Window
+	urlInput      string
 	pending       []pendingDrop
 	settings      *settings.Store
 	recent        []string
@@ -72,7 +74,7 @@ type app struct {
 }
 
 func newApp(paths []string) *app {
-	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80, scale: 1}
+	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80}
 	a.setPlaylist(paths)
 	return a
 }
@@ -120,9 +122,9 @@ func (a *app) loadSettings() {
 	}
 	a.defaultMuted = st.Get("video_defaults/muted", "false") == "true"
 	a.aspect = st.Get("video_defaults/aspect_ratio", "")
-	a.scale = atof(st.Get("video_defaults/scale", "1"), 1)
+	a.scale = atof(st.Get("video_defaults/scale", "0"), 0)
 	if a.scale < 0 {
-		a.scale = 1
+		a.scale = 0
 	}
 	a.crop = st.Get("video_defaults/crop_ratio", "")
 	for i, c := range a.cells {
@@ -319,7 +321,7 @@ func (a *app) setPlaylist(paths []string) {
 
 func (a *app) newCell(i int, p string) *cell {
 	c := &cell{
-		label:  strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)),
+		label:  labelFor(p),
 		path:   p,
 		volume: a.defaultVolume,
 		rate:   1,
@@ -328,6 +330,15 @@ func (a *app) newCell(i int, p string) *cell {
 		c.muted = true
 	}
 	return c
+}
+
+func labelFor(p string) string {
+	s := strings.TrimSuffix(p, "/")
+	base := s
+	if i := strings.LastIndexByte(s, '/'); i >= 0 {
+		base = s[i+1:]
+	}
+	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
 // insertCells keeps existing cell structs (engines/views) and splices new
@@ -718,6 +729,42 @@ func (a *app) openDialog(add bool) {
 	a.addRecent(paths[0])
 }
 
+func (a *app) openURLDialog() {
+	if a.urlWin != nil {
+		return
+	}
+	a.urlInput = ""
+	w := mygo.NewWindow(mygo.WindowOptions{
+		Title:          "Open URL",
+		Width:          400,
+		Height:         170,
+		UseContentSize: true,
+		Content:        ui.View(a.urlView),
+	})
+	a.urlWin = w
+	w.OnClose(func(*mygo.CloseEvent) { a.urlWin = nil })
+}
+
+func (a *app) urlView(c *ui.Context) {
+	ui.Column(c).Fill().Padding(16).Gap(10).Children(func() {
+		ui.Text(c, "Stream URL (http/https/rtsp/HLS) or file:// URI").FontSize(13)
+		ui.TextInput(c.Key("url"), &a.urlInput).Label("URL")
+		ui.Row(c).Gap(8).Children(func() {
+			if ui.Button(c.Key("url-ok"), "Open").Clicked() && strings.TrimSpace(a.urlInput) != "" {
+				url := strings.TrimSpace(a.urlInput)
+				if a.urlWin != nil {
+					a.urlWin.Close()
+				}
+				a.setPlaylist([]string{url})
+				a.addRecent(url)
+			}
+			if ui.Button(c.Key("url-cancel"), "Cancel").Clicked() && a.urlWin != nil {
+				a.urlWin.Close()
+			}
+		})
+	})
+}
+
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
 	a.dirty = true
@@ -1104,6 +1151,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Open…", Accelerator: "CmdOrCtrl+O", Click: func(*mygo.MenuItem, *mygo.Window) { a.openDialog(false) }},
 			{Label: "Add…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(*mygo.MenuItem, *mygo.Window) { a.openDialog(true) }},
 			{Type: mygo.MenuItemSeparator},
+			{Label: "Open URL…", Accelerator: "CmdOrCtrl+U", Click: func(*mygo.MenuItem, *mygo.Window) { a.openURLDialog() }},
 			{Label: "Open Playlist…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openPlaylistDialog() }},
 			{Label: "Open Recent", Submenu: recentItems},
 			{Label: "Save Playlist", Accelerator: "CmdOrCtrl+S", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveDialog() }},
