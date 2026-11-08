@@ -166,6 +166,15 @@ func (b *vlcBackend) Chapters() []Chapter {
 }
 func (b *vlcBackend) Chapter() int          { return b.pl.Chapter() }
 func (b *vlcBackend) SetChapter(i int) bool { return b.pl.SetChapter(i) }
+func (b *vlcBackend) SetAspectRatio(aspect string) bool {
+	return b.pl.SetAspectRatio(aspect)
+}
+func (b *vlcBackend) SetScale(scale float64) bool { return b.pl.SetScale(scale) }
+func (b *vlcBackend) SetCrop(crop string) bool    { return b.pl.SetCrop(crop) }
+func (b *vlcBackend) AddSubtitle(path string) bool {
+	return b.pl.AddSubtitle(path)
+}
+func (b *vlcBackend) AddAudio(path string) bool { return b.pl.AddAudio(path) }
 
 func (b *vlcBackend) Close() {
 	b.once.Do(func() {

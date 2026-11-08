@@ -116,4 +116,22 @@ func TestRealVLCFeatureTracksAndChapters(t *testing.T) {
 	if s.AudioTrack != s.AudioTracks[1].ID || s.SubtitleTrack != subID || s.Chapter != 1 {
 		t.Fatalf("selection snapshot: %+v", s)
 	}
+
+	before := len(s.SubtitleTracks)
+	subPath, _ := filepath.Abs("../../testdata/fixtures/feature.de.srt")
+	if !e.AddSubtitle(subPath) {
+		t.Fatal("failed to add external subtitle")
+	}
+	deadline = time.Now().Add(8 * time.Second)
+	for time.Now().Before(deadline) {
+		e.RefreshTracks()
+		if len(e.Snapshot().SubtitleTracks) > before {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	s = e.Snapshot()
+	if len(s.SubtitleTracks) <= before {
+		t.Fatalf("external subtitle not listed: %+v", s.SubtitleTracks)
+	}
 }

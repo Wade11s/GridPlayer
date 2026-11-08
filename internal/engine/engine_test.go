@@ -28,6 +28,11 @@ type fakeBackend struct {
 	videoID       int
 	subID         int
 	chapter       int
+	addSubCalls   int
+	addAudioCalls int
+	aspect        string
+	scale         float64
+	crop          string
 }
 
 func newFake() *fakeBackend {
@@ -123,6 +128,32 @@ func (f *fakeBackend) Chapters() []Chapter { return f.chapters }
 func (f *fakeBackend) Chapter() int        { return f.chapter }
 func (f *fakeBackend) SetChapter(i int) bool {
 	f.chapter = i
+	return true
+}
+func (f *fakeBackend) SetAspectRatio(aspect string) bool {
+	f.aspect = aspect
+	return true
+}
+func (f *fakeBackend) SetScale(scale float64) bool {
+	f.scale = scale
+	return true
+}
+func (f *fakeBackend) SetCrop(crop string) bool {
+	f.crop = crop
+	return true
+}
+func (f *fakeBackend) AddSubtitle(path string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.addSubCalls++
+	f.subs = append(f.subs, Track{ID: 99, Name: path})
+	return true
+}
+func (f *fakeBackend) AddAudio(path string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.addAudioCalls++
+	f.audio = append(f.audio, Track{ID: 88, Name: path})
 	return true
 }
 func (f *fakeBackend) Events() <-chan Event { return f.events }
@@ -300,4 +331,41 @@ func TestStartPositionSeeksOnFirstPlaying(t *testing.T) {
 		defer f.mu.Unlock()
 		return f.seek == 3000
 	})
+}
+
+func TestViewSettingsAndExternalTracks(t *testing.T) {
+	f := newFake()
+	seenLoop := false
+	e := New(func(path string, loop bool) (Backend, error) {
+		seenLoop = loop
+		return f, nil
+	})
+	defer e.Close()
+	e.SetLoop(true)
+	e.SetAspectRatio("16:9")
+	e.SetScale(1.5)
+	e.SetCrop("2.35:1")
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if !seenLoop {
+		t.Fatal("loop was not passed")
+	}
+	f.mu.Lock()
+	gotAspect, gotScale, gotCrop := f.aspect, f.scale, f.crop
+	f.mu.Unlock()
+	if gotAspect != "16:9" || gotScale != 1.5 || gotCrop != "2.35:1" {
+		t.Fatalf("settings aspect=%q scale=%v crop=%q", gotAspect, gotScale, gotCrop)
+	}
+	if !e.AddSubtitle("/tmp/a.srt") || !e.AddSubtitle("/tmp/a.srt") || !e.AddAudio("/tmp/a.m4a") {
+		t.Fatal("external attach failed")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.addSubCalls != 1 || f.addAudioCalls != 1 {
+		t.Fatalf("duplicate external attach calls %d/%d", f.addSubCalls, f.addAudioCalls)
+	}
+	if len(f.subs) != 1 || len(f.audio) != 1 {
+		t.Fatalf("subs=%v audio=%v", f.subs, f.audio)
+	}
 }

@@ -38,6 +38,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `{Index,Name}` from its full chapter descriptions. Selection goes through
   the same mutex-guarded player; `RefreshTracks` updates the snapshot when a
   menu opens or a load settles.
+- View and external tracks: `SetAspectRatio/SetScale/SetCrop` map to libVLC's
+  `video_set_aspect_ratio/scale/crop_geometry`; `AddSubtitle/AddAudio` map to
+  `media_player_add_slave` with a `file://` MRL. The engine applies stored
+  settings at `Load` and keeps external attachments across reloads. The UI
+  exposes aspect/scale/crop and file loading for the active cell.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per

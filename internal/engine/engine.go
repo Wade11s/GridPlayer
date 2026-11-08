@@ -54,6 +54,9 @@ type Snapshot struct {
 	Loop          bool
 	Width, Height int
 	Err           string
+	AspectRatio   string
+	Scale         float64
+	Crop          string
 
 	AudioTracks, VideoTracks, SubtitleTracks []Track
 	Chapters                                 []Chapter
@@ -129,6 +132,11 @@ type Backend interface {
 	Chapters() []Chapter
 	Chapter() int
 	SetChapter(i int) bool
+	SetAspectRatio(aspect string) bool
+	SetScale(scale float64) bool
+	SetCrop(crop string) bool
+	AddSubtitle(path string) bool
+	AddAudio(path string) bool
 	Events() <-chan Event
 	Close()
 }
@@ -159,10 +167,15 @@ type Engine struct {
 	updates chan Snapshot
 
 	// settings applied to each new backend and carried across loads
-	rate   float64
-	volume int
-	muted  bool
-	loop   bool
+	rate       float64
+	volume     int
+	muted      bool
+	loop       bool
+	aspect     string
+	scale      float64
+	crop       string
+	subtitles  []string
+	audioFiles []string
 }
 
 // New returns an idle engine with the given factory.
@@ -172,7 +185,8 @@ func New(factory Factory) *Engine {
 		updates: make(chan Snapshot, 1),
 		rate:    1,
 		volume:  100,
-		snap:    Snapshot{Phase: Idle, Rate: 1, Volume: 100},
+		scale:   1,
+		snap:    Snapshot{Phase: Idle, Rate: 1, Volume: 100, Scale: 1},
 	}
 }
 
@@ -225,7 +239,7 @@ func (e *Engine) Load(path string) error {
 	loop := e.loop
 	e.snap = Snapshot{
 		Gen: gen, Phase: Loading, Rate: e.rate, Volume: e.volume,
-		Muted: e.muted, Loop: loop,
+		Muted: e.muted, Loop: loop, AspectRatio: e.aspect, Scale: e.scale, Crop: e.crop,
 	}
 	e.publishLocked()
 	e.mu.Unlock()
@@ -257,12 +271,24 @@ func (e *Engine) Load(path string) error {
 	}
 	e.be = be
 	rate, volume, muted, loop := e.rate, e.volume, e.muted, e.loop
+	aspect, scale, crop := e.aspect, e.scale, e.crop
+	subs := append([]string(nil), e.subtitles...)
+	audios := append([]string(nil), e.audioFiles...)
 	e.mu.Unlock()
 
 	be.SetRate(rate)
 	be.SetVolume(volume)
 	be.SetMute(muted)
 	be.SetLoop(loop)
+	be.SetAspectRatio(aspect)
+	be.SetScale(scale)
+	be.SetCrop(crop)
+	for _, p := range subs {
+		be.AddSubtitle(p)
+	}
+	for _, p := range audios {
+		be.AddAudio(p)
+	}
 	go e.pump(gen, be, quit)
 	be.Play()
 	return nil
@@ -567,6 +593,100 @@ func (e *Engine) SetChapter(i int) bool {
 		e.snap.Chapter = i
 		e.publishLocked()
 	}
+	e.mu.Unlock()
+	return true
+}
+
+// SetAspectRatio sets the display aspect, "" for the source's.
+func (e *Engine) SetAspectRatio(aspect string) {
+	e.mu.Lock()
+	if e.aspect == aspect && e.snap.AspectRatio == aspect {
+		e.mu.Unlock()
+		return
+	}
+	e.aspect = aspect
+	e.snap.AspectRatio = aspect
+	be := e.be
+	e.publishLocked()
+	e.mu.Unlock()
+	if be != nil {
+		be.SetAspectRatio(aspect)
+	}
+}
+
+// SetScale sets the video scale (0 fits the drawable, 1 is 1x).
+func (e *Engine) SetScale(scale float64) {
+	if scale < 0 {
+		scale = 0
+	}
+	e.mu.Lock()
+	if e.scale == scale {
+		e.mu.Unlock()
+		return
+	}
+	e.scale = scale
+	e.snap.Scale = scale
+	be := e.be
+	e.publishLocked()
+	e.mu.Unlock()
+	if be != nil {
+		be.SetScale(scale)
+	}
+}
+
+// SetCrop sets crop geometry, "" for none.
+func (e *Engine) SetCrop(crop string) {
+	e.mu.Lock()
+	if e.crop == crop {
+		e.mu.Unlock()
+		return
+	}
+	e.crop = crop
+	e.snap.Crop = crop
+	be := e.be
+	e.publishLocked()
+	e.mu.Unlock()
+	if be != nil {
+		be.SetCrop(crop)
+	}
+}
+
+// AddSubtitle attaches a subtitle file, remembering it across reloads.
+func (e *Engine) AddSubtitle(path string) bool {
+	e.mu.Lock()
+	for _, p := range e.subtitles {
+		if p == path {
+			e.mu.Unlock()
+			return true
+		}
+	}
+	e.mu.Unlock()
+	be, _, ok := e.backend()
+	if !ok || !be.AddSubtitle(path) {
+		return false
+	}
+	e.mu.Lock()
+	e.subtitles = append(e.subtitles, path)
+	e.mu.Unlock()
+	return true
+}
+
+// AddAudio attaches an audio file, remembering it across reloads.
+func (e *Engine) AddAudio(path string) bool {
+	e.mu.Lock()
+	for _, p := range e.audioFiles {
+		if p == path {
+			e.mu.Unlock()
+			return true
+		}
+	}
+	e.mu.Unlock()
+	be, _, ok := e.backend()
+	if !ok || !be.AddAudio(path) {
+		return false
+	}
+	e.mu.Lock()
+	e.audioFiles = append(e.audioFiles, path)
 	e.mu.Unlock()
 	return true
 }

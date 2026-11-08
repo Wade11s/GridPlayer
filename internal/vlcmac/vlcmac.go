@@ -85,7 +85,9 @@ import "C"
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
@@ -638,6 +640,83 @@ func (p *Player) SetChapter(i int) (ok bool) {
 func (p *Player) Chapter() (i int) {
 	p.with(func(mp *C.libvlc_media_player_t) { i = int(C.libvlc_media_player_get_chapter(mp)) })
 	return i
+}
+
+// SetAspectRatio sets the display aspect ("16:9"), or "" for the source's.
+func (p *Player) SetAspectRatio(aspect string) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		if aspect == "" {
+			C.libvlc_video_set_aspect_ratio(mp, nil)
+			ok = true
+			return
+		}
+		c := C.CString(aspect)
+		defer C.free(unsafe.Pointer(c))
+		C.libvlc_video_set_aspect_ratio(mp, c)
+		ok = true
+	})
+	return ok
+}
+
+// SetScale sets the video scale (0 = fit to the drawable).
+func (p *Player) SetScale(scale float64) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		C.libvlc_video_set_scale(mp, C.float(scale))
+		ok = true
+	})
+	return ok
+}
+
+// SetCrop sets crop geometry ("16:9"), or "" for none.
+func (p *Player) SetCrop(crop string) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		if crop == "" {
+			C.libvlc_video_set_crop_geometry(mp, nil)
+			ok = true
+			return
+		}
+		c := C.CString(crop)
+		defer C.free(unsafe.Pointer(c))
+		C.libvlc_video_set_crop_geometry(mp, c)
+		ok = true
+	})
+	return ok
+}
+
+// AddSubtitle attaches a subtitle file to the current media.
+func fileMRL(path string) string {
+	if strings.HasPrefix(path, "file://") {
+		return path
+	}
+	if !strings.HasPrefix(path, "/") && !strings.Contains(path, "://") {
+		abs, err := filepath.Abs(path)
+		if err == nil {
+			path = abs
+		}
+	}
+	return (&url.URL{Scheme: "file", Path: path}).String()
+}
+
+// AddSubtitle attaches a subtitle file to the current media.
+func (p *Player) AddSubtitle(path string) (ok bool) {
+	uri := fileMRL(path)
+	p.with(func(mp *C.libvlc_media_player_t) {
+		c := C.CString(uri)
+		defer C.free(unsafe.Pointer(c))
+		ok = C.libvlc_media_player_add_slave(mp, C.libvlc_media_slave_type_subtitle, c, false) == 0
+	})
+	return ok
+}
+
+// AddAudio attaches an audio file to the current media.
+func (p *Player) AddAudio(path string) (ok bool) {
+	uri := fileMRL(path)
+	p.with(func(mp *C.libvlc_media_player_t) {
+		c := C.CString(uri)
+		defer C.free(unsafe.Pointer(c))
+		ok = C.libvlc_media_player_add_slave(mp, C.libvlc_media_slave_type_audio, c, false) == 0
+	})
+	return ok
 }
 
 // Release runs the fixed teardown: unbind NSView -> release player ->
