@@ -49,6 +49,9 @@
   menu (File/Playback/Grid/View/Tracks), per-cell overlay controls, Fill cover via
   clip view + Fit, shortcuts (Space/arrows/M/L/B/N/[/]), active-cell border.
   Local screenshots: 1-cell, 2-cell fill, 4-cell.
+- #3 drag reorder: cells are `Drag(i)` sources and `Drop[int]` targets; a drop
+  swaps cell structs (path/engine/view) and re-frames both slots. Unit test for
+  swap bounds. Free/mosaic/single mode still open.
 - #5 local .app: `mygo.json` + pinned `go tool mygo`, icon, `scripts/build_app.sh`,
   `scripts/smoke_app.sh`. `dist/darwin-arm64/GridPlayer.app` (ad-hoc signed)
   launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;

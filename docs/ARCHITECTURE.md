@@ -44,6 +44,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   cell, partial last row allowed). The UI renders those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
+- Cells drag with `ui.Element.Drag(index)` and take `ui.Drop[int]`; a drop
+  swaps the two cell structs (path, engine, native view) and re-frames both
+  slots on the next frame. `DragOver` highlights the target. No frame-locked
+  sync is implied.
 - Tests: pure state-machine/commands with a fake backend, plus a darwin-only
   real-libVLC integration test with `--vout=dummy --aout=dummy` (no GUI).
 
