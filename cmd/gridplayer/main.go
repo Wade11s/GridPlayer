@@ -1156,10 +1156,12 @@ func main() {
 		}
 	}
 	a := newApp(paths)
-	a.single = *single
 	a.dirty = false
 	mygo.App.WhenReady(func() {
 		a.loadSettings()
+		if *single {
+			a.single = true
+		}
 		if *playlistPath != "" {
 			if err := a.loadPlaylist(*playlistPath); err != nil {
 				log.Printf("playlist: %v", err)
