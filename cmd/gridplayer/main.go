@@ -7,6 +7,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -23,6 +24,7 @@ import (
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/nativehost"
 	"gridplayer-go/internal/playlist"
+	"gridplayer-go/internal/settings"
 	"gridplayer-go/internal/vlcmac"
 )
 
@@ -41,24 +43,139 @@ type cell struct {
 }
 
 type app struct {
-	win          *mygo.Window
-	resolve      func() (cv, sv uintptr, h float64, ok bool)
-	cells        []*cell
-	active       int
-	cfg          grid.Config
-	fill         bool
-	closed       atomic.Bool
-	status       string
-	doc          *playlist.Document
-	dirty        bool
-	forceQuit    bool
-	playlistPath string
+	win           *mygo.Window
+	resolve       func() (cv, sv uintptr, h float64, ok bool)
+	cells         []*cell
+	active        int
+	cfg           grid.Config
+	fill          bool
+	closed        atomic.Bool
+	status        string
+	doc           *playlist.Document
+	dirty         bool
+	forceQuit     bool
+	playlistPath  string
+	settings      *settings.Store
+	recent        []string
+	defaultVolume int
+	defaultMuted  bool
 }
 
 func newApp(paths []string) *app {
-	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true}
+	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80}
 	a.setPlaylist(paths)
 	return a
+}
+
+func (a *app) loadSettings() {
+	dir, err := mygo.App.Path(mygo.PathUserData)
+	if err != nil {
+		return
+	}
+	st, err := settings.Load(filepath.Join(dir, "settings.ini"))
+	if err != nil {
+		log.Printf("settings: %v", err)
+		return
+	}
+	a.settings = st
+	a.cfg = grid.Config{
+		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
+		Rows: atoi(st.Get("playlist/grid_rows", "3"), 3),
+		Cols: atoi(st.Get("playlist/grid_cols", "3"), 3),
+	}
+	a.fill = st.Get("video_defaults/cell_view_mode", "fill") != "fit"
+	if v := atof(st.Get("video_defaults/volume", "0.8"), 0.8); v > 0 {
+		a.defaultVolume = int(v * 100)
+	}
+	a.defaultMuted = st.Get("video_defaults/muted", "false") == "true"
+	for i, c := range a.cells {
+		c.volume = a.defaultVolume
+		c.muted = i > 0 || a.defaultMuted
+	}
+	if raw := st.Get("app/recent", ""); raw != "" {
+		_ = json.Unmarshal([]byte(raw), &a.recent)
+	}
+}
+
+func atoi(s string, def int) int {
+	var v int
+	if _, err := fmt.Sscanf(s, "%d", &v); err != nil {
+		return def
+	}
+	return v
+}
+
+func atof(s string, def float64) float64 {
+	var v float64
+	if _, err := fmt.Sscanf(s, "%g", &v); err != nil {
+		return def
+	}
+	return v
+}
+
+func (a *app) saveSettings() {
+	if a.settings == nil {
+		return
+	}
+	a.settings.Set("playlist/grid_mode", modeName(a.cfg.Mode))
+	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
+	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
+	view := "fill"
+	if !a.fill {
+		view = "fit"
+	}
+	a.settings.Set("video_defaults/cell_view_mode", view)
+	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
+	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
+	if raw, err := json.Marshal(a.recent); err == nil {
+		a.settings.Set("app/recent", string(raw))
+	}
+	if err := a.settings.Save(); err != nil {
+		log.Printf("settings save: %v", err)
+	}
+}
+
+func (a *app) saveWindowState() {
+	if a.settings == nil || a.win == nil {
+		return
+	}
+	b := a.win.Bounds()
+	if b.Width <= 0 || b.Height <= 0 {
+		return
+	}
+	a.settings.Set("window/x", fmt.Sprint(b.X))
+	a.settings.Set("window/y", fmt.Sprint(b.Y))
+	a.settings.Set("window/width", fmt.Sprint(b.Width))
+	a.settings.Set("window/height", fmt.Sprint(b.Height))
+	if err := a.settings.Save(); err != nil {
+		log.Printf("settings save: %v", err)
+	}
+}
+
+func (a *app) addRecent(path string) {
+	if path == "" {
+		return
+	}
+	out := []string{path}
+	for _, p := range a.recent {
+		if p != path && len(out) < 10 {
+			out = append(out, p)
+		}
+	}
+	a.recent = out
+	a.saveSettings()
+	if a.win != nil {
+		mygo.App.SetMenu(a.menu())
+	}
+}
+
+func (a *app) openRecent(path string) {
+	if strings.EqualFold(filepath.Ext(path), ".gpls") {
+		_ = a.loadPlaylist(path)
+		return
+	}
+	a.setPlaylist([]string{path})
+	a.addRecent(path)
 }
 
 func comparePaths(cells []*cell, paths []string) bool {
@@ -116,10 +233,10 @@ func (a *app) setPlaylist(paths []string) {
 		c := &cell{
 			label:  strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)),
 			path:   p,
-			volume: 80,
+			volume: a.defaultVolume,
 			rate:   1,
 		}
-		if i > 0 {
+		if i > 0 || a.defaultMuted {
 			c.muted = true
 		}
 		next[i] = c
@@ -252,6 +369,7 @@ func (a *app) teardown() {
 	if !a.closed.CompareAndSwap(false, true) {
 		return
 	}
+	a.saveWindowState()
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
 		if c == nil {
@@ -408,11 +526,13 @@ func (a *app) openDialog(add bool) {
 	} else {
 		a.setPlaylist(paths)
 	}
+	a.addRecent(paths[0])
 }
 
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
 	a.dirty = true
+	a.saveSettings()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -473,6 +593,7 @@ func (a *app) loadPlaylist(path string) error {
 	}
 	a.playlistPath = path
 	a.dirty = false
+	a.addRecent(path)
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -669,6 +790,17 @@ func (a *app) setRate(rate float64) {
 }
 
 func (a *app) menu() *mygo.Menu {
+	recentItems := make([]*mygo.MenuItem, 0, len(a.recent))
+	for _, p := range a.recent {
+		path := p
+		recentItems = append(recentItems, &mygo.MenuItem{
+			Label: filepath.Base(path),
+			Click: func(*mygo.MenuItem, *mygo.Window) { a.openRecent(path) },
+		})
+	}
+	if len(recentItems) == 0 {
+		recentItems = append(recentItems, &mygo.MenuItem{Label: "No Recent Files", Disabled: true})
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: []*mygo.MenuItem{
@@ -676,6 +808,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Add…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(*mygo.MenuItem, *mygo.Window) { a.openDialog(true) }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Open Playlist…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openPlaylistDialog() }},
+			{Label: "Open Recent", Submenu: recentItems},
 			{Label: "Save Playlist", Accelerator: "CmdOrCtrl+S", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveDialog() }},
 			{Label: "Save Playlist As…", Accelerator: "CmdOrCtrl+Shift+S", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.playlistPath = ""
@@ -744,12 +877,14 @@ func (a *app) menu() *mygo.Menu {
 		{Label: "View", Submenu: []*mygo.MenuItem{
 			{Label: "Fill (cover)", Type: mygo.MenuItemCheckbox, Checked: a.fill, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.fill = true
+				a.saveSettings()
 				if a.win != nil {
 					a.win.Invalidate()
 				}
 			}},
 			{Label: "Fit (contain)", Type: mygo.MenuItemCheckbox, Checked: !a.fill, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.fill = false
+				a.saveSettings()
 				if a.win != nil {
 					a.win.Invalidate()
 				}
@@ -776,7 +911,11 @@ func main() {
 	files := flag.String("files", "", "comma-separated media paths (default: 4 fixtures)")
 	playlistPath := flag.String("playlist", "", "load a .gpls playlist")
 	savePath := flag.String("save-playlist", "", "save the current playlist after 3s (automation)")
+	userData := flag.String("user-data-dir", "", "override the user data directory")
 	flag.Parse()
+	if *userData != "" {
+		mygo.App.SetPath(mygo.PathUserData, *userData)
+	}
 
 	if lf, err := os.Create(*logFile); err == nil {
 		vlcmac.LogSink = func(level int, msg string) {
@@ -807,13 +946,29 @@ func main() {
 	}
 	a.dirty = false
 	mygo.App.WhenReady(func() {
-		w := mygo.NewWindow(mygo.WindowOptions{
+		a.loadSettings()
+		opts := mygo.WindowOptions{
 			Title:          "GridPlayer",
 			Width:          1280,
 			Height:         720,
 			UseContentSize: true,
 			Content:        ui.View(a.view),
-		})
+		}
+		if a.settings != nil {
+			if v := atoi(a.settings.Get("window/width", ""), 0); v > 0 {
+				opts.Width = v
+			}
+			if v := atoi(a.settings.Get("window/height", ""), 0); v > 0 {
+				opts.Height = v
+			}
+			if s := a.settings.Get("window/x", ""); s != "" {
+				opts.X = atoi(s, 0)
+			}
+			if s := a.settings.Get("window/y", ""); s != "" {
+				opts.Y = atoi(s, 0)
+			}
+		}
+		w := mygo.NewWindow(opts)
 		a.win = w
 		a.resolve = func() (uintptr, uintptr, float64, bool) {
 			return nativehost.Resolve(w.NativeHandle())
