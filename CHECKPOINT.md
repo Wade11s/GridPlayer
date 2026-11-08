@@ -61,6 +61,9 @@
   test covers insert/append. Free/mosaic still open.
 - #3 free tiles (merged 25d1846): `internal/grid.FreeLayout` auto-arrange
   fractions + gap inset + toggle/`--free`/settings round-trip.
+- #3 mosaic initial arrange: `internal/grid.Mosaic` tiered tiles + Grid
+  toggle, `--mosaic`, `playlist/grid_mosaic` setting. Locked tiles,
+  snap/arrange optimizer, free drag/resize still open.
   Free drag/resize/arrange/mosaic still open.
 - #3 single mode (merged 15bfc12): `internal/grid.SingleLayout` (Auto/Right/
   Left/Bottom/Top, share clamp 5%..40%, STRIP_PER_LINE=4, tiles centered) +

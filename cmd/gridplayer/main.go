@@ -55,6 +55,11 @@ type app struct {
 	singleShare   *float64
 	free          bool
 	freeTiles     []grid.Tile
+	mosaic        bool
+	freeArea      [2]float64
+	moveIdx       int
+	moveLast      [2]float32
+	moveOK        bool
 	aspect        string
 	scale         float64
 	crop          string
@@ -97,6 +102,7 @@ func (a *app) loadSettings() {
 	}
 	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
 	a.free = st.Get("playlist/grid_free", "false") == "true"
+	a.mosaic = st.Get("playlist/grid_mosaic", "false") == "true"
 	switch st.Get("playlist/single_mode_strip_side", "auto") {
 	case "right":
 		a.singleSide = grid.StripRight
@@ -172,6 +178,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
+	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
 	strip := "off"
 	if a.single {
 		strip = "swap"
@@ -307,6 +314,8 @@ func (a *app) setPlaylist(paths []string) {
 		next[i] = a.newCell(i, p)
 	}
 	a.cells = next
+	// Free tiles are re-laid out for the new playlist.
+	a.freeTiles = grid.FreeLayout(len(a.cells))
 	a.dirty = true
 	if a.active >= len(a.cells) {
 		a.active = len(a.cells) - 1
@@ -360,6 +369,7 @@ func (a *app) insertCells(at int, files []string) {
 	}
 	next = append(next, a.cells[at:]...)
 	a.cells = next
+	a.freeTiles = grid.FreeLayout(len(a.cells))
 	a.active = at
 	a.dirty = true
 	if a.win != nil {
@@ -549,9 +559,19 @@ func (a *app) view(c *ui.Context) {
 	defer a.handleDropped()
 	w, h := c.Size()
 	area := grid.Rect{W: float64(w), H: float64(h)}
+	a.freeArea = [2]float64{float64(w), float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
-	if a.free {
-		tiles := grid.FreeLayout(len(a.cells))
+	if a.mosaic {
+		tiles := grid.Mosaic(len(a.cells))
+		rects = make([]grid.Rect, len(tiles))
+		for i, t := range tiles {
+			rects[i] = t.Rect(area, 4)
+		}
+	} else if a.free {
+		if len(a.freeTiles) != len(a.cells) {
+			a.freeTiles = grid.FreeLayout(len(a.cells))
+		}
+		tiles := a.freeTiles
 		rects = make([]grid.Rect, len(tiles))
 		for i, t := range tiles {
 			rects[i] = t.Rect(area, 4)
@@ -637,6 +657,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	if el.Clicked() {
 		a.active = i
 	}
+	// Free tiles keep saved positions; full drag-to-move/resize is a later
+	// increment (the cell is a drag-swap source in grid mode today).
+	_ = border
 	if el.FileDragOver() && border == ui.RGBA(0, 0, 0, 0) {
 		el = el.Border(2, theme.Accent)
 	}
@@ -1221,6 +1244,21 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Label: "Free Tiles", Type: mygo.MenuItemCheckbox, Checked: a.free, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.free = !a.free
+				if a.free {
+					a.mosaic = false
+				}
+				a.saveSettings()
+				a.refreshMenu()
+				if a.win != nil {
+					a.win.Invalidate()
+				}
+			}},
+			{Label: "Mosaic", Type: mygo.MenuItemCheckbox, Checked: a.mosaic, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.mosaic = !a.mosaic
+				if a.mosaic {
+					a.free = false
+					a.single = false
+				}
 				a.saveSettings()
 				a.refreshMenu()
 				if a.win != nil {
@@ -1305,6 +1343,7 @@ func main() {
 	screenshot := flag.String("screenshot", "", "save a frame of the active cell to path after 2s")
 	single := flag.Bool("single", false, "start in single mode")
 	free := flag.Bool("free", false, "start with free tiles")
+	mosaic := flag.Bool("mosaic", false, "start with mosaic layout")
 	userData := flag.String("user-data-dir", "", "override the user data directory")
 	flag.Parse()
 	if *userData != "" {
@@ -1338,6 +1377,11 @@ func main() {
 		a.loadSettings()
 		if *single {
 			a.single = true
+		}
+		if *mosaic {
+			a.mosaic = true
+			a.free = false
+			a.single = false
 		}
 		if *free {
 			a.free = true
