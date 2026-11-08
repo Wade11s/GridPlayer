@@ -427,11 +427,15 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	if cell.eng != nil {
 		s = cell.eng.Snapshot()
 	}
-	el := ui.Box(c.Key(fmt.Sprintf("cell-%d", i))).
+	base := ui.Box(c.Key(fmt.Sprintf("cell-%d", i))).
 		Absolute().Left(float32(r.X)).Top(float32(r.Y)).
 		Width(float32(r.W)).Height(float32(r.H)).
 		Radius(6).Background(ui.RGB(20, 20, 24)).
-		Border(2, border).
+		Drag(i)
+	if over, ok := ui.DragOver[int](base); ok && over != i {
+		border = theme.Accent
+	}
+	el := base.Border(2, border).
 		Draw(func(p *ui.Painter, box ui.Rect) {
 			a.ensure(i, r)
 			p.Hole(box, [4]float32{0, 0, 0, 0})
@@ -469,6 +473,21 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		})
 	if el.Clicked() {
 		a.active = i
+	}
+	if from, ok := ui.Drop[int](el); ok && from != i {
+		a.swapCells(from, i)
+	}
+}
+
+func (a *app) swapCells(from, to int) {
+	if from < 0 || to < 0 || from >= len(a.cells) || to >= len(a.cells) {
+		return
+	}
+	a.cells[from], a.cells[to] = a.cells[to], a.cells[from]
+	a.active = to
+	a.dirty = true
+	if a.win != nil {
+		a.win.Invalidate()
 	}
 }
 
