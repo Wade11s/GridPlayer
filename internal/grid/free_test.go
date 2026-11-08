@@ -53,3 +53,5 @@ func TestFreeOneTile(t *testing.T) {
 		t.Fatalf("%v", tiles[0].Box)
 	}
 }
+
+
