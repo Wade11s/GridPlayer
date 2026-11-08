@@ -62,6 +62,7 @@ type app struct {
 	dirty         bool
 	forceQuit     bool
 	playlistPath  string
+	pending       []pendingDrop
 	settings      *settings.Store
 	recent        []string
 	defaultVolume int
@@ -356,11 +357,29 @@ func (a *app) dropFiles(at int, files []string) {
 		return
 	}
 	if len(files) == 1 && strings.EqualFold(filepath.Ext(files[0]), ".gpls") {
-		_ = a.loadPlaylist(files[0])
+		// A .gpls drop would resize a.cells while the current frame iterates
+		// its old rects. Defer the load until next frame.
+		a.pending = append(a.pending, pendingDrop{at: at, files: files})
 		return
 	}
 	a.insertCells(at, files)
 	a.addRecent(files[0])
+}
+
+// pendingDrop is deferred until after a frame completes (dropping a
+// .gpls on a cell would otherwise resize a.cells mid-loop).
+type pendingDrop struct {
+	at    int
+	files []string
+}
+
+// handleDropped drains pending drops after the view completes.
+func (a *app) handleDropped() {
+	pending := a.pending
+	a.pending = nil
+	for _, d := range pending {
+		a.dropFiles(d.at, d.files)
+	}
 }
 
 func (a *app) closeCell(c *cell) {
@@ -522,6 +541,7 @@ func (a *app) view(c *ui.Context) {
 				TextColor(ui.RGB(255, 180, 120))
 		}
 	})
+	a.handleDropped()
 }
 
 func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
