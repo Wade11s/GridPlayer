@@ -73,6 +73,10 @@
   slaves remembered across reloads, View + Tracks file menus, settings persistence
   for `cell_view_mode` (fill/fit/stretch) plus aspect/scale/crop. Real libVLC
   dummy-output test attaches `feature.de.srt` and sees a new subtitle track.
+- #2 frame screenshots: `libvlc_video_take_snapshot` through engine, Save Frame
+  dialog + overlay Shot, `--screenshot` automation flag verified to write a PNG.
+  Zoom/anchor/shift/transform, free tiles/mosaic, streams, settings UI and
+  VLC bundling still open.
 - #5 local .app: `mygo.json` + pinned `go tool mygo`, icon, `scripts/build_app.sh`,
   `scripts/smoke_app.sh`. `dist/darwin-arm64/GridPlayer.app` (ad-hoc signed)
   launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;
