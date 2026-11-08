@@ -43,6 +43,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `media_player_add_slave` with a `file://` MRL. The engine applies stored
   settings at `Load` and keeps external attachments across reloads. The UI
   exposes aspect/scale/crop and file loading for the active cell.
+- Single Mode uses `internal/grid.SingleLayout`: one active cell big, the
+  others in a strip (Auto/Right/Left/Bottom/Top), share clamped 5%..40%,
+  tiles centered along the strip. Clicking a strip cell makes it big.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per

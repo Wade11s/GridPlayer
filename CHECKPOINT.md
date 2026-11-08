@@ -51,6 +51,10 @@
   Local screenshots: 1-cell, 2-cell fill, 4-cell.
 - #3 drag reorder (merged a0d5cc6): cells are `Drag(i)` sources and `Drop[int]`
   targets; a drop swaps cell structs (path/engine/view) and re-frames slots.
+- #3 single mode: `internal/grid.SingleLayout` (Auto/Right/Left/Bottom/Top, share
+  clamp 5%..40%, STRIP_PER_LINE=4, tiles centered) + menu + `playlist/
+  single_mode_strip{,_side}` settings; screenshots 1/2/4/single. Free tiles/
+  mosaic still open.
 - #2 view/external tracks (merged 467e843): aspect/scale/crop settings, external
   subtitle/audio loaded via file://, remembered across reloads, feature.de.srt
   fixture + real attach test; View/Tracks menus; only pinned pixel/scalable
