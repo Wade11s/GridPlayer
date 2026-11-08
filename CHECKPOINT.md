@@ -64,6 +64,9 @@
 - #3 mosaic initial arrange (merged d2014c3): `internal/grid.Mosaic` tiered
   tiles + Grid toggle/`--mosaic`/`playlist/grid_mosaic`. Locked tiles,
   snap/arrange optimizer, free drag/resize still open.
+- #2 dummy backend: `internal/dummy` 100s/25fps deterministic clock,
+  engine-load test; first-frame layout acceptance. Full dummy GUI driver
+  still tracked with free drag/resize.
   Free drag/resize/arrange/mosaic still open.
 - #3 single mode (merged 15bfc12): `internal/grid.SingleLayout` (Auto/Right/
   Left/Bottom/Top, share clamp 5%..40%, STRIP_PER_LINE=4, tiles centered) +
