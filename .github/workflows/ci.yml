@@ -17,9 +17,5 @@ jobs:
           go-version: "1.27.3"
       - name: Install libVLC dev
         run: sudo apt-get update && sudo apt-get install -y libvlc-dev
-      - name: Vet
-        run: go vet ./internal/... ./cmd/... 2>&1
-      - name: Build
-        run: go build ./internal/... ./cmd/poc-cb ./cmd/gridplayer 2>&1 | tail -n 5
-      - name: Test
-        run: go test ./internal/... 2>&1 | tail -n 5
+      - name: Vet, build, test
+        run: ./scripts/ci.sh

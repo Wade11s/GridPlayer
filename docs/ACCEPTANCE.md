@@ -44,3 +44,13 @@ Changes need a new review; thresholds never relax in-implementation.
   tracked as later issues against the frozen behavior matrix, not silently skipped.
 - Oracle baseline (`0.1.0` app vs `0.5.5` source): version mismatch recorded in
   `docs/BEHAVIOR_MATRIX.md`; oracle comparison is blocked, never downgraded.
+
+## Evidence log (bind the exact head SHA in the PR)
+
+- 2026-11-08, `bootstrap/gates-v2` working tree: `poc-hw` PASS, 4× `state=3`,
+  seek 3654ms after `SetTime(3000)`+resume, VideoToolbox ×4; `gridplayer` 4 panes,
+  frame 0051 in all panes, teardown clean, exit 0. Screenshot
+  `testdata/gridplayer-4pane.png`.
+- `go vet ./...` exit 0; `scripts/build.sh all` builds all three binaries.
+- Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
+  platform-independent tests; it is not GUI acceptance.
