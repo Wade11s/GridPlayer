@@ -1,0 +1,8 @@
+bin/
+.mygo/
+dist/
+build/
+*.app/
+testdata/fixtures/*.mp4
+testdata/poc-hw-vlc.log
+testdata/gridplayer-vlc.log

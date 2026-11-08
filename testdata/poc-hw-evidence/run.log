@@ -1,0 +1,10 @@
+poc-hw: log -> /tmp/v.log
+poc-hw: 4 players started, waiting 5s for decode...
+poc-hw: cell 0 time=4406ms length=10000ms state=3 640x360 ok=true
+poc-hw: cell 1 time=4653ms length=10000ms state=3 640x360 ok=true
+poc-hw: cell 2 time=4655ms length=10000ms state=3 640x360 ok=true
+poc-hw: cell 3 time=4405ms length=10000ms state=3 640x360 ok=true
+poc-hw: pause time=4406ms
+poc-hw: after seek 3000ms+resume time=3402ms (want >=2500)
+poc-hw: tearing down (stop->unbind->detach->release)...
+poc-hw: PASS
