@@ -1,0 +1,42 @@
+{
+  "generator": "scripts/make_fixtures.py",
+  "ffmpeg": "9.0.2",
+  "planes": [
+    {
+      "name": "plane-a.mp4",
+      "sha256": "5b17a7d03786ae1906a55f65f69539e115dc366c7bcd1c7943aee60fd075fc1e",
+      "bytes": 539950,
+      "secs": 10,
+      "size": "640x360",
+      "freq": 440,
+      "label": "A"
+    },
+    {
+      "name": "plane-b.mp4",
+      "sha256": "55067931b8e77a05b5ce0dd5a99f0bd518568d98fb25c0ee4e70b6ae6aaa3817",
+      "bytes": 538182,
+      "secs": 10,
+      "size": "640x360",
+      "freq": 550,
+      "label": "B"
+    },
+    {
+      "name": "plane-c.mp4",
+      "sha256": "4585f4e627819d5fb988643ee99fdcbf9e98525840b45ace017798c1a5e65a0e",
+      "bytes": 534911,
+      "secs": 10,
+      "size": "640x360",
+      "freq": 660,
+      "label": "C"
+    },
+    {
+      "name": "plane-d.mp4",
+      "sha256": "75f3695da45d5673c64bef98fe7dcbecdc2eba055a0e98a9ce216d546479a41b",
+      "bytes": 534105,
+      "secs": 10,
+      "size": "640x360",
+      "freq": 770,
+      "label": "D"
+    }
+  ]
+}

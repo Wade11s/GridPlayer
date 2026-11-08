@@ -1,0 +1,941 @@
+[vlc 0] VLC media player - 3.0.24 Vetinari
+[vlc 0] Copyright © 1996-2026 the VideoLAN team
+[vlc 0] revision 3.0.24-rc1-0-g6de05adcba
+[vlc 0] configured with /Users/videolan/vlc-3.0/extras/package/macosx/../../../configure  '--prefix=/Users/videolan/vlc-3.0/build-arm64/vlc_install_dir' '--enable-macosx' '--enable-merge-ffmpeg' '--enable-osx-notifications' '--enable-faad' '--enable-flac' '--enable-theora' '--enable-shout' '--enable-ncurses' '--enable-twolame' '--enable-libass' '--enable-macosx-avfoundation' '--disable-skins2' '--disable-xcb' '--disable-caca' '--disable-pulse' '--disable-sdl-image' '--disable-vnc' '--build=x86_64-apple-darwin19' '--host=aarch64-apple-darwin19' '--with-macosx-version-min=10.7' '--with-macosx-sdk=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' '--with-breakpad=https://mac.crashes.videolan.org' '--enable-sparkle' '--enable-breakpad' '--enable-growl' 'build_alias=x86_64-apple-darwin19' 'host_alias=aarch64-apple-darwin19' 'CC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Plat
+[vlc 0] creating audio output
+[vlc 0] looking for audio output module matching "any": 4 candidates
+[vlc 0] Rebuild device list
+[vlc 0] found 6 audio device(s)
+[vlc 0] DevID: 141 DevName: fake Microphone
+[vlc 0] this 'fake Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 129 DevName: MacBook Air Microphone
+[vlc 0] this 'MacBook Air Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 122 DevName: MacBook Air Speakers
+[vlc 0] DevID: 58 DevName: ItourInput 2ch
+[vlc 0] DevID: 85 DevName: ItourOutput 2ch
+[vlc 0] DevID: 134 DevName: ZoomAudioDevice
+[vlc 0] using audio output module "auhal"
+[vlc 0] keeping audio output
+[vlc 0] Creating an input for 'plane-a.mp4'
+[vlc 0] using timeshift granularity of 50 MiB
+[vlc 0] using default timeshift path
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4' gives access `file' demux `any' path `/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4'
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4'
+[vlc 0] looking for access_demux module matching "file": 14 candidates
+[vlc 0] no access_demux modules matched
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache_read": 26 candidates
+[vlc 0] Using stream method for AStream*
+[vlc 0] starting pre-buffering
+[vlc 0] received first data after 0 ms
+[vlc 0] pre-buffering done 1024 bytes in 0s - 37037 KiB/s
+[vlc 0] using stream_filter module "cache_read"
+[vlc 0] looking for stream_filter module matching "any": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] looking for stream_directory module matching "any": 1 candidates
+[vlc 0] no stream_directory modules matched
+[vlc 0] attachment of directory-extractor failed for file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4
+[vlc 0] looking for stream_filter module matching "record": 26 candidates
+[vlc 0] using stream_filter module "record"
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4'
+[vlc 0] looking for demux module matching "mp4": 56 candidates
+[vlc 0] VLC media player - 3.0.24 Vetinari
+[vlc 0] Copyright © 1996-2026 the VideoLAN team
+[vlc 0] revision 3.0.24-rc1-0-g6de05adcba
+[vlc 0] configured with /Users/videolan/vlc-3.0/extras/package/macosx/../../../configure  '--prefix=/Users/videolan/vlc-3.0/build-arm64/vlc_install_dir' '--enable-macosx' '--enable-merge-ffmpeg' '--enable-osx-notifications' '--enable-faad' '--enable-flac' '--enable-theora' '--enable-shout' '--enable-ncurses' '--enable-twolame' '--enable-libass' '--enable-macosx-avfoundation' '--disable-skins2' '--disable-xcb' '--disable-caca' '--disable-pulse' '--disable-sdl-image' '--disable-vnc' '--build=x86_64-apple-darwin19' '--host=aarch64-apple-darwin19' '--with-macosx-version-min=10.7' '--with-macosx-sdk=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' '--with-breakpad=https://mac.crashes.videolan.org' '--enable-sparkle' '--enable-breakpad' '--enable-growl' 'build_alias=x86_64-apple-darwin19' 'host_alias=aarch64-apple-darwin19' 'CC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Plat
+[vlc 0] creating audio output
+[vlc 0] looking for audio output module matching "any": 4 candidates
+[vlc 0] Rebuild device list
+[vlc 0] found 6 audio device(s)
+[vlc 0] DevID: 141 DevName: fake Microphone
+[vlc 0] this 'fake Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 129 DevName: MacBook Air Microphone
+[vlc 0] this 'MacBook Air Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 122 DevName: MacBook Air Speakers
+[vlc 0] DevID: 58 DevName: ItourInput 2ch
+[vlc 0] dumping root Box "root"
+[vlc 0] |   + ftyp size 32 offset 0
+[vlc 0] |   + free size 8 offset 32
+[vlc 0] |   + mdat size 532161 offset 40
+[vlc 0] |   + moov size 7749 offset 532201
+[vlc 0] |   |   + mvhd size 108 offset 532209
+[vlc 0] |   |   + trak size 2571 offset 532317
+[vlc 0] |   |   |   + tkhd size 92 offset 532325
+[vlc 0] |   |   |   + edts size 36 offset 532417
+[vlc 0] |   |   |   |   + elst size 28 offset 532425
+[vlc 0] |   |   |   + mdia size 2435 offset 532453
+[vlc 0] |   |   |   |   + mdhd size 32 offset 532461
+[vlc 0] |   |   |   |   + hdlr size 45 offset 532493
+[vlc 0] |   |   |   |   + minf size 2350 offset 532538
+[vlc 0] |   |   |   |   |   + vmhd size 20 offset 532546
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 532566
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 532574
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 532590
+[vlc 0] |   |   |   |   |   + stbl size 2286 offset 532602
+[vlc 0] |   |   |   |   |   |   + stsd size 170 offset 532610
+[vlc 0] |   |   |   |   |   |   |   + avc1 size 154 offset 532626
+[vlc 0] |   |   |   |   |   |   |   |   + avcC size 48 offset 532712
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 532760
+[vlc 0] |   |   |   |   |   |   + stts size 24 offset 532780
+[vlc 0] |   |   |   |   |   |   + stss size 20 offset 532804
+[vlc 0] |   |   |   |   |   |   + stsc size 28 offset 532824
+[vlc 0] |   |   |   |   |   |   + stsz size 1020 offset 532852
+[vlc 0] |   |   |   |   |   |   + stco size 1016 offset 533872
+[vlc 0] |   |   + trak size 4965 offset 534888
+[vlc 0] |   |   |   + tkhd size 92 offset 534896
+[vlc 0] |   |   |   + edts size 36 offset 534988
+[vlc 0] |   |   |   |   + elst size 28 offset 534996
+[vlc 0] |   |   |   + mdia size 4829 offset 535024
+[vlc 0] |   |   |   |   + mdhd size 32 offset 535032
+[vlc 0] |   |   |   |   + hdlr size 45 offset 535064
+[vlc 0] |   |   |   |   + minf size 4744 offset 535109
+[vlc 0] |   |   |   |   |   + smhd size 16 offset 535117
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 535133
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 535141
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 535157
+[vlc 0] |   |   |   |   |   + stbl size 4684 offset 535169
+[vlc 0] |   |   |   |   |   |   + stsd size 126 offset 535177
+[vlc 0] |   |   |   |   |   |   |   + mp4a size 110 offset 535193
+[vlc 0] |   |   |   |   |   |   |   |   + esds size 54 offset 535229
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 535283
+[vlc 0] DevID: 85 DevName: ItourOutput 2ch
+[vlc 0] |   |   |   |   |   |   + stts size 32 offset 535303
+[vlc 0] |   |   |   |   |   |   + stsc size 1696 offset 535335
+[vlc 0] |   |   |   |   |   |   + stsz size 1748 offset 537031
+[vlc 0] |   |   |   |   |   |   + stco size 1020 offset 538779
+[vlc 0] |   |   |   |   |   |   + sgpd size 26 offset 539799
+[vlc 0] |   |   |   |   |   |   + sbgp size 28 offset 539825
+[vlc 0] |   |   + udta size 97 offset 539853
+[vlc 0] |   |   |   + meta size 89 offset 539861
+[vlc 0] |   |   |   |   + hdlr size 33 offset 539873
+[vlc 0] |   |   |   |   + ilst size 44 offset 539906
+[vlc 0] |   |   |   |   |   + ctoo size 36 offset 539914
+[vlc 0] |   |   |   |   |   |   + data size 28 offset 539922
+[vlc 0] ISO Media (isom) version 512.
+[vlc 0] found 2 tracks
+[vlc 0] DevID: 134 DevName: ZoomAudioDevice
+[vlc 0] using audio output module "auhal"
+[vlc 0] keeping audio output
+[vlc 0] Creating an input for 'plane-b.mp4'
+[vlc 0] using timeshift granularity of 50 MiB
+[vlc 0] using default timeshift path
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4' gives access `file' demux `any' path `/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4'
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4'
+[vlc 0] looking for access_demux module matching "file": 14 candidates
+[vlc 0] no access_demux modules matched
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache_read": 26 candidates
+[vlc 0] Using stream method for AStream*
+[vlc 0] starting pre-buffering
+[vlc 0] received first data after 0 ms
+[vlc 0] pre-buffering done 1024 bytes in 0s - 50000 KiB/s
+[vlc 0] using stream_filter module "cache_read"
+[vlc 0] looking for stream_filter module matching "any": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] looking for stream_directory module matching "any": 1 candidates
+[vlc 0] no stream_directory modules matched
+[vlc 0] attachment of directory-extractor failed for file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4
+[vlc 0] looking for stream_filter module matching "record": 26 candidates
+[vlc 0] using stream_filter module "record"
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4'
+[vlc 0] looking for demux module matching "mp4": 56 candidates
+[vlc 0] dumping root Box "root"
+[vlc 0] |   + ftyp size 32 offset 0
+[vlc 0] |   + free size 8 offset 32
+[vlc 0] |   + mdat size 530393 offset 40
+[vlc 0] |   + moov size 7749 offset 530433
+[vlc 0] |   |   + mvhd size 108 offset 530441
+[vlc 0] |   |   + trak size 2571 offset 530549
+[vlc 0] |   |   |   + tkhd size 92 offset 530557
+[vlc 0] |   |   |   + edts size 36 offset 530649
+[vlc 0] |   |   |   |   + elst size 28 offset 530657
+[vlc 0] |   |   |   + mdia size 2435 offset 530685
+[vlc 0] |   |   |   |   + mdhd size 32 offset 530693
+[vlc 0] |   |   |   |   + hdlr size 45 offset 530725
+[vlc 0] |   |   |   |   + minf size 2350 offset 530770
+[vlc 0] |   |   |   |   |   + vmhd size 20 offset 530778
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 530798
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 530806
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 530822
+[vlc 0] |   |   |   |   |   + stbl size 2286 offset 530834
+[vlc 0] |   |   |   |   |   |   + stsd size 170 offset 530842
+[vlc 0] |   |   |   |   |   |   |   + avc1 size 154 offset 530858
+[vlc 0] |   |   |   |   |   |   |   |   + avcC size 48 offset 530944
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 530992
+[vlc 0] |   |   |   |   |   |   + stts size 24 offset 531012
+[vlc 0] |   |   |   |   |   |   + stss size 20 offset 531036
+[vlc 0] |   |   |   |   |   |   + stsc size 28 offset 531056
+[vlc 0] |   |   |   |   |   |   + stsz size 1020 offset 531084
+[vlc 0] |   |   |   |   |   |   + stco size 1016 offset 532104
+[vlc 0] |   |   + trak size 4965 offset 533120
+[vlc 0] |   |   |   + tkhd size 92 offset 533128
+[vlc 0] |   |   |   + edts size 36 offset 533220
+[vlc 0] |   |   |   |   + elst size 28 offset 533228
+[vlc 0] |   |   |   + mdia size 4829 offset 533256
+[vlc 0] |   |   |   |   + mdhd size 32 offset 533264
+[vlc 0] |   |   |   |   + hdlr size 45 offset 533296
+[vlc 0] |   |   |   |   + minf size 4744 offset 533341
+[vlc 0] |   |   |   |   |   + smhd size 16 offset 533349
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 533365
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 533373
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 533389
+[vlc 0] |   |   |   |   |   + stbl size 4684 offset 533401
+[vlc 0] |   |   |   |   |   |   + stsd size 126 offset 533409
+[vlc 0] |   |   |   |   |   |   |   + mp4a size 110 offset 533425
+[vlc 0] |   |   |   |   |   |   |   |   + esds size 54 offset 533461
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 533515
+[vlc 0] |   |   |   |   |   |   + stts size 32 offset 533535
+[vlc 0] |   |   |   |   |   |   + stsc size 1696 offset 533567
+[vlc 0] |   |   |   |   |   |   + stsz size 1748 offset 535263
+[vlc 0] |   |   |   |   |   |   + stco size 1020 offset 537011
+[vlc 0] |   |   |   |   |   |   + sgpd size 26 offset 538031
+[vlc 0] |   |   |   |   |   |   + sbgp size 28 offset 538057
+[vlc 0] |   |   + udta size 97 offset 538085
+[vlc 0] |   |   |   + meta size 89 offset 538093
+[vlc 0] |   |   |   |   + hdlr size 33 offset 538105
+[vlc 0] |   |   |   |   + ilst size 44 offset 538138
+[vlc 0] |   |   |   |   |   + ctoo size 36 offset 538146
+[vlc 0] |   |   |   |   |   |   + data size 28 offset 538154
+[vlc 0] ISO Media (isom) version 512.
+[vlc 0] found 2 tracks
+[vlc 0] VLC media player - 3.0.24 Vetinari
+[vlc 0] Copyright © 1996-2026 the VideoLAN team
+[vlc 0] revision 3.0.24-rc1-0-g6de05adcba
+[vlc 0] configured with /Users/videolan/vlc-3.0/extras/package/macosx/../../../configure  '--prefix=/Users/videolan/vlc-3.0/build-arm64/vlc_install_dir' '--enable-macosx' '--enable-merge-ffmpeg' '--enable-osx-notifications' '--enable-faad' '--enable-flac' '--enable-theora' '--enable-shout' '--enable-ncurses' '--enable-twolame' '--enable-libass' '--enable-macosx-avfoundation' '--disable-skins2' '--disable-xcb' '--disable-caca' '--disable-pulse' '--disable-sdl-image' '--disable-vnc' '--build=x86_64-apple-darwin19' '--host=aarch64-apple-darwin19' '--with-macosx-version-min=10.7' '--with-macosx-sdk=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' '--with-breakpad=https://mac.crashes.videolan.org' '--enable-sparkle' '--enable-breakpad' '--enable-growl' 'build_alias=x86_64-apple-darwin19' 'host_alias=aarch64-apple-darwin19' 'CC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Plat
+[vlc 0] creating audio output
+[vlc 0] looking for audio output module matching "any": 4 candidates
+[vlc 0] Rebuild device list
+[vlc 0] found 6 audio device(s)
+[vlc 0] DevID: 141 DevName: fake Microphone
+[vlc 0] this 'fake Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 129 DevName: MacBook Air Microphone
+[vlc 0] this 'MacBook Air Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 122 DevName: MacBook Air Speakers
+[vlc 0] DevID: 58 DevName: ItourInput 2ch
+[vlc 0] DevID: 85 DevName: ItourOutput 2ch
+[vlc 0] DevID: 134 DevName: ZoomAudioDevice
+[vlc 0] using audio output module "auhal"
+[vlc 0] keeping audio output
+[vlc 0] Creating an input for 'plane-c.mp4'
+[vlc 0] using timeshift granularity of 50 MiB
+[vlc 0] using default timeshift path
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4' gives access `file' demux `any' path `/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4'
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4'
+[vlc 0] looking for access_demux module matching "file": 14 candidates
+[vlc 0] no access_demux modules matched
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache_read": 26 candidates
+[vlc 0] Using stream method for AStream*
+[vlc 0] starting pre-buffering
+[vlc 0] received first data after 0 ms
+[vlc 0] pre-buffering done 1024 bytes in 0s - 19607 KiB/s
+[vlc 0] using stream_filter module "cache_read"
+[vlc 0] looking for stream_filter module matching "any": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] looking for stream_directory module matching "any": 1 candidates
+[vlc 0] no stream_directory modules matched
+[vlc 0] attachment of directory-extractor failed for file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4
+[vlc 0] looking for stream_filter module matching "record": 26 candidates
+[vlc 0] using stream_filter module "record"
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4'
+[vlc 0] looking for demux module matching "mp4": 56 candidates
+[vlc 0] dumping root Box "root"
+[vlc 0] |   + ftyp size 32 offset 0
+[vlc 0] |   + free size 8 offset 32
+[vlc 0] |   + mdat size 527122 offset 40
+[vlc 0] |   + moov size 7749 offset 527162
+[vlc 0] |   |   + mvhd size 108 offset 527170
+[vlc 0] |   |   + trak size 2571 offset 527278
+[vlc 0] |   |   |   + tkhd size 92 offset 527286
+[vlc 0] |   |   |   + edts size 36 offset 527378
+[vlc 0] |   |   |   |   + elst size 28 offset 527386
+[vlc 0] |   |   |   + mdia size 2435 offset 527414
+[vlc 0] |   |   |   |   + mdhd size 32 offset 527422
+[vlc 0] |   |   |   |   + hdlr size 45 offset 527454
+[vlc 0] |   |   |   |   + minf size 2350 offset 527499
+[vlc 0] |   |   |   |   |   + vmhd size 20 offset 527507
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 527527
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 527535
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 527551
+[vlc 0] |   |   |   |   |   + stbl size 2286 offset 527563
+[vlc 0] |   |   |   |   |   |   + stsd size 170 offset 527571
+[vlc 0] |   |   |   |   |   |   |   + avc1 size 154 offset 527587
+[vlc 0] |   |   |   |   |   |   |   |   + avcC size 48 offset 527673
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 527721
+[vlc 0] |   |   |   |   |   |   + stts size 24 offset 527741
+[vlc 0] |   |   |   |   |   |   + stss size 20 offset 527765
+[vlc 0] |   |   |   |   |   |   + stsc size 28 offset 527785
+[vlc 0] |   |   |   |   |   |   + stsz size 1020 offset 527813
+[vlc 0] |   |   |   |   |   |   + stco size 1016 offset 528833
+[vlc 0] |   |   + trak size 4965 offset 529849
+[vlc 0] |   |   |   + tkhd size 92 offset 529857
+[vlc 0] |   |   |   + edts size 36 offset 529949
+[vlc 0] |   |   |   |   + elst size 28 offset 529957
+[vlc 0] |   |   |   + mdia size 4829 offset 529985
+[vlc 0] |   |   |   |   + mdhd size 32 offset 529993
+[vlc 0] |   |   |   |   + hdlr size 45 offset 530025
+[vlc 0] |   |   |   |   + minf size 4744 offset 530070
+[vlc 0] |   |   |   |   |   + smhd size 16 offset 530078
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 530094
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 530102
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 530118
+[vlc 0] |   |   |   |   |   + stbl size 4684 offset 530130
+[vlc 0] |   |   |   |   |   |   + stsd size 126 offset 530138
+[vlc 0] |   |   |   |   |   |   |   + mp4a size 110 offset 530154
+[vlc 0] |   |   |   |   |   |   |   |   + esds size 54 offset 530190
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 530244
+[vlc 0] |   |   |   |   |   |   + stts size 32 offset 530264
+[vlc 0] |   |   |   |   |   |   + stsc size 1696 offset 530296
+[vlc 0] |   |   |   |   |   |   + stsz size 1748 offset 531992
+[vlc 0] |   |   |   |   |   |   + stco size 1020 offset 533740
+[vlc 0] |   |   |   |   |   |   + sgpd size 26 offset 534760
+[vlc 0] |   |   |   |   |   |   + sbgp size 28 offset 534786
+[vlc 0] |   |   + udta size 97 offset 534814
+[vlc 0] |   |   |   + meta size 89 offset 534822
+[vlc 0] |   |   |   |   + hdlr size 33 offset 534834
+[vlc 0] |   |   |   |   + ilst size 44 offset 534867
+[vlc 0] |   |   |   |   |   + ctoo size 36 offset 534875
+[vlc 0] |   |   |   |   |   |   + data size 28 offset 534883
+[vlc 0] ISO Media (isom) version 512.
+[vlc 0] found 2 tracks
+[vlc 0] VLC media player - 3.0.24 Vetinari
+[vlc 0] Copyright © 1996-2026 the VideoLAN team
+[vlc 0] revision 3.0.24-rc1-0-g6de05adcba
+[vlc 0] configured with /Users/videolan/vlc-3.0/extras/package/macosx/../../../configure  '--prefix=/Users/videolan/vlc-3.0/build-arm64/vlc_install_dir' '--enable-macosx' '--enable-merge-ffmpeg' '--enable-osx-notifications' '--enable-faad' '--enable-flac' '--enable-theora' '--enable-shout' '--enable-ncurses' '--enable-twolame' '--enable-libass' '--enable-macosx-avfoundation' '--disable-skins2' '--disable-xcb' '--disable-caca' '--disable-pulse' '--disable-sdl-image' '--disable-vnc' '--build=x86_64-apple-darwin19' '--host=aarch64-apple-darwin19' '--with-macosx-version-min=10.7' '--with-macosx-sdk=/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk' '--with-breakpad=https://mac.crashes.videolan.org' '--enable-sparkle' '--enable-breakpad' '--enable-growl' 'build_alias=x86_64-apple-darwin19' 'host_alias=aarch64-apple-darwin19' 'CC=/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -isysroot /Applications/Xcode.app/Contents/Developer/Plat
+[vlc 0] creating audio output
+[vlc 0] looking for audio output module matching "any": 4 candidates
+[vlc 0] Rebuild device list
+[vlc 0] found 6 audio device(s)
+[vlc 0] DevID: 141 DevName: fake Microphone
+[vlc 0] this 'fake Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 129 DevName: MacBook Air Microphone
+[vlc 0] this 'MacBook Air Microphone' is INPUT only. skipping...
+[vlc 0] DevID: 122 DevName: MacBook Air Speakers
+[vlc 0] DevID: 58 DevName: ItourInput 2ch
+[vlc 0] DevID: 85 DevName: ItourOutput 2ch
+[vlc 0] DevID: 134 DevName: ZoomAudioDevice
+[vlc 0] using audio output module "auhal"
+[vlc 0] keeping audio output
+[vlc 0] Creating an input for 'plane-d.mp4'
+[vlc 0] using timeshift granularity of 50 MiB
+[vlc 0] using default timeshift path
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4' gives access `file' demux `any' path `/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4'
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4'
+[vlc 0] looking for access_demux module matching "file": 14 candidates
+[vlc 0] no access_demux modules matched
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache_read": 26 candidates
+[vlc 0] Using stream method for AStream*
+[vlc 0] starting pre-buffering
+[vlc 0] received first data after 0 ms
+[vlc 0] pre-buffering done 1024 bytes in 0s - 17543 KiB/s
+[vlc 0] using stream_filter module "cache_read"
+[vlc 0] looking for stream_filter module matching "any": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] looking for stream_directory module matching "any": 1 candidates
+[vlc 0] no stream_directory modules matched
+[vlc 0] attachment of directory-extractor failed for file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4
+[vlc 0] looking for stream_filter module matching "record": 26 candidates
+[vlc 0] using stream_filter module "record"
+[vlc 0] creating demux: access='file' demux='any' location='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4' file='/Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4'
+[vlc 0] looking for demux module matching "mp4": 56 candidates
+[vlc 0] dumping root Box "root"
+[vlc 0] |   + ftyp size 32 offset 0
+[vlc 0] |   + free size 8 offset 32
+[vlc 0] |   + mdat size 526316 offset 40
+[vlc 0] |   + moov size 7749 offset 526356
+[vlc 0] |   |   + mvhd size 108 offset 526364
+[vlc 0] |   |   + trak size 2571 offset 526472
+[vlc 0] |   |   |   + tkhd size 92 offset 526480
+[vlc 0] |   |   |   + edts size 36 offset 526572
+[vlc 0] |   |   |   |   + elst size 28 offset 526580
+[vlc 0] |   |   |   + mdia size 2435 offset 526608
+[vlc 0] |   |   |   |   + mdhd size 32 offset 526616
+[vlc 0] |   |   |   |   + hdlr size 45 offset 526648
+[vlc 0] |   |   |   |   + minf size 2350 offset 526693
+[vlc 0] |   |   |   |   |   + vmhd size 20 offset 526701
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 526721
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 526729
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 526745
+[vlc 0] |   |   |   |   |   + stbl size 2286 offset 526757
+[vlc 0] |   |   |   |   |   |   + stsd size 170 offset 526765
+[vlc 0] |   |   |   |   |   |   |   + avc1 size 154 offset 526781
+[vlc 0] |   |   |   |   |   |   |   |   + avcC size 48 offset 526867
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 526915
+[vlc 0] |   |   |   |   |   |   + stts size 24 offset 526935
+[vlc 0] |   |   |   |   |   |   + stss size 20 offset 526959
+[vlc 0] |   |   |   |   |   |   + stsc size 28 offset 526979
+[vlc 0] |   |   |   |   |   |   + stsz size 1020 offset 527007
+[vlc 0] |   |   |   |   |   |   + stco size 1016 offset 528027
+[vlc 0] |   |   + trak size 4965 offset 529043
+[vlc 0] |   |   |   + tkhd size 92 offset 529051
+[vlc 0] |   |   |   + edts size 36 offset 529143
+[vlc 0] |   |   |   |   + elst size 28 offset 529151
+[vlc 0] |   |   |   + mdia size 4829 offset 529179
+[vlc 0] |   |   |   |   + mdhd size 32 offset 529187
+[vlc 0] |   |   |   |   + hdlr size 45 offset 529219
+[vlc 0] |   |   |   |   + minf size 4744 offset 529264
+[vlc 0] |   |   |   |   |   + smhd size 16 offset 529272
+[vlc 0] |   |   |   |   |   + dinf size 36 offset 529288
+[vlc 0] |   |   |   |   |   |   + dref size 28 offset 529296
+[vlc 0] |   |   |   |   |   |   |   + url  size 12 offset 529312
+[vlc 0] |   |   |   |   |   + stbl size 4684 offset 529324
+[vlc 0] |   |   |   |   |   |   + stsd size 126 offset 529332
+[vlc 0] |   |   |   |   |   |   |   + mp4a size 110 offset 529348
+[vlc 0] |   |   |   |   |   |   |   |   + esds size 54 offset 529384
+[vlc 0] |   |   |   |   |   |   |   |   + btrt size 20 offset 529438
+[vlc 0] |   |   |   |   |   |   + stts size 32 offset 529458
+[vlc 0] |   |   |   |   |   |   + stsc size 1696 offset 529490
+[vlc 0] |   |   |   |   |   |   + stsz size 1748 offset 531186
+[vlc 0] |   |   |   |   |   |   + stco size 1020 offset 532934
+[vlc 0] |   |   |   |   |   |   + sgpd size 26 offset 533954
+[vlc 0] |   |   |   |   |   |   + sbgp size 28 offset 533980
+[vlc 0] |   |   + udta size 97 offset 534008
+[vlc 0] |   |   |   + meta size 89 offset 534016
+[vlc 0] |   |   |   |   + hdlr size 33 offset 534028
+[vlc 0] |   |   |   |   + ilst size 44 offset 534061
+[vlc 0] |   |   |   |   |   + ctoo size 36 offset 534069
+[vlc 0] |   |   |   |   |   |   + data size 28 offset 534077
+[vlc 0] ISO Media (isom) version 512.
+[vlc 0] found 2 tracks
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=0ms) rate=1.0
+[vlc 0] track[Id 0x1] read 250 chunk
+[vlc 3] STTS table of 1 entries
+[vlc 0] track[Id 0x1] read 250 samples length:10s
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=0ms) rate=1.0
+[vlc 0] track[Id 0x1] read 250 chunk
+[vlc 3] STTS table of 1 entries
+[vlc 0] track[Id 0x1] read 250 samples length:10s
+[vlc 0] selecting program id=0
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=0ms) rate=1.0
+[vlc 0] track[Id 0x1] read 250 chunk
+[vlc 3] STTS table of 1 entries
+[vlc 0] track[Id 0x1] read 250 samples length:10s
+[vlc 0] selecting program id=0
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=0ms) rate=1.0
+[vlc 0] selecting program id=0
+[vlc 0] track[Id 0x1] read 250 chunk
+[vlc 3] STTS table of 1 entries
+[vlc 0] track[Id 0x1] read 250 samples length:10s
+[vlc 0] selecting program id=0
+[vlc 0] adding track[Id 0x1] video (enable) language undef
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=23ms) rate=1.0
+[vlc 0] adding track[Id 0x1] video (enable) language undef
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=23ms) rate=1.0
+[vlc 0] track[Id 0x2] read 251 chunk
+[vlc 0] adding track[Id 0x1] video (enable) language undef
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=23ms) rate=1.0
+[vlc 0] track[Id 0x2] read 251 chunk
+[vlc 3] STTS table of 2 entries
+[vlc 3] STTS table of 2 entries
+[vlc 0] track[Id 0x2] read 432 samples length:10s
+[vlc 0] track[Id 0x2] read 251 chunk
+[vlc 3] STTS table of 2 entries
+[vlc 0] track[Id 0x2] read 432 samples length:10s
+[vlc 0] adding track[Id 0x2] audio (enable) language undef
+[vlc 0] using demux module "mp4"
+[vlc 0] adding track[Id 0x1] video (enable) language undef
+[vlc 3] elst box found
+[vlc 0]    - [0] duration=10000ms media time=23ms) rate=1.0
+[vlc 0] track[Id 0x2] read 432 samples length:10s
+[vlc 0] adding track[Id 0x2] audio (enable) language undef
+[vlc 0] using demux module "mp4"
+[vlc 0] looking for video decoder module matching "any": 15 candidates
+[vlc 0] looking for video decoder module matching "any": 15 candidates
+[vlc 0] track[Id 0x2] read 251 chunk
+[vlc 3] STTS table of 2 entries
+[vlc 0] track[Id 0x2] read 432 samples length:10s
+[vlc 0] adding track[Id 0x2] audio (enable) language undef
+[vlc 0] using demux module "mp4"
+[vlc 0] adding track[Id 0x2] audio (enable) language undef
+[vlc 0] using demux module "mp4"
+[vlc 0] looking for video decoder module matching "any": 15 candidates
+[vlc 0] looking for video decoder module matching "any": 15 candidates
+[vlc 0] new SPS parsed: 0
+[vlc 0] new SPS parsed: 0
+[vlc 0] new PPS parsed: 0
+[vlc 0] new SPS parsed: 0
+[vlc 0] new PPS parsed: 0
+[vlc 0] new SPS parsed: 0
+[vlc 0] new PPS parsed: 0
+[vlc 3] forcing CVPX format: 420v
+[vlc 3] forcing CVPX format: 420v
+[vlc 0] new PPS parsed: 0
+[vlc 3] forcing CVPX format: 420v
+[vlc 3] forcing CVPX format: 420v
+[vlc 2] Using Video Toolbox to decode 'h264'
+[vlc 2] Using Video Toolbox to decode 'h264'
+[vlc 0] using video decoder module "videotoolbox"
+[vlc 2] Using Video Toolbox to decode 'h264'
+[vlc 0] using video decoder module "videotoolbox"
+[vlc 0] using video decoder module "videotoolbox"
+[vlc 2] Using Video Toolbox to decode 'h264'
+[vlc 0] using video decoder module "videotoolbox"
+[vlc 0] looking for audio decoder module matching "any": 19 candidates
+[vlc 0] looking for audio decoder module matching "any": 19 candidates
+[vlc 0] looking for audio decoder module matching "any": 19 candidates
+[vlc 0] looking for audio decoder module matching "any": 19 candidates
+[vlc 0] using audio decoder module "faad"
+[vlc 0] looking for meta reader module matching "any": 2 candidates
+[vlc 0] using audio decoder module "faad"
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4
+[vlc 0] using audio decoder module "faad"
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] using audio decoder module "faad"
+[vlc 0] looking for meta reader module matching "any": 2 candidates
+[vlc 0] looking for meta reader module matching "any": 2 candidates
+[vlc 0] looking for meta reader module matching "any": 2 candidates
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] removing module "filesystem"
+[vlc 0] using meta reader module "taglib"
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] removing module "taglib"
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-d.mp4' successfully opened
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] elst (0) gives 0ms (movie)-> 0ms (track)
+[vlc 0] track[Id 0x1] using Sync Sample Box (stss)
+[vlc 0] stss gives 0 --> 0 (sample number)
+[vlc 0] elst (0) gives 0ms (movie)-> 23ms (track)
+[vlc 0] removing module "filesystem"
+[vlc 0] using meta reader module "taglib"
+[vlc 0] removing module "taglib"
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-a.mp4' successfully opened
+[vlc 0] Buffering 0%
+[vlc 0] elst (0) gives 0ms (movie)-> 0ms (track)
+[vlc 0] track[Id 0x1] using Sync Sample Box (stss)
+[vlc 0] stss gives 0 --> 0 (sample number)
+[vlc 0] elst (0) gives 0ms (movie)-> 23ms (track)
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache": 26 candidates
+[vlc 0] Buffering 25%
+[vlc 0] no stream_filter modules matched
+[vlc 0] Buffering 50%
+[vlc 0] Buffering 75%
+[vlc 0] Buffering 100%
+[vlc 0] Stream buffering done (1250 ms in 0 ms)
+[vlc 0] removing module "filesystem"
+[vlc 0] using meta reader module "taglib"
+[vlc 0] removing module "taglib"
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-c.mp4' successfully opened
+[vlc 0] Buffering 0%
+[vlc 0] elst (0) gives 0ms (movie)-> 0ms (track)
+[vlc 0] track[Id 0x1] using Sync Sample Box (stss)
+[vlc 0] stss gives 0 --> 0 (sample number)
+[vlc 0] elst (0) gives 0ms (movie)-> 23ms (track)
+[vlc 0] creating access: file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4
+[vlc 0]  (path: /Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4)
+[vlc 0] looking for access module matching "file": 23 candidates
+[vlc 0] using access module "filesystem"
+[vlc 0] looking for stream_filter module matching "prefetch,cache": 26 candidates
+[vlc 0] no stream_filter modules matched
+[vlc 0] Buffering 25%
+[vlc 0] Buffering 0%
+[vlc 0] Buffering 25%
+[vlc 0] Buffering 50%
+[vlc 0] Buffering 50%
+[vlc 0] removing module "filesystem"
+[vlc 0] using meta reader module "taglib"
+[vlc 0] removing module "taglib"
+[vlc 0] `file:///Users/hwj/Desktop/SI/GridPlayer/testdata/fixtures/plane-b.mp4' successfully opened
+[vlc 0] elst (0) gives 0ms (movie)-> 0ms (track)
+[vlc 0] track[Id 0x1] using Sync Sample Box (stss)
+[vlc 0] stss gives 0 --> 0 (sample number)
+[vlc 0] elst (0) gives 0ms (movie)-> 23ms (track)
+[vlc 0] Buffering 75%
+[vlc 0] Buffering 0%
+[vlc 0] Buffering 25%
+[vlc 0] Buffering 100%
+[vlc 3] decoded zero sample
+[vlc 0] reusing audio output
+[vlc 0] VLC is looking for: 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] attempting to use device 0
+[vlc 0] Buffering 75%
+[vlc 3] decoded zero sample
+[vlc 0] Buffering 100%
+[vlc 0] using default audio device 122
+[vlc 0] Stream buffering done (1250 ms in 2 ms)
+[vlc 0] Current device has a latency of 1678 us
+[vlc 0] Stream buffering done (1250 ms in 2 ms)
+[vlc 3] decoded zero sample
+[vlc 0] reusing audio output
+[vlc 0] VLC is looking for: 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] attempting to use device 0
+[vlc 0] using default audio device 122
+[vlc 3] decoded zero sample
+[vlc 0] reusing audio output
+[vlc 0] VLC is looking for: 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] attempting to use device 0
+[vlc 0] using default audio device 122
+[vlc 0] Current device has a latency of 1678 us
+[vlc 0] reusing audio output
+[vlc 0] VLC is looking for: 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] attempting to use device 0
+[vlc 0] Current device has a latency of 1678 us
+[vlc 0] Buffering 50%
+[vlc 0] using default audio device 122
+[vlc 0] Current device has a latency of 1678 us
+[vlc 0] Buffering 75%
+[vlc 0] Buffering 100%
+[vlc 0] Stream buffering done (1250 ms in 2 ms)
+[vlc 2] vt cvpx chroma: 420v
+[vlc 2] vt cvpx chroma: 420v
+[vlc 2] vt cvpx chroma: 420v
+[vlc 2] vt cvpx chroma: 420v
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] output layout of AUHAL is Stereo
+[vlc 0] VLC will output: Stereo
+[vlc 0] Current AU format: [44100.000000][mcpl][9][8][1][8][2][32]
+[vlc 0] output layout of AUHAL is Stereo
+[vlc 0] VLC will output: Stereo
+[vlc 0] Current AU format: [44100.000000][mcpl][9][8][1][8][2][32]
+[vlc 0] output layout of AUHAL is Stereo
+[vlc 0] VLC will output: Stereo
+[vlc 0] Current AU format: [44100.000000][mcpl][9][8][1][8][2][32]
+[vlc 0] output layout of AUHAL is Stereo
+[vlc 0] VLC will output: Stereo
+[vlc 0] Current AU format: [44100.000000][mcpl][9][8][1][8][2][32]
+[vlc 0] analog output successfully opened
+[vlc 0] output 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio volume module matching "any": 2 candidates
+[vlc 0] using audio volume module "float_mixer"
+[vlc 0] input 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio filter module matching "scaletempo": 16 candidates
+[vlc 0] analog output successfully opened
+[vlc 0] format: 44100 rate, 2 nch, 4 bps, fl32
+[vlc 0] params: 30 stride, 0.200 overlap, 14 search
+[vlc 0] 1.000 scale, 1323.000 stride_in, 1323 stride_out, 1059 standing, 264 overlap, 617 search, 2204 queue, fl32 mode
+[vlc 0] using audio filter module "scaletempo"
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] looking for audio resampler module matching "any": 3 candidates
+[vlc 0] analog output successfully opened
+[vlc 0] output 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio volume module matching "any": 2 candidates
+[vlc 0] using audio volume module "float_mixer"
+[vlc 0] input 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio filter module matching "scaletempo": 16 candidates
+[vlc 0] format: 44100 rate, 2 nch, 4 bps, fl32
+[vlc 0] output 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio volume module matching "any": 2 candidates
+[vlc 0] using audio volume module "float_mixer"
+[vlc 0] input 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio filter module matching "scaletempo": 16 candidates
+[vlc 0] format: 44100 rate, 2 nch, 4 bps, fl32
+[vlc 0] params: 30 stride, 0.200 overlap, 14 search
+[vlc 0] 1.000 scale, 1323.000 stride_in, 1323 stride_out, 1059 standing, 264 overlap, 617 search, 2204 queue, fl32 mode
+[vlc 0] params: 30 stride, 0.200 overlap, 14 search
+[vlc 0] 1.000 scale, 1323.000 stride_in, 1323 stride_out, 1059 standing, 264 overlap, 617 search, 2204 queue, fl32 mode
+[vlc 0] using audio filter module "scaletempo"
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] looking for audio resampler module matching "any": 3 candidates
+[vlc 0] using audio resampler module "samplerate"
+[vlc 0] using audio filter module "scaletempo"
+[vlc 0] analog output successfully opened
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] looking for audio resampler module matching "any": 3 candidates
+[vlc 0] using audio resampler module "samplerate"
+[vlc 0] using audio resampler module "samplerate"
+[vlc 0] output 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio volume module matching "any": 2 candidates
+[vlc 0] using audio volume module "float_mixer"
+[vlc 0] input 'f32l' 44100 Hz Stereo frame=1 samples/8 bytes
+[vlc 0] looking for audio filter module matching "scaletempo": 16 candidates
+[vlc 0] format: 44100 rate, 2 nch, 4 bps, fl32
+[vlc 0] params: 30 stride, 0.200 overlap, 14 search
+[vlc 0] 1.000 scale, 1323.000 stride_in, 1323 stride_out, 1059 standing, 264 overlap, 617 search, 2204 queue, fl32 mode
+[vlc 0] using audio filter module "scaletempo"
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] conversion: 'f32l'->'f32l' 44100 Hz->44100 Hz Stereo->Stereo
+[vlc 0] conversion pipeline complete
+[vlc 0] looking for audio resampler module matching "any": 3 candidates
+[vlc 0] using audio resampler module "samplerate"
+[vlc 0] using text renderer module "freetype"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] using text renderer module "freetype"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] using text renderer module "freetype"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] using text renderer module "freetype"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] 32x32 (32x32) chroma: YUVA -> 16x16 (16x16) chroma: RGBA with scaling using Bicubic (good quality)
+[vlc 0] 32x32 (32x32) chroma: YUVA -> 16x16 (16x16) chroma: RGBA with scaling using Bicubic (good quality)
+[vlc 0] using video converter module "swscale"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] 32x32 (32x32) chroma: YUVA -> 16x16 (16x16) chroma: RGBA with scaling using Bicubic (good quality)
+[vlc 0] YUVP to YUVA converter
+[vlc 0] using video converter module "yuvp"
+[vlc 0] Deinterlacing available
+[vlc 0] 32x32 (32x32) chroma: YUVA -> 16x16 (16x16) chroma: RGBA with scaling using Bicubic (good quality)
+[vlc 0] deinterlace -1, mode auto, is_needed 0
+[vlc 0] looking for vout window module matching "any": 0 candidates
+[vlc 0] no vout window modules
+[vlc 0] using video converter module "swscale"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] using video converter module "swscale"
+[vlc 0] using video converter module "swscale"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] YUVP to YUVA converter
+[vlc 0] using video converter module "yuvp"
+[vlc 0] looking for video converter module matching "any": 16 candidates
+[vlc 0] YUVP to YUVA converter
+[vlc 0] using video converter module "yuvp"
+[vlc 0] Deinterlacing available
+[vlc 0] Opening vout display wrapper
+[vlc 0] Deinterlacing available
+[vlc 0] deinterlace -1, mode auto, is_needed 0
+[vlc 0] looking for vout window module matching "any": 0 candidates
+[vlc 0] no vout window modules
+[vlc 0] deinterlace -1, mode auto, is_needed 0
+[vlc 0] YUVP to YUVA converter
+[vlc 0] using video converter module "yuvp"
+[vlc 0] Deinterlacing available
+[vlc 0] Opening vout display wrapper
+[vlc 0] looking for vout window module matching "any": 0 candidates
+[vlc 0] no vout window modules
+[vlc 0] deinterlace -1, mode auto, is_needed 0
+[vlc 0] looking for vout display module matching "any": 7 candidates
+[vlc 0] looking for vout window module matching "any": 0 candidates
+[vlc 0] no vout window modules
+[vlc 0] looking for vout display module matching "any": 7 candidates
+[vlc 0] Opening vout display wrapper
+[vlc 0] looking for vout display module matching "any": 7 candidates
+[vlc 0] Opening vout display wrapper
+[vlc 0] looking for vout display module matching "any": 7 candidates
+[vlc 0] VoutDisplayEvent 'resize' 0x0
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] looking for glconv module matching "any": 1 candidates
+[vlc 0] using glconv module "glconv_cvpx"
+[vlc 0] using vout display module "caopengllayer"
+[vlc 0] original format sz 640x368, of (0,0), vsz 640x360, 4cc CVPN, sar 1:1, msk r0x0 g0x0 b0x0
+[vlc 0] VoutDisplayEvent 'resize' 640x360
+[vlc 0] removing module "freetype"
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] VoutDisplayEvent 'resize' 0x0
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] VoutDisplayEvent 'resize' 0x0
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] VoutDisplayEvent 'resize' 0x0
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] VoutDisplayEvent 'resize' 1280x720
+[vlc 0] looking for glconv module matching "any": 1 candidates
+[vlc 0] looking for glconv module matching "any": 1 candidates
+[vlc 0] using glconv module "glconv_cvpx"
+[vlc 0] using glconv module "glconv_cvpx"
+[vlc 0] looking for glconv module matching "any": 1 candidates
+[vlc 0] using glconv module "glconv_cvpx"
+[vlc 0] using text renderer module "freetype"
+[vlc 0] using vout display module "caopengllayer"
+[vlc 0] original format sz 640x368, of (0,0), vsz 640x360, 4cc CVPN, sar 1:1, msk r0x0 g0x0 b0x0
+[vlc 0] VoutDisplayEvent 'resize' 640x360
+[vlc 0] removing module "freetype"
+[vlc 0] using vout display module "caopengllayer"
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] original format sz 640x368, of (0,0), vsz 640x360, 4cc CVPN, sar 1:1, msk r0x0 g0x0 b0x0
+[vlc 0] removing module "freetype"
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] VoutDisplayEvent 'resize' 640x360
+[vlc 0] Received first picture
+[vlc 0] Decoder wait done in 72 ms
+[vlc 0] using vout display module "caopengllayer"
+[vlc 0] original format sz 640x368, of (0,0), vsz 640x360, 4cc CVPN, sar 1:1, msk r0x0 g0x0 b0x0
+[vlc 0] VoutDisplayEvent 'resize' 640x360
+[vlc 0] removing module "freetype"
+[vlc 0] looking for text renderer module matching "any": 3 candidates
+[vlc 0] using text renderer module "freetype"
+[vlc 0] using text renderer module "freetype"
+[vlc 0] Received first picture
+[vlc 0] Received first picture
+[vlc 0] Decoder wait done in 76 ms
+[vlc 0] using text renderer module "freetype"
+[vlc 0] Decoder wait done in 81 ms
+[vlc 0] Received first picture
+[vlc 0] Decoder wait done in 79 ms
+[vlc 0] auto hiding mouse cursor
+[vlc 0] auto hiding mouse cursor
+[vlc 0] auto hiding mouse cursor
+[vlc 0] auto hiding mouse cursor
+[vlc 0] toggling resume
+[vlc 0] toggling resume
+[vlc 0] elst (0) gives 3000ms (movie)-> 3000ms (track)
+[vlc 0] track[Id 0x1] using Sync Sample Box (stss)
+[vlc 0] stss gives 75 --> 0 (sample number)
+[vlc 0] seeking with 3000ms preroll (use input-fast-seek to avoid)
+[vlc 0] elst (0) gives 0ms (movie)-> 23ms (track)
+[vlc 0] Buffering 0%
+[vlc 0] Buffering 6%
+[vlc 0] Buffering 12%
+[vlc 0] Buffering 18%
+[vlc 0] Buffering 25%
+[vlc 0] Buffering 31%
+[vlc 0] Buffering 37%
+[vlc 0] Buffering 43%
+[vlc 0] Buffering 50%
+[vlc 0] Buffering 56%
+[vlc 0] Buffering 62%
+[vlc 0] Buffering 68%
+[vlc 0] Buffering 75%
+[vlc 0] Buffering 81%
+[vlc 0] Buffering 87%
+[vlc 0] Buffering 93%
+[vlc 0] Stream buffering done (4000 ms in 1 ms)
+[vlc 0] Decoder wait done in 0 ms
+[vlc 0] end of video preroll
+[vlc 0] toggling pause
+[vlc 0] toggling pause
+[vlc 0] end of audio preroll
+[vlc 0] killing decoder fourcc `h264'
+[vlc 0] removing module "videotoolbox"
+[vlc 0] saving a free vout
+[vlc 0] reusing provided vout
+[vlc 0] killing decoder fourcc `mp4a'
+[vlc 0] removing module "faad"
+[vlc 0] removing module "samplerate"
+[vlc 0] removing module "scaletempo"
+[vlc 0] Stopping the auhal module
+[vlc 0] removing module "float_mixer"
+[vlc 0] keeping audio output
+[vlc 0] removing module "mp4"
+[vlc 0] freeing all memory
+[vlc 0] Program doesn't contain anymore ES
+[vlc 0] removing module "record"
+[vlc 0] removing module "cache_read"
+[vlc 0] removing module "filesystem"
+[vlc 0] removing module "auhal"
+[vlc 0] destroying useless vout
+[vlc 0] removing module "caopengllayer"
+[vlc 0] removing module "glconv_cvpx"
+[vlc 0] removing module "freetype"
+[vlc 0] removing module "yuvp"
+[vlc 0] removing module "swscale"
+[vlc 0] killing decoder fourcc `h264'
+[vlc 0] removing module "videotoolbox"
+[vlc 0] saving a free vout
+[vlc 0] reusing provided vout
+[vlc 0] killing decoder fourcc `mp4a'
+[vlc 0] removing module "faad"
+[vlc 0] removing module "samplerate"
+[vlc 0] removing module "scaletempo"
+[vlc 0] Stopping the auhal module
+[vlc 0] removing module "float_mixer"
+[vlc 0] keeping audio output
+[vlc 0] removing module "mp4"
+[vlc 0] freeing all memory
+[vlc 0] Program doesn't contain anymore ES
+[vlc 0] removing module "record"
+[vlc 0] removing module "cache_read"
+[vlc 0] removing module "filesystem"
+[vlc 0] removing module "auhal"
+[vlc 0] destroying useless vout
+[vlc 0] removing module "caopengllayer"
+[vlc 0] removing module "glconv_cvpx"
+[vlc 0] removing module "freetype"
+[vlc 0] removing module "yuvp"
+[vlc 0] removing module "swscale"
+[vlc 0] killing decoder fourcc `h264'
+[vlc 0] removing module "videotoolbox"
+[vlc 0] saving a free vout
+[vlc 0] reusing provided vout
+[vlc 0] killing decoder fourcc `mp4a'
+[vlc 0] removing module "faad"
+[vlc 0] removing module "samplerate"
+[vlc 0] removing module "scaletempo"
+[vlc 0] Stopping the auhal module
+[vlc 0] removing module "float_mixer"
+[vlc 0] keeping audio output
+[vlc 0] removing module "mp4"
+[vlc 0] freeing all memory
+[vlc 0] Program doesn't contain anymore ES
+[vlc 0] removing module "record"
+[vlc 0] removing module "cache_read"
+[vlc 0] removing module "filesystem"
+[vlc 0] removing module "auhal"
+[vlc 0] destroying useless vout
+[vlc 0] removing module "caopengllayer"
+[vlc 0] removing module "glconv_cvpx"
+[vlc 0] removing module "freetype"
+[vlc 0] removing module "yuvp"
+[vlc 0] removing module "swscale"
+[vlc 0] killing decoder fourcc `h264'
+[vlc 0] removing module "videotoolbox"
+[vlc 0] saving a free vout
+[vlc 0] reusing provided vout
+[vlc 0] killing decoder fourcc `mp4a'
+[vlc 0] removing module "faad"
+[vlc 0] removing module "samplerate"
+[vlc 0] removing module "scaletempo"
+[vlc 0] Stopping the auhal module
+[vlc 0] removing module "float_mixer"
+[vlc 0] keeping audio output
+[vlc 0] removing module "mp4"
+[vlc 0] freeing all memory
+[vlc 0] Program doesn't contain anymore ES
+[vlc 0] removing module "record"
+[vlc 0] removing module "cache_read"
+[vlc 0] removing module "filesystem"
+[vlc 0] removing module "auhal"
+[vlc 0] destroying useless vout
+[vlc 0] removing module "caopengllayer"
+[vlc 0] removing module "glconv_cvpx"
+[vlc 0] removing module "freetype"
+[vlc 0] removing module "yuvp"
+[vlc 0] removing module "swscale"
+[vlc 0] exiting
+[vlc 0] no exit handler
+[vlc 0] removing all interfaces
+[vlc 0] removing module "memory"
+[vlc 0] exiting
+[vlc 0] no exit handler
+[vlc 0] removing all interfaces
+[vlc 0] removing module "memory"
+[vlc 0] exiting
+[vlc 0] no exit handler
+[vlc 0] removing all interfaces
+[vlc 0] removing module "memory"
+[vlc 0] exiting
+[vlc 0] no exit handler
+[vlc 0] removing all interfaces
+[vlc 0] removing module "memory"
