@@ -20,6 +20,14 @@ type fakeBackend struct {
 	time, length  int64
 	state         BackendState
 	w, h          int
+	audio         []Track
+	video         []Track
+	subs          []Track
+	chapters      []Chapter
+	audioID       int
+	videoID       int
+	subID         int
+	chapter       int
 }
 
 func newFake() *fakeBackend {
@@ -91,6 +99,32 @@ func (f *fakeBackend) VideoSize() (int, int, bool) {
 	defer f.mu.Unlock()
 	return f.w, f.h, f.w > 0 && f.h > 0
 }
+func (f *fakeBackend) AudioTracks() []Track { return f.audio }
+func (f *fakeBackend) VideoTracks() []Track { return f.video }
+func (f *fakeBackend) SubtitleTracks() []Track {
+	return f.subs
+}
+func (f *fakeBackend) AudioTrack() int    { return f.audioID }
+func (f *fakeBackend) VideoTrack() int    { return f.videoID }
+func (f *fakeBackend) SubtitleTrack() int { return f.subID }
+func (f *fakeBackend) SetAudioTrack(id int) bool {
+	f.audioID = id
+	return true
+}
+func (f *fakeBackend) SetVideoTrack(id int) bool {
+	f.videoID = id
+	return true
+}
+func (f *fakeBackend) SetSubtitleTrack(id int) bool {
+	f.subID = id
+	return true
+}
+func (f *fakeBackend) Chapters() []Chapter { return f.chapters }
+func (f *fakeBackend) Chapter() int        { return f.chapter }
+func (f *fakeBackend) SetChapter(i int) bool {
+	f.chapter = i
+	return true
+}
 func (f *fakeBackend) Events() <-chan Event { return f.events }
 func (f *fakeBackend) Close() {
 	f.mu.Lock()
@@ -121,6 +155,11 @@ func TestLifecycleCommandsAndSnapshot(t *testing.T) {
 	f := newFake()
 	f.length = 10_000
 	f.w, f.h = 640, 360
+	f.audio = []Track{{ID: 1, Name: "English"}, {ID: 2, Name: "Spanish"}}
+	f.video = []Track{{ID: 1, Name: "Main"}}
+	f.subs = []Track{{ID: -1, Name: "Disable"}, {ID: 3, Name: "English"}}
+	f.chapters = []Chapter{{Index: 0, Name: "Intro"}, {Index: 1, Name: "Part One"}}
+	f.audioID, f.videoID, f.subID, f.chapter = 1, 1, -1, 0
 	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
 	defer e.Close()
 
@@ -129,6 +168,17 @@ func TestLifecycleCommandsAndSnapshot(t *testing.T) {
 	}
 	f.emit(Event{Kind: EventPlaying})
 	waitFor(t, "playing", func() bool { return e.Snapshot().Phase == Playing })
+	s := e.Snapshot()
+	if len(s.AudioTracks) != 2 || len(s.Chapters) != 2 || s.AudioTrack != 1 || s.Chapter != 0 {
+		t.Fatalf("track snapshot %+v", s)
+	}
+	if !e.SetAudioTrack(2) || !e.SetSubtitleTrack(3) || !e.SetChapter(1) {
+		t.Fatal("track/chapter command failed")
+	}
+	s = e.Snapshot()
+	if s.AudioTrack != 2 || s.SubtitleTrack != 3 || s.Chapter != 1 {
+		t.Fatalf("selection snapshot %+v", s)
+	}
 
 	e.SeekTo(3000)
 	f.emit(Event{Kind: EventTime, Time: 3500})
@@ -144,7 +194,7 @@ func TestLifecycleCommandsAndSnapshot(t *testing.T) {
 	e.SetRate(1.5)
 	e.SetVolume(42)
 	e.SetMute(true)
-	s := e.Snapshot()
+	s = e.Snapshot()
 	if s.Rate != 1.5 || s.Volume != 42 || !s.Muted {
 		t.Fatalf("snapshot %+v", s)
 	}

@@ -38,5 +38,16 @@
       "freq": 770,
       "label": "D"
     }
+  ],
+  "features": [
+    {
+      "name": "feature.mkv",
+      "sha256": "a071e52d3ab09eef2ee5378e4938574f8e81428b33cf817259883e7fb22346eb",
+      "bytes": 748305,
+      "secs": 12,
+      "chapters": 3,
+      "audio_tracks": 2,
+      "subtitle_tracks": 2
+    }
   ]
 }
