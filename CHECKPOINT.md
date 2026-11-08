@@ -52,6 +52,10 @@
 - #3 drag reorder: cells are `Drag(i)` sources and `Drop[int]` targets; a drop
   swaps cell structs (path/engine/view) and re-frames both slots. Unit test for
   swap bounds. Free/mosaic/single mode still open.
+- #2 view/external tracks: aspect/scale/crop in engine+vlcmac, `file://` subtitle/audio
+  slaves remembered across reloads, View + Tracks file menus, settings persistence
+  for `cell_view_mode` (fill/fit/stretch) plus aspect/scale/crop. Real libVLC
+  dummy-output test attaches `feature.de.srt` and sees a new subtitle track.
 - #5 local .app: `mygo.json` + pinned `go tool mygo`, icon, `scripts/build_app.sh`,
   `scripts/smoke_app.sh`. `dist/darwin-arm64/GridPlayer.app` (ad-hoc signed)
   launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;

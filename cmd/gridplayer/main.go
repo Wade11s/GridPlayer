@@ -49,6 +49,10 @@ type app struct {
 	active        int
 	cfg           grid.Config
 	fill          bool
+	stretch       bool
+	aspect        string
+	scale         float64
+	crop          string
 	closed        atomic.Bool
 	status        string
 	doc           *playlist.Document
@@ -62,7 +66,7 @@ type app struct {
 }
 
 func newApp(paths []string) *app {
-	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80}
+	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80, scale: 1}
 	a.setPlaylist(paths)
 	return a
 }
@@ -83,11 +87,24 @@ func (a *app) loadSettings() {
 		Rows: atoi(st.Get("playlist/grid_rows", "3"), 3),
 		Cols: atoi(st.Get("playlist/grid_cols", "3"), 3),
 	}
-	a.fill = st.Get("video_defaults/cell_view_mode", "fill") != "fit"
+	switch st.Get("video_defaults/cell_view_mode", "fill") {
+	case "fit":
+		a.fill, a.stretch = false, false
+	case "stretch":
+		a.fill, a.stretch = false, true
+	default:
+		a.fill, a.stretch = true, false
+	}
 	if v := atof(st.Get("video_defaults/volume", "0.8"), 0.8); v > 0 {
 		a.defaultVolume = int(v * 100)
 	}
 	a.defaultMuted = st.Get("video_defaults/muted", "false") == "true"
+	a.aspect = st.Get("video_defaults/aspect_ratio", "")
+	a.scale = atof(st.Get("video_defaults/scale", "1"), 1)
+	if a.scale < 0 {
+		a.scale = 1
+	}
+	a.crop = st.Get("video_defaults/crop_ratio", "")
 	for i, c := range a.cells {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
@@ -133,10 +150,15 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
 	view := "fill"
-	if !a.fill {
+	if a.stretch {
+		view = "stretch"
+	} else if !a.fill {
 		view = "fit"
 	}
 	a.settings.Set("video_defaults/cell_view_mode", view)
+	a.settings.Set("video_defaults/aspect_ratio", a.aspect)
+	a.settings.Set("video_defaults/scale", fmt.Sprintf("%g", a.scale))
+	a.settings.Set("video_defaults/crop_ratio", a.crop)
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
 	if raw, err := json.Marshal(a.recent); err == nil {
@@ -336,9 +358,16 @@ func (a *app) ensure(i int, r grid.Rect) {
 	s := engine.Snapshot{}
 	if c.eng != nil {
 		s = c.eng.Snapshot()
+		if a.stretch {
+			c.eng.SetAspectRatio(fmt.Sprintf("%.0f:%.0f", r.W, r.H))
+		} else {
+			c.eng.SetAspectRatio(a.aspect)
+		}
+		c.eng.SetScale(a.scale)
+		c.eng.SetCrop(a.crop)
 	}
 	vw, vh, vx, vy := float64(r.W), float64(r.H), 0.0, 0.0
-	if a.fill && s.Width > 0 && s.Height > 0 {
+	if a.fill && !a.stretch && s.Width > 0 && s.Height > 0 {
 		videoAspect := float64(s.Width) / float64(s.Height)
 		cellAspect := r.W / r.H
 		if cellAspect > videoAspect {
@@ -774,6 +803,78 @@ func (a *app) cycleAudio() {
 	eng.SetAudioTrack(next.ID)
 }
 
+func (a *app) setAspect(aspect string) {
+	a.aspect = aspect
+	for _, c := range a.cells {
+		if c.eng != nil {
+			c.eng.SetAspectRatio(aspect)
+		}
+	}
+	a.saveSettings()
+}
+
+func (a *app) setScale(scale float64) {
+	a.scale = scale
+	for _, c := range a.cells {
+		if c.eng != nil {
+			c.eng.SetScale(scale)
+		}
+	}
+}
+
+func (a *app) setCrop(crop string) {
+	a.crop = crop
+	for _, c := range a.cells {
+		if c.eng != nil {
+			c.eng.SetCrop(crop)
+		}
+	}
+}
+
+func (a *app) setViewMode(fill bool, stretch bool) {
+	a.fill = fill
+	a.stretch = stretch
+	a.saveSettings()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) refreshMenu() {
+	if a.win != nil {
+		mygo.App.SetMenu(a.menu())
+	}
+}
+
+func (a *app) addTrack(kind string) {
+	eng := a.activeEngine()
+	if eng == nil {
+		return
+	}
+	title := "Load Subtitle File…"
+	if kind == "audio" {
+		title = "Load Audio File…"
+	}
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+		Parent: a.win,
+		Title:  title,
+	})
+	if err != nil || len(paths) == 0 {
+		return
+	}
+	for _, p := range paths {
+		if kind == "subtitle" {
+			eng.AddSubtitle(p)
+		} else {
+			eng.AddAudio(p)
+		}
+	}
+	eng.RefreshTracks()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
 func (a *app) cycleSubtitle() {
 	eng := a.activeEngine()
 	if eng == nil {
@@ -907,21 +1008,42 @@ func (a *app) menu() *mygo.Menu {
 		}},
 		{Label: "View", Submenu: []*mygo.MenuItem{
 			{Label: "Fill (cover)", Type: mygo.MenuItemCheckbox, Checked: a.fill, Click: func(*mygo.MenuItem, *mygo.Window) {
-				a.fill = true
-				a.saveSettings()
-				if a.win != nil {
-					a.win.Invalidate()
-				}
+				a.setViewMode(true, false)
+				a.refreshMenu()
 			}},
-			{Label: "Fit (contain)", Type: mygo.MenuItemCheckbox, Checked: !a.fill, Click: func(*mygo.MenuItem, *mygo.Window) {
-				a.fill = false
-				a.saveSettings()
-				if a.win != nil {
-					a.win.Invalidate()
-				}
+			{Label: "Fit (contain)", Type: mygo.MenuItemCheckbox, Checked: !a.fill && !a.stretch, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.setViewMode(false, false)
+				a.refreshMenu()
+			}},
+			{Label: "Stretch (cell shape)", Type: mygo.MenuItemCheckbox, Checked: a.stretch, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.setViewMode(false, true)
+				a.refreshMenu()
+			}},
+			{Type: mygo.MenuItemSeparator},
+			{Label: "Aspect Ratio", Submenu: []*mygo.MenuItem{
+				{Label: "Auto", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("") }},
+				{Label: "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("16:9") }},
+				{Label: "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("4:3") }},
+				{Label: "1:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("1:1") }},
+				{Label: "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("2.35:1") }},
+			}},
+			{Label: "Scale", Submenu: []*mygo.MenuItem{
+				{Label: "Fit", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(0) }},
+				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1) }},
+				{Label: "1.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1.5) }},
+				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(2) }},
+			}},
+			{Label: "Crop", Submenu: []*mygo.MenuItem{
+				{Label: "None", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("") }},
+				{Label: "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("16:9") }},
+				{Label: "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("4:3") }},
+				{Label: "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("2.35:1") }},
 			}},
 		}},
 		{Label: "Tracks", Submenu: []*mygo.MenuItem{
+			{Label: "Load Subtitle File…", Click: func(*mygo.MenuItem, *mygo.Window) { a.addTrack("subtitle") }},
+			{Label: "Load Audio File…", Click: func(*mygo.MenuItem, *mygo.Window) { a.addTrack("audio") }},
+			{Type: mygo.MenuItemSeparator},
 			{Label: "Next Audio Track", Click: func(*mygo.MenuItem, *mygo.Window) { a.cycleAudio() }},
 			{Label: "Next Subtitle Track", Click: func(*mygo.MenuItem, *mygo.Window) { a.cycleSubtitle() }},
 			{Label: "Disable Subtitles", Click: func(*mygo.MenuItem, *mygo.Window) { a.disableSubtitles() }},
