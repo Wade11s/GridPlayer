@@ -39,3 +39,35 @@ Rules:
 - `--playlist PATH` loads at startup; File → Open/Save/Save As manage the
   document. Closing with unsaved structural changes asks Save / Discard /
   Cancel; `--autoquit` skips the prompt for automation.
+
+## Settings (`settings.ini`)
+
+`internal/settings` reads/writes a QSettings-compatible INI in
+`~/Library/Application Support/GridPlayer/settings.ini` (`--user-data-dir`
+overrides it). Keys are written as sections:
+
+```ini
+[playlist]
+grid_mode=fixed
+grid_rows=2
+grid_cols=2
+
+[video_defaults]
+cell_view_mode=fit
+volume=0.50
+muted=false
+
+[window]
+x=120
+y=120
+width=900
+height=532
+```
+
+The app restores grid mode/size, Fill/Fit, default volume/mute, window
+bounds and the recent list (`app/recent`, a JSON array). Unknown keys and
+sections survive a load/save. Settings are written atomically.
+
+Not implemented yet: the full settings dialog, per-setting UI, keymap
+overrides, tray/media-key options, and legacy key migrations beyond the
+ones this build reads.

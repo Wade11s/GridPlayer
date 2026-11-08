@@ -59,6 +59,10 @@
   `--playlist`, position/mute/volume/rate/view/grid restore, unsaved prompt.
   Tests: round-trip, validation, relative URIs. Settings.ini/recent/bookmarks/
   lists/legacy text format remain open.
+- #4 settings slice: `internal/settings` QSettings-compatible INI, unknown keys
+  preserved, atomic save; app restores grid/Fill-Fit/default volume-mute/window
+  bounds/recent list, `--user-data-dir` isolation. Full settings dialog/keymap/
+  legacy migrations remain open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
