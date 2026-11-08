@@ -357,13 +357,23 @@ func (a *app) dropFiles(at int, files []string) {
 		return
 	}
 	if len(files) == 1 && strings.EqualFold(filepath.Ext(files[0]), ".gpls") {
-		// A .gpls drop would resize a.cells while the current frame iterates
-		// its old rects. Defer the load until next frame.
-		a.pending = append(a.pending, pendingDrop{at: at, files: files})
+		// Immediate entry point (window drops, dialogs): load now.
+		_ = a.loadPlaylist(files[0])
 		return
 	}
 	a.insertCells(at, files)
 	a.addRecent(files[0])
+}
+
+// queueDrop is used from within a draw loop, where loading a .gpls would
+// resize a.cells mid-frame. It defers single-playlist drops to after the
+// frame and executes media inserts immediately.
+func (a *app) queueDrop(at int, files []string) {
+	if len(files) == 1 && strings.EqualFold(filepath.Ext(files[0]), ".gpls") {
+		a.pending = append(a.pending, pendingDrop{at: at, files: files})
+		return
+	}
+	a.dropFiles(at, files)
 }
 
 // pendingDrop is deferred until after a frame completes (dropping a
@@ -521,6 +531,7 @@ func (a *app) teardown() {
 
 func (a *app) view(c *ui.Context) {
 	a.shortcuts(c)
+	defer a.handleDropped()
 	w, h := c.Size()
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
@@ -541,7 +552,6 @@ func (a *app) view(c *ui.Context) {
 				TextColor(ui.RGB(255, 180, 120))
 		}
 	})
-	a.handleDropped()
 }
 
 func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
@@ -606,7 +616,7 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		el = el.Border(2, theme.Accent)
 	}
 	if files := el.DroppedFiles(); len(files) > 0 {
-		a.dropFiles(i, files)
+		a.queueDrop(i, files)
 	}
 	if from, ok := ui.Drop[int](el); ok && from != i {
 		a.swapCells(from, i)
