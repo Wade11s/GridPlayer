@@ -29,9 +29,20 @@
   (vet/build/test, no GUI). Same-repo PR workflows run from the PR head.
 - Local macOS GUI acceptance runs on the exact PR head before merge.
 
-## Open
-- PR for `bootstrap/gates-v2`, review report, local re-acceptance, then merge.
-- Issues #2–#5: engine/state machine, grid UI, persistence, packaged `.app`.
+## Merged
+- PR #6 merged 2026-11-08T10:48:43Z at `9291b07` (head `a76e995`), independent
+  subagent review PASS on the exact head, CI `vet-build-test` green, local GUI
+  acceptance green on the exact head. Issue #1 closed.
+- Post-merge main `9291b07`: CI green; local poc-hw PASS; gridplayer 4 panes,
+  teardown clean.
+
+## In flight
+- Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
+  coalesced snapshots, fake-backend tests + real libVLC dummy-output integration
+  test; `cmd/gridplayer` now uses one Engine per cell. Local GUI re-acceptance:
+  4 panes playing, loop wrapped past 10s, VideoToolbox ×4, clean teardown.
+- Remaining #2 work: track/audio/subtitle selection, chapters, end-of-list actions,
+  recovery policy; then #3–#5.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.

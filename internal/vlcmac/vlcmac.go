@@ -104,10 +104,6 @@ func GoVLCLog(data unsafe.Pointer, level C.int, ctx *C.char, format *C.char, msg
 	LogSink(int(level), C.GoString(msg))
 }
 
-// FrameCh is drained by the engine. Bounded: the oldest frame is dropped
-// when full so libVLC threads never block.
-var FrameCh = make(chan Frame, 8)
-
 type videoCbState struct {
 	chroma        string
 	width, height int
@@ -116,6 +112,7 @@ type videoCbState struct {
 	buf           []byte
 	picture       unsafe.Pointer
 	pinner        *runtime.Pinner
+	owner         *Player
 }
 
 var cbMu sync.Mutex
@@ -188,7 +185,7 @@ func GoVLCUnlock(opaque unsafe.Pointer, picture unsafe.Pointer, planes unsafe.Po
 //export GoVLCDisplay
 func GoVLCDisplay(opaque unsafe.Pointer, picture unsafe.Pointer) {
 	s := stateFor(opaque)
-	if s.buf == nil {
+	if s.buf == nil || s.owner == nil {
 		return
 	}
 	pix := make([]byte, len(s.buf))
@@ -196,14 +193,14 @@ func GoVLCDisplay(opaque unsafe.Pointer, picture unsafe.Pointer) {
 	f := Frame{W: s.width, H: s.height, Pix: pix, Stride: s.pitch, Chroma: s.chroma}
 	// bounded: drop oldest rather than blocking the decode thread
 	select {
-	case FrameCh <- f:
+	case s.owner.frames <- f:
 	default:
 		select {
-		case <-FrameCh:
+		case <-s.owner.frames:
 		default:
 		}
 		select {
-		case FrameCh <- f:
+		case s.owner.frames <- f:
 		default:
 		}
 	}
@@ -222,7 +219,8 @@ func (p *Player) EnableCallbackVideo() {
 		return
 	}
 	opaque := unsafe.Pointer(p.mp)
-	stateFor(opaque)
+	st := stateFor(opaque)
+	st.owner = p
 	C.set_video_callbacks(p.mp, opaque)
 }
 
@@ -231,6 +229,30 @@ type Event struct {
 	Type int
 	Time int64 // ms, for TimeChanged
 }
+
+// Player event types (libvlc_event_e).
+const (
+	EventMediaChanged = int(C.libvlc_MediaPlayerMediaChanged)
+	EventPlaying      = int(C.libvlc_MediaPlayerPlaying)
+	EventPaused       = int(C.libvlc_MediaPlayerPaused)
+	EventStopped      = int(C.libvlc_MediaPlayerStopped)
+	EventEndReached   = int(C.libvlc_MediaPlayerEndReached)
+	EventError        = int(C.libvlc_MediaPlayerEncounteredError)
+	EventTimeChanged  = int(C.libvlc_MediaPlayerTimeChanged)
+	EventVout         = int(C.libvlc_MediaPlayerVout)
+)
+
+// libvlc_state_t values.
+const (
+	StateNothingSpecial = 0
+	StateOpening        = 1
+	StateBuffering      = 2
+	StatePlaying        = 3
+	StatePaused         = 4
+	StateStopped        = 5
+	StateEnded          = 6
+	StateError          = 7
+)
 
 // Frame is one decoded video frame copied out of libVLC buffers (RV32 path).
 type Frame struct {
@@ -242,15 +264,23 @@ type Frame struct {
 	Chroma string
 }
 
-// eventCh receives player events; engine drains it. Buffered so libVLC
-// never blocks when the UI is slow.
-var eventCh = make(chan Event, 256)
+// registry routes libVLC callbacks (which carry the player pointer) to the
+// owning Player. Guarded by regMu; callbacks never block.
+var (
+	regMu    sync.RWMutex
+	registry = map[unsafe.Pointer]*Player{}
+)
 
 //export GoVLCEvent
 func GoVLCEvent(player unsafe.Pointer, evType C.int, timeMs C.int64_t) {
-	// Must never block or panic on libVLC threads.
+	regMu.RLock()
+	p := registry[player]
+	regMu.RUnlock()
+	if p == nil {
+		return
+	}
 	select {
-	case eventCh <- Event{Type: int(evType), Time: int64(timeMs)}:
+	case p.events <- Event{Type: int(evType), Time: int64(timeMs)}:
 	default:
 	}
 }
@@ -265,6 +295,12 @@ type Instance struct {
 // NewInstance creates a libVLC instance with the upstream option set.
 // verbose>0 adds --verbose=N for decode-path evidence (PoC only).
 func NewInstance(verbose int) (*Instance, error) {
+	return NewInstanceArgs(verbose, nil)
+}
+
+// NewInstanceArgs is NewInstance with extra libVLC options (e.g.
+// "--vout=dummy" for headless integration tests).
+func NewInstanceArgs(verbose int, extra []string) (*Instance, error) {
 	l, err := Discover()
 	if err != nil {
 		return nil, err
@@ -280,6 +316,7 @@ func NewInstance(verbose int) (*Instance, error) {
 	if verbose > 0 {
 		args = append(args, fmt.Sprintf("--verbose=%d", verbose))
 	}
+	args = append(args, extra...)
 	argv := make([]*C.char, len(args))
 	for i, a := range args {
 		argv[i] = C.CString(a)
@@ -316,6 +353,8 @@ type Player struct {
 	md       *C.libvlc_media_t
 	attached bool
 	released bool
+	events   chan Event
+	frames   chan Frame
 }
 
 // NewPlayer creates a player. The caller must SetNSObject before SetMedia,
@@ -333,7 +372,11 @@ func NewPlayer(in *Instance) (*Player, error) {
 	if mp == nil {
 		return nil, errors.New("vlcmac: media_player_new failed")
 	}
-	return &Player{inst: in, mp: mp}, nil
+	p := &Player{inst: in, mp: mp, events: make(chan Event, 128), frames: make(chan Frame, 8)}
+	regMu.Lock()
+	registry[unsafe.Pointer(mp)] = p
+	regMu.Unlock()
+	return p, nil
 }
 
 // SetNSObject binds an NSView address or 0 to unbind. Call on the process
@@ -375,9 +418,9 @@ func setNSObjectPurego(mp *C.libvlc_media_player_t, view uintptr) {
 	_, _, _ = purego.SyscallN(setNSObjectFn, uintptr(unsafe.Pointer(mp)), view)
 }
 
-// SetMedia loads a file path and enables in-place file repeat loop
+// SetMedia loads a file path. With loop, it enables in-place file repeat
 // (upstream INPUT_REPEAT_PASSES semantics: no demuxer restart).
-func (p *Player) SetMedia(path string) error {
+func (p *Player) SetMedia(path string, loop bool) error {
 	if p == nil {
 		return errors.New("vlcmac: nil player")
 	}
@@ -392,9 +435,11 @@ func (p *Player) SetMedia(path string) error {
 	if md == nil {
 		return fmt.Errorf("vlcmac: media_new_path failed for %s", path)
 	}
-	opt := C.CString(":input-repeat=10000")
-	C.libvlc_media_add_option(md, opt)
-	C.free(unsafe.Pointer(opt))
+	if loop {
+		opt := C.CString(":input-repeat=10000")
+		C.libvlc_media_add_option(md, opt)
+		C.free(unsafe.Pointer(opt))
+	}
 	C.libvlc_media_player_set_media(p.mp, md)
 	if p.md != nil {
 		C.libvlc_media_release(p.md)
@@ -492,6 +537,9 @@ func (p *Player) Release() {
 	md := p.md
 	p.mp = nil
 	p.md = nil
+	regMu.Lock()
+	delete(registry, unsafe.Pointer(mp))
+	regMu.Unlock()
 	setNSObjectPurego(mp, 0)
 	C.libvlc_media_player_release(mp)
 	if md != nil {
@@ -499,5 +547,10 @@ func (p *Player) Release() {
 	}
 }
 
-// Events returns the shared event channel (drained by engine).
-func Events() <-chan Event { return eventCh }
+// Events returns this player's event stream. It stops receiving once the
+// player is released (the channel is not closed: in-flight libVLC
+// callbacks may still send).
+func (p *Player) Events() <-chan Event { return p.events }
+
+// Frames returns this player's callback-frame stream (Attempt B only).
+func (p *Player) Frames() <-chan Frame { return p.frames }

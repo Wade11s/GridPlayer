@@ -21,6 +21,23 @@ App shell [cmd/gridplayer]  MyGo App, menus, shortcuts, settings, persistence
 Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .app smoke
 ```
 
+## Engine boundary (implemented)
+
+`internal/engine` is the per-cell session:
+
+- `Backend` is the only playback contract (`Play/Pause/Stop/SeekTo/Rate/Volume/
+  Mute/Time/Length/State/VideoSize/Events/Close`). `internal/engine/vlc.go` is
+  the libVLC adapter; tests use a fake backend.
+- `Engine.Load` increments `Gen`, closes the old backend, creates the new one
+  and fences late events by generation. `Updates()` coalesces snapshots so a
+  slow UI never blocks libVLC.
+- Loop is libVLC's `input-repeat`, fixed when the media opens; `SetLoop`
+  applies at the next `Load`. Runtime loop changes reload in the UI layer.
+- `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
+  directly. `poc-hw`/`poc-cb` stay as isolated probes.
+- Tests: pure state-machine/commands with a fake backend, plus a darwin-only
+  real-libVLC integration test with `--vout=dummy --aout=dummy` (no GUI).
+
 MyGo core forbids cgo, but that constrains MyGo itself, not an app linking it. Our app builds with `CGO_ENABLED=1` for the `vlcmac` package only; `mygo` and `ui` remain purego. Cross-compile for non-darwin is out of scope (first phase).
 
 ## Why libVLC native surface is the primary path
