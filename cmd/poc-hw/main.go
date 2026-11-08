@@ -155,7 +155,7 @@ func main() {
 			os.Exit(2)
 		}
 		pl.SetNSObject(uintptr(views[i]))
-		if err := pl.SetMedia(path); err != nil {
+		if err := pl.SetMedia(path, true); err != nil {
 			fmt.Fprintf(os.Stderr, "poc-hw: %v\n", err)
 			os.Exit(2)
 		}

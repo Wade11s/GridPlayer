@@ -34,19 +34,20 @@ func main() {
 	}
 	pl.EnableCallbackVideo()
 	path := filepath.Join(*out, "plane-a.mp4")
-	if err := pl.SetMedia(path); err != nil {
+	if err := pl.SetMedia(path, false); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 	pl.Play()
 	fmt.Println("poc-cb: playing 5s, draining frames...")
 	deadline := time.After(5 * time.Second)
+	framesCh := pl.Frames()
 	frames := 0
 	var first, last vlcmac.Frame
 	t0 := time.Now()
 	for {
 		select {
-		case f := <-vlcmac.FrameCh:
+		case f := <-framesCh:
 			if frames == 0 {
 				first = f
 			}

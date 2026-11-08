@@ -20,17 +20,18 @@ import (
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
+	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/nativehost"
 	"gridplayer-go/internal/vlcmac"
 )
 
 type cell struct {
-	label string
-	path  string
-	inst  *vlcmac.Instance
-	pl    *vlcmac.Player
-	view  uintptr
-	mute  bool
+	label  string
+	path   string
+	eng    *engine.Engine
+	view   uintptr
+	mute   bool
+	failed bool
 }
 
 type app struct {
@@ -69,21 +70,11 @@ func (a *app) ensure(i int, r ui.Rect) {
 	}
 	c := a.cells[i]
 	if c.view == 0 {
-		inst, err := vlcmac.NewInstance(0)
-		if err != nil {
-			a.status = "vlc: " + err.Error()
-			return
-		}
-		pl, err := vlcmac.NewPlayer(inst)
-		if err != nil {
-			inst.Release()
-			a.status = "vlc: " + err.Error()
+		if c.failed {
 			return
 		}
 		view := nativehost.NewView()
 		if view == 0 {
-			pl.Release()
-			inst.Release()
 			a.status = "nativehost: no view"
 			return
 		}
@@ -92,22 +83,24 @@ func (a *app) ensure(i int, r ui.Rect) {
 		// when output opens (PoC-A sized views before SetNSObject).
 		nativehost.SetFrame(view, nativehost.ToMac(
 			nativehost.DIP{X: float64(r.X), Y: float64(r.Y), W: float64(r.W), H: float64(r.H)}, h))
-		pl.SetNSObject(view)
-		if err := pl.SetMedia(c.path); err != nil {
-			pl.Release()
+		eng := engine.New(engine.NewVLCFactory(engine.VLCOptions{
+			View: func() uintptr { return view },
+		}))
+		eng.SetLoop(true)
+		if c.mute {
+			eng.SetMute(true)
+		} else {
+			eng.SetVolume(80)
+		}
+		if err := eng.Load(c.path); err != nil {
+			eng.Close()
 			nativehost.Remove(view)
 			nativehost.Release(view)
-			inst.Release()
+			c.failed = true
 			a.status = "vlc: " + err.Error()
 			return
 		}
-		c.inst, c.pl, c.view = inst, pl, view
-		if c.mute {
-			pl.SetMute(true)
-		} else {
-			pl.SetVolume(128)
-		}
-		pl.Play()
+		c.eng, c.view = eng, view
 	}
 	nativehost.SetFrame(c.view, nativehost.ToMac(
 		nativehost.DIP{X: float64(r.X), Y: float64(r.Y), W: float64(r.W), H: float64(r.H)}, h))
@@ -122,21 +115,16 @@ func (a *app) teardown() {
 		if c == nil {
 			continue
 		}
-		if c.pl != nil {
-			fmt.Printf("gridplayer: cell %d time=%dms state=%d\n", i, c.pl.Time(), c.pl.State())
-			c.pl.Stop()
-			time.Sleep(50 * time.Millisecond)
-			c.pl.Release() // unbinds NSView
-			c.pl = nil
+		if c.eng != nil {
+			s := c.eng.Snapshot()
+			fmt.Printf("gridplayer: cell %d time=%dms phase=%s\n", i, s.Time, s.Phase)
+			c.eng.Close()
+			c.eng = nil
 		}
 		if c.view != 0 {
 			nativehost.Remove(c.view) // detach
 			nativehost.Release(c.view)
 			c.view = 0
-		}
-		if c.inst != nil {
-			c.inst.Release()
-			c.inst = nil
 		}
 	}
 	fmt.Println("gridplayer: teardown done")
@@ -146,27 +134,23 @@ func (a *app) view(c *ui.Context) {
 	// global shortcuts: Space = pause/resume all, arrows = seek cell A.
 	if c.Shortcut(0, ui.KeySpace) && !c.ShortcutRepeated() {
 		for _, cell := range a.cells {
-			if cell.pl != nil {
-				if cell.pl.State() == 3 { // playing? state values per libvlc_state_t
-					cell.pl.Pause()
-				} else {
-					cell.pl.Play()
-				}
+			if cell.eng != nil {
+				cell.eng.Toggle()
 			}
 		}
 	}
 	if c.Shortcut(0, ui.KeyLeft) {
-		if a.cells[0].pl != nil {
-			t := a.cells[0].pl.Time() - 5000
+		if a.cells[0].eng != nil {
+			t := a.cells[0].eng.Snapshot().Time - 5000
 			if t < 0 {
 				t = 0
 			}
-			a.cells[0].pl.SetTime(t)
+			a.cells[0].eng.SeekTo(t)
 		}
 	}
 	if c.Shortcut(0, ui.KeyRight) {
-		if a.cells[0].pl != nil {
-			a.cells[0].pl.SetTime(a.cells[0].pl.Time() + 5000)
+		if a.cells[0].eng != nil {
+			a.cells[0].eng.SeekTo(a.cells[0].eng.Snapshot().Time + 5000)
 		}
 	}
 	ui.Box(c).Fill().Background(ui.RGB(10, 10, 12)).Children(func() {
@@ -196,8 +180,9 @@ func (a *app) cellView(c *ui.Context, i int) {
 		Children(func() {
 			// status badge, painted after the Hole so it shows over video
 			badge := fmt.Sprintf(" %s ", cell.label)
-			if cell.pl != nil {
-				badge = fmt.Sprintf(" %s %dms ", cell.label, cell.pl.Time())
+			if cell.eng != nil {
+				s := cell.eng.Snapshot()
+				badge = fmt.Sprintf(" %s %dms %s ", cell.label, s.Time, s.Phase)
 			}
 			ui.Text(c, badge).Absolute().Top(8).Left(8).
 				Background(ui.RGBA(0, 0, 0, 170)).TextColor(ui.RGB(255, 255, 255)).FontSize(20).Bold()
