@@ -113,6 +113,18 @@ func atof(s string, def float64) float64 {
 	return v
 }
 
+func visibleOnDisplays(x, y, w, h int) bool {
+	for _, d := range mygo.Screen.Displays() {
+		wa := d.WorkArea
+		iw := min(x+w, wa.X+wa.Width) - max(x, wa.X)
+		ih := min(y+h, wa.Y+wa.Height) - max(y, wa.Y)
+		if iw >= 64 && ih >= 64 {
+			return true
+		}
+	}
+	return false
+}
+
 func (a *app) saveSettings() {
 	if a.settings == nil {
 		return
@@ -139,7 +151,7 @@ func (a *app) saveWindowState() {
 	if a.settings == nil || a.win == nil {
 		return
 	}
-	b := a.win.Bounds()
+	b := a.win.ContentBounds()
 	if b.Width <= 0 || b.Height <= 0 {
 		return
 	}
@@ -939,14 +951,15 @@ func main() {
 		}
 	}
 	a := newApp(paths)
-	if *playlistPath != "" {
-		if err := a.loadPlaylist(*playlistPath); err != nil {
-			log.Printf("playlist: %v", err)
-		}
-	}
 	a.dirty = false
 	mygo.App.WhenReady(func() {
 		a.loadSettings()
+		if *playlistPath != "" {
+			if err := a.loadPlaylist(*playlistPath); err != nil {
+				log.Printf("playlist: %v", err)
+			}
+		}
+		a.dirty = false
 		opts := mygo.WindowOptions{
 			Title:          "GridPlayer",
 			Width:          1280,
@@ -962,10 +975,13 @@ func main() {
 				opts.Height = v
 			}
 			if s := a.settings.Get("window/x", ""); s != "" {
-				opts.X = atoi(s, 0)
-			}
-			if s := a.settings.Get("window/y", ""); s != "" {
-				opts.Y = atoi(s, 0)
+				x := atoi(s, 0)
+				if sy := a.settings.Get("window/y", ""); sy != "" {
+					y := atoi(sy, 0)
+					if visibleOnDisplays(x, y, opts.Width, opts.Height) {
+						opts.X, opts.Y = x, y
+					}
+				}
 			}
 		}
 		w := mygo.NewWindow(opts)
