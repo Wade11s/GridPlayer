@@ -35,6 +35,9 @@
   acceptance green on the exact head. Issue #1 closed.
 - Post-merge main `9291b07`: CI green; local poc-hw PASS; gridplayer 4 panes,
   teardown clean.
+- PRs #7–#16 merged through `aedfbcb`: engine core/tracks/chapters/view/external,
+  grid+drag+single+file-drop, playlist/settings persistence, local .app +
+  smoke. Main `aedfbcb`: CI green, race tests green, .app smoke 4× VideoToolbox.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -49,7 +52,9 @@
   menu (File/Playback/Grid/View/Tracks), per-cell overlay controls, Fill cover via
   clip view + Fit, shortcuts (Space/arrows/M/L/B/N/[/]), active-cell border.
   Local screenshots: 1-cell, 2-cell fill, 4-cell.
-- #3 drag reorder (merged a0d5cc6): cells are `Drag(i)` sources and `Drop[int]`
+- #3 drag reorder + file drop (merged aedfbcb): internal drag-swap plus
+  Finder drops (cell insert / window append, `.gpls` opens)
+- #3 drag reorder: cells are `Drag(i)` sources and `Drop[int]` targets; a drop
   targets; a drop swaps cell structs (path/engine/view) and re-frames slots.
 - #3 external file drop: cell drop inserts files before that cell, window drop
   appends, a single `.gpls` opens. `insertCells` preserves live engines; unit
