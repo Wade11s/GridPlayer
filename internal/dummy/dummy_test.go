@@ -22,6 +22,12 @@ func TestClockRunsAndLoop(t *testing.T) {
 	if got := b.Time(); got != LengthMs-1000 {
 		t.Fatalf("seek %d", got)
 	}
+	b.Stop()
+	stopped := b.Time()
+	time.Sleep(30 * time.Millisecond)
+	if got := b.Time(); got != stopped || b.State() != engine.BackendIdle {
+		t.Fatalf("stopped clock moved %d -> %d (state %v)", stopped, got, b.State())
+	}
 	b.Pause()
 	paused := b.Time()
 	time.Sleep(30 * time.Millisecond)

@@ -42,7 +42,7 @@ func New() *Backend {
 func (b *Backend) now() int64 {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.paused {
+	if b.paused || b.stopped {
 		return b.offset
 	}
 	elapsed := (time.Now().UnixNano() - b.start.Load()) / 1e6
@@ -75,7 +75,7 @@ func (b *Backend) Pause() {
 }
 
 func (b *Backend) nowLocked() int64 {
-	if b.paused {
+	if b.paused || b.stopped {
 		return b.offset
 	}
 	return (b.offset + (time.Now().UnixNano()-b.start.Load())/1e6) % LengthMs
