@@ -62,6 +62,7 @@ type app struct {
 	dirty         bool
 	forceQuit     bool
 	playlistPath  string
+	pending       []pendingDrop
 	settings      *settings.Store
 	recent        []string
 	defaultVolume int
@@ -297,16 +298,7 @@ func (a *app) setPlaylist(paths []string) {
 		if i < len(a.cells) {
 			a.closeCell(a.cells[i])
 		}
-		c := &cell{
-			label:  strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)),
-			path:   p,
-			volume: a.defaultVolume,
-			rate:   1,
-		}
-		if i > 0 || a.defaultMuted {
-			c.muted = true
-		}
-		next[i] = c
+		next[i] = a.newCell(i, p)
 	}
 	a.cells = next
 	a.dirty = true
@@ -318,6 +310,85 @@ func (a *app) setPlaylist(paths []string) {
 	}
 	if a.win != nil {
 		a.win.Invalidate()
+	}
+}
+
+func (a *app) newCell(i int, p string) *cell {
+	c := &cell{
+		label:  strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)),
+		path:   p,
+		volume: a.defaultVolume,
+		rate:   1,
+	}
+	if i > 0 || a.defaultMuted {
+		c.muted = true
+	}
+	return c
+}
+
+// insertCells keeps existing cell structs (engines/views) and splices new
+// ones in at index at.
+func (a *app) insertCells(at int, files []string) {
+	if len(files) == 0 {
+		return
+	}
+	if at < 0 {
+		at = 0
+	}
+	if at > len(a.cells) {
+		at = len(a.cells)
+	}
+	next := make([]*cell, 0, len(a.cells)+len(files))
+	next = append(next, a.cells[:at]...)
+	for j, p := range files {
+		next = append(next, a.newCell(at+j, p))
+	}
+	next = append(next, a.cells[at:]...)
+	a.cells = next
+	a.active = at
+	a.dirty = true
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) dropFiles(at int, files []string) {
+	if len(files) == 0 {
+		return
+	}
+	if len(files) == 1 && strings.EqualFold(filepath.Ext(files[0]), ".gpls") {
+		// Immediate entry point (window drops, dialogs): load now.
+		_ = a.loadPlaylist(files[0])
+		return
+	}
+	a.insertCells(at, files)
+	a.addRecent(files[0])
+}
+
+// queueDrop is used from within a draw loop, where loading a .gpls would
+// resize a.cells mid-frame. It defers single-playlist drops to after the
+// frame and executes media inserts immediately.
+func (a *app) queueDrop(at int, files []string) {
+	if len(files) == 1 && strings.EqualFold(filepath.Ext(files[0]), ".gpls") {
+		a.pending = append(a.pending, pendingDrop{at: at, files: files})
+		return
+	}
+	a.dropFiles(at, files)
+}
+
+// pendingDrop is deferred until after a frame completes (dropping a
+// .gpls on a cell would otherwise resize a.cells mid-loop).
+type pendingDrop struct {
+	at    int
+	files []string
+}
+
+// handleDropped drains pending drops after the view completes.
+func (a *app) handleDropped() {
+	pending := a.pending
+	a.pending = nil
+	for _, d := range pending {
+		a.dropFiles(d.at, d.files)
 	}
 }
 
@@ -460,6 +531,7 @@ func (a *app) teardown() {
 
 func (a *app) view(c *ui.Context) {
 	a.shortcuts(c)
+	defer a.handleDropped()
 	w, h := c.Size()
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
@@ -539,6 +611,12 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		})
 	if el.Clicked() {
 		a.active = i
+	}
+	if el.FileDragOver() && border == ui.RGBA(0, 0, 0, 0) {
+		el = el.Border(2, theme.Accent)
+	}
+	if files := el.DroppedFiles(); len(files) > 0 {
+		a.queueDrop(i, files)
 	}
 	if from, ok := ui.Drop[int](el); ok && from != i {
 		a.swapCells(from, i)
@@ -1198,6 +1276,11 @@ func main() {
 			return nativehost.Resolve(w.NativeHandle())
 		}
 		w.OnClose(func(e *mygo.CloseEvent) { a.closeRequested(e) })
+		w.OnFileDrop(func(e *mygo.FileDropEvent) {
+			if len(e.Paths) > 0 {
+				a.dropFiles(len(a.cells), e.Paths)
+			}
+		})
 		mygo.App.SetMenu(a.menu())
 		if *savePath != "" {
 			go func() {
