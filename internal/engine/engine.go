@@ -150,6 +150,7 @@ type Engine struct {
 	mu     sync.Mutex
 	gen    uint64
 	be     Backend
+	path   string
 	quit   chan struct{}
 	closed bool
 
@@ -217,6 +218,7 @@ func (e *Engine) Load(path string) error {
 	old := e.be
 	oldQuit := e.quit
 	e.be = nil
+	e.path = path
 	e.quit = make(chan struct{})
 	quit := e.quit
 	loop := e.loop
@@ -263,6 +265,18 @@ func (e *Engine) Load(path string) error {
 	go e.pump(gen, be, quit)
 	be.Play()
 	return nil
+}
+
+// Reload re-opens the current media, applying settings that libVLC fixes
+// when a media opens (loop). It is a no-op before the first Load.
+func (e *Engine) Reload() error {
+	e.mu.Lock()
+	path := e.path
+	e.mu.Unlock()
+	if path == "" {
+		return nil
+	}
+	return e.Load(path)
 }
 
 func (e *Engine) pump(gen uint64, be Backend, quit chan struct{}) {

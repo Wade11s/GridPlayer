@@ -44,8 +44,11 @@
 - #2 tracks/chapters: `vlcmac` track/chapter queries + selection, engine snapshot
   and `RefreshTracks`; feature.mkv fixture (3 chapters, 2 audio, 2 subtitle tracks);
   real libVLC test switches audio/subtitle/chapter. CI/local green.
-- Remaining #2 work: external A/V slaves, end-of-list actions, recovery/network retry;
-  then #3–#5.
+- Remaining #2 work: external A/V slaves, end-of-list actions, recovery/network retry.
+- #3 grid UI: internal/grid AutoRows/AutoCols/Fixed with tests; dynamic 1..N cells,
+  menu (File/Playback/Grid/View/Tracks), per-cell overlay controls, Fill cover via
+  clip view + Fit, shortcuts (Space/arrows/M/L/B/N/[/]), active-cell border.
+  Local screenshots: 1-cell, 2-cell fill, 4-cell.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
