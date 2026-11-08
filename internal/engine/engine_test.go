@@ -285,3 +285,19 @@ func TestLoopCarriedIntoFactoryAndEnded(t *testing.T) {
 	f.emit(Event{Kind: EventEnded})
 	waitFor(t, "ended", func() bool { return e.Snapshot().Phase == Ended })
 }
+
+func TestStartPositionSeeksOnFirstPlaying(t *testing.T) {
+	f := newFake()
+	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	defer e.Close()
+	e.SetStartPosition(3000)
+	if err := e.Load("resume.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	f.emit(Event{Kind: EventPlaying})
+	waitFor(t, "resume seek", func() bool {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		return f.seek == 3000
+	})
+}
