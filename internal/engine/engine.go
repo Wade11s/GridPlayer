@@ -151,6 +151,7 @@ type Engine struct {
 	gen    uint64
 	be     Backend
 	path   string
+	start  int64
 	quit   chan struct{}
 	closed bool
 
@@ -295,6 +296,17 @@ func (e *Engine) pump(gen uint64, be Backend, quit chan struct{}) {
 }
 
 func (e *Engine) apply(gen uint64, be Backend, ev Event) {
+	if ev.Kind == EventPlaying {
+		e.mu.Lock()
+		start := e.start
+		if start != 0 {
+			e.start = 0
+		}
+		e.mu.Unlock()
+		if start != 0 {
+			be.SeekTo(start)
+		}
+	}
 	time := be.Time()
 	length := be.Length()
 	w, h, _ := be.VideoSize()
@@ -358,6 +370,16 @@ func (e *Engine) apply(gen uint64, be Backend, ev Event) {
 		}
 	}
 	e.publishLocked()
+}
+
+// SetStartPosition seeks once, after the media starts playing.
+func (e *Engine) SetStartPosition(ms int64) {
+	if ms < 0 {
+		ms = 0
+	}
+	e.mu.Lock()
+	e.start = ms
+	e.mu.Unlock()
 }
 
 func (e *Engine) backend() (Backend, uint64, bool) {

@@ -54,6 +54,11 @@
   launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;
   no residual process. VLC remains external at /Applications/VLC.app (rpath +
   VLC_PLUGIN_PATH), documented in docs/APP_BUILD.md. Not a public release.
+- #4 playlist persistence (partial): `internal/playlist` JSON v1 read/write with
+  unknown-field preservation + atomic save; app load/save/save-as, startup
+  `--playlist`, position/mute/volume/rate/view/grid restore, unsaved prompt.
+  Tests: round-trip, validation, relative URIs. Settings.ini/recent/bookmarks/
+  lists/legacy text format remain open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.

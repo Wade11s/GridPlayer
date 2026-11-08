@@ -22,6 +22,7 @@ import (
 	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/nativehost"
+	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/vlcmac"
 )
 
@@ -32,17 +33,26 @@ type cell struct {
 	view   uintptr
 	clip   uintptr
 	failed bool
+
+	volume  int
+	muted   bool
+	rate    float64
+	startAt int
 }
 
 type app struct {
-	win     *mygo.Window
-	resolve func() (cv, sv uintptr, h float64, ok bool)
-	cells   []*cell
-	active  int
-	cfg     grid.Config
-	fill    bool
-	closed  atomic.Bool
-	status  string
+	win          *mygo.Window
+	resolve      func() (cv, sv uintptr, h float64, ok bool)
+	cells        []*cell
+	active       int
+	cfg          grid.Config
+	fill         bool
+	closed       atomic.Bool
+	status       string
+	doc          *playlist.Document
+	dirty        bool
+	forceQuit    bool
+	playlistPath string
 }
 
 func newApp(paths []string) *app {
@@ -74,6 +84,15 @@ func (a *app) paths() []string {
 // setPlaylist replaces the cells. Main thread only.
 func (a *app) setPlaylist(paths []string) {
 	if len(paths) == 0 {
+		for _, c := range a.cells {
+			a.closeCell(c)
+		}
+		a.cells = nil
+		a.active = 0
+		a.dirty = true
+		if a.win != nil {
+			a.win.Invalidate()
+		}
 		return
 	}
 	if len(paths) > 16 {
@@ -94,9 +113,19 @@ func (a *app) setPlaylist(paths []string) {
 		if i < len(a.cells) {
 			a.closeCell(a.cells[i])
 		}
-		next[i] = &cell{label: strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)), path: p}
+		c := &cell{
+			label:  strings.TrimSuffix(filepath.Base(p), filepath.Ext(p)),
+			path:   p,
+			volume: 80,
+			rate:   1,
+		}
+		if i > 0 {
+			c.muted = true
+		}
+		next[i] = c
 	}
 	a.cells = next
+	a.dirty = true
 	if a.active >= len(a.cells) {
 		a.active = len(a.cells) - 1
 	}
@@ -157,11 +186,10 @@ func (a *app) ensure(i int, r grid.Rect) {
 			View: func() uintptr { return view },
 		}))
 		eng.SetLoop(true)
-		if i == 0 {
-			eng.SetVolume(80)
-		} else {
-			eng.SetMute(true)
-		}
+		eng.SetVolume(c.volume)
+		eng.SetMute(c.muted)
+		eng.SetRate(c.rate)
+		eng.SetStartPosition(int64(c.startAt))
 		if err := eng.Load(c.path); err != nil {
 			eng.Close()
 			nativehost.Remove(clip)
@@ -384,8 +412,186 @@ func (a *app) openDialog(add bool) {
 
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
+	a.dirty = true
 	if a.win != nil {
 		a.win.Invalidate()
+	}
+}
+
+func modeName(m grid.Mode) string {
+	switch m {
+	case grid.AutoCols:
+		return "auto_cols"
+	case grid.Fixed:
+		return "fixed"
+	default:
+		return "auto_rows"
+	}
+}
+
+func parseMode(s string) grid.Mode {
+	switch s {
+	case "auto_cols":
+		return grid.AutoCols
+	case "fixed":
+		return grid.Fixed
+	default:
+		return grid.AutoRows
+	}
+}
+
+// loadPlaylist replaces the cells and grid from a .gpls file. Main thread.
+func (a *app) loadPlaylist(path string) error {
+	d, err := playlist.Load(path)
+	if err != nil {
+		a.status = err.Error()
+		return err
+	}
+	paths := make([]string, len(d.Videos))
+	for i := range d.Videos {
+		paths[i] = d.Videos[i].URI
+	}
+	a.doc = d
+	a.setPlaylist(paths)
+	for i := range d.Videos {
+		if i >= len(a.cells) {
+			break
+		}
+		c := a.cells[i]
+		v := d.Videos[i]
+		c.startAt = v.CurrentPosition
+		c.muted = v.IsMuted
+		if v.Volume > 0 {
+			c.volume = int(v.Volume * 100)
+		}
+		if v.Rate > 0 {
+			c.rate = v.Rate
+		}
+	}
+	if mode, rows, cols := d.GridState(); mode != "" {
+		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
+	}
+	a.playlistPath = path
+	a.dirty = false
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+	return nil
+}
+
+func (a *app) document() *playlist.Document {
+	d := &playlist.Document{}
+	if a.doc != nil {
+		d = a.doc
+	}
+	d.Format = playlist.FormatID
+	d.Version = playlist.FormatVersion
+	d.Videos = make([]playlist.Video, len(a.cells))
+	for i, c := range a.cells {
+		s := engine.Snapshot{}
+		if c.eng != nil {
+			s = c.eng.Snapshot()
+		}
+		v := playlist.Video{
+			URI:             c.path,
+			CurrentPosition: int(s.Time),
+			IsMuted:         s.Muted,
+			Volume:          float64(s.Volume) / 100,
+			Rate:            s.Rate,
+			PlaybackState:   s.Phase.String(),
+			CellViewMode:    "fit",
+		}
+		if a.fill {
+			v.CellViewMode = "fill"
+		}
+		if a.doc != nil && i < len(a.doc.Videos) {
+			v.ID = a.doc.Videos[i].ID
+			v.Title = a.doc.Videos[i].Title
+			v.Extra = a.doc.Videos[i].Extra
+		}
+		d.Videos[i] = v
+	}
+	d.SetGridState(modeName(a.cfg.Mode), a.cfg.Rows, a.cfg.Cols)
+	return d
+}
+
+func (a *app) savePlaylist(path string) error {
+	d := a.document()
+	if err := d.Save(path); err != nil {
+		a.status = err.Error()
+		return err
+	}
+	a.doc = d
+	a.playlistPath = path
+	a.dirty = false
+	return nil
+}
+
+func (a *app) saveDialog() bool {
+	path := a.playlistPath
+	if path == "" {
+		p, err := mygo.Dialog.Save(mygo.SaveDialogOptions{
+			Parent: a.win,
+			Title:  "Save playlist",
+			Filters: []mygo.FileFilter{{
+				Name:       "GridPlayer playlist",
+				Extensions: []string{"gpls"},
+			}},
+		})
+		if err != nil || p == "" {
+			return false
+		}
+		if !strings.HasSuffix(strings.ToLower(p), ".gpls") {
+			p += ".gpls"
+		}
+		path = p
+	}
+	return a.savePlaylist(path) == nil
+}
+
+func (a *app) openPlaylistDialog() {
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+		Parent: a.win,
+		Title:  "Open playlist",
+		Filters: []mygo.FileFilter{{
+			Name:       "GridPlayer playlist",
+			Extensions: []string{"gpls"},
+		}},
+	})
+	if err != nil || len(paths) == 0 {
+		return
+	}
+	_ = a.loadPlaylist(paths[0])
+}
+
+func (a *app) closeRequested(e *mygo.CloseEvent) {
+	if a.forceQuit || !a.dirty {
+		a.teardown()
+		return
+	}
+	res, err := mygo.Dialog.Message(mygo.MessageOptions{
+		Parent:       a.win,
+		Type:         mygo.MessageQuestion,
+		Title:        "Save playlist?",
+		Message:      "The playlist has unsaved changes.",
+		Buttons:      []string{"Save", "Discard", "Cancel"},
+		CancelButton: 2,
+	})
+	if err != nil {
+		e.PreventDefault()
+		return
+	}
+	switch res.Button {
+	case 0:
+		if a.saveDialog() {
+			a.teardown()
+		} else {
+			e.PreventDefault()
+		}
+	case 1:
+		a.teardown()
+	default:
+		e.PreventDefault()
 	}
 }
 
@@ -468,6 +674,13 @@ func (a *app) menu() *mygo.Menu {
 		{Label: "File", Submenu: []*mygo.MenuItem{
 			{Label: "Open…", Accelerator: "CmdOrCtrl+O", Click: func(*mygo.MenuItem, *mygo.Window) { a.openDialog(false) }},
 			{Label: "Add…", Accelerator: "CmdOrCtrl+Shift+O", Click: func(*mygo.MenuItem, *mygo.Window) { a.openDialog(true) }},
+			{Type: mygo.MenuItemSeparator},
+			{Label: "Open Playlist…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openPlaylistDialog() }},
+			{Label: "Save Playlist", Accelerator: "CmdOrCtrl+S", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveDialog() }},
+			{Label: "Save Playlist As…", Accelerator: "CmdOrCtrl+Shift+S", Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.playlistPath = ""
+				a.saveDialog()
+			}},
 			{Type: mygo.MenuItemSeparator},
 			{Role: mygo.RoleClose},
 		}},
@@ -561,6 +774,8 @@ func main() {
 	autoquit := flag.Int("autoquit", 0, "quit after N seconds (0 = manual)")
 	logFile := flag.String("log", "testdata/gridplayer-vlc.log", "libVLC log file")
 	files := flag.String("files", "", "comma-separated media paths (default: 4 fixtures)")
+	playlistPath := flag.String("playlist", "", "load a .gpls playlist")
+	savePath := flag.String("save-playlist", "", "save the current playlist after 3s (automation)")
 	flag.Parse()
 
 	if lf, err := os.Create(*logFile); err == nil {
@@ -585,6 +800,12 @@ func main() {
 		}
 	}
 	a := newApp(paths)
+	if *playlistPath != "" {
+		if err := a.loadPlaylist(*playlistPath); err != nil {
+			log.Printf("playlist: %v", err)
+		}
+	}
+	a.dirty = false
 	mygo.App.WhenReady(func() {
 		w := mygo.NewWindow(mygo.WindowOptions{
 			Title:          "GridPlayer",
@@ -597,8 +818,18 @@ func main() {
 		a.resolve = func() (uintptr, uintptr, float64, bool) {
 			return nativehost.Resolve(w.NativeHandle())
 		}
-		w.OnClose(func(*mygo.CloseEvent) { a.teardown() })
+		w.OnClose(func(e *mygo.CloseEvent) { a.closeRequested(e) })
 		mygo.App.SetMenu(a.menu())
+		if *savePath != "" {
+			go func() {
+				time.Sleep(3 * time.Second)
+				mygo.RunOnMain(func() {
+					if err := a.savePlaylist(*savePath); err != nil {
+						log.Printf("save playlist: %v", err)
+					}
+				})
+			}()
+		}
 		go func() {
 			for {
 				time.Sleep(200 * time.Millisecond)
@@ -614,6 +845,7 @@ func main() {
 			go func() {
 				time.Sleep(time.Duration(*autoquit) * time.Second)
 				mygo.RunOnMain(func() {
+					a.forceQuit = true
 					if a.win != nil {
 						a.win.Close()
 					}
