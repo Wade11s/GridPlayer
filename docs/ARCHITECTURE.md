@@ -33,6 +33,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   slow UI never blocks libVLC.
 - Loop is libVLC's `input-repeat`, fixed when the media opens; `SetLoop`
   applies at the next `Load`. Runtime loop changes reload in the UI layer.
+- Tracks and chapters: `AudioTracks/VideoTracks/SubtitleTracks` return
+  `{ID,Name}` from libVLC's description lists; `Chapters` returns
+  `{Index,Name}` from its full chapter descriptions. Selection goes through
+  the same mutex-guarded player; `RefreshTracks` updates the snapshot when a
+  menu opens or a load settles.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - Tests: pure state-machine/commands with a fake backend, plus a darwin-only

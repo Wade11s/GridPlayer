@@ -54,6 +54,23 @@ type Snapshot struct {
 	Loop          bool
 	Width, Height int
 	Err           string
+
+	AudioTracks, VideoTracks, SubtitleTracks []Track
+	Chapters                                 []Chapter
+	AudioTrack, VideoTrack, SubtitleTrack    int
+	Chapter                                  int
+}
+
+// Track is an audio, video or subtitle track.
+type Track struct {
+	ID   int
+	Name string
+}
+
+// Chapter is a title chapter.
+type Chapter struct {
+	Index int
+	Name  string
 }
 
 // BackendState is the subset of player states the engine distinguishes.
@@ -100,6 +117,18 @@ type Backend interface {
 	Length() int64
 	State() BackendState
 	VideoSize() (width, height int, ok bool)
+	AudioTracks() []Track
+	VideoTracks() []Track
+	SubtitleTracks() []Track
+	AudioTrack() int
+	VideoTrack() int
+	SubtitleTrack() int
+	SetAudioTrack(id int) bool
+	SetVideoTrack(id int) bool
+	SetSubtitleTrack(id int) bool
+	Chapters() []Chapter
+	Chapter() int
+	SetChapter(i int) bool
 	Events() <-chan Event
 	Close()
 }
@@ -256,6 +285,19 @@ func (e *Engine) apply(gen uint64, be Backend, ev Event) {
 	length := be.Length()
 	w, h, _ := be.VideoSize()
 	state := be.State()
+	var audioTracks, videoTracks, subtitleTracks []Track
+	var chapters []Chapter
+	var audioID, videoID, subtitleID, chapter int
+	if ev.Kind == EventPlaying {
+		audioTracks = be.AudioTracks()
+		videoTracks = be.VideoTracks()
+		subtitleTracks = be.SubtitleTracks()
+		audioID = be.AudioTrack()
+		videoID = be.VideoTrack()
+		subtitleID = be.SubtitleTrack()
+		chapters = be.Chapters()
+		chapter = be.Chapter()
+	}
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -270,6 +312,14 @@ func (e *Engine) apply(gen uint64, be Backend, ev Event) {
 	case EventPlaying:
 		e.snap.Phase = Playing
 		e.snap.Err = ""
+		e.snap.AudioTracks = audioTracks
+		e.snap.VideoTracks = videoTracks
+		e.snap.SubtitleTracks = subtitleTracks
+		e.snap.AudioTrack = audioID
+		e.snap.VideoTrack = videoID
+		e.snap.SubtitleTrack = subtitleID
+		e.snap.Chapters = chapters
+		e.snap.Chapter = chapter
 	case EventPaused:
 		e.snap.Phase = Paused
 	case EventStopped:
@@ -423,6 +473,89 @@ func (e *Engine) SetLoop(loop bool) {
 	if be != nil {
 		be.SetLoop(loop)
 	}
+}
+
+// SetAudioTrack selects an audio track by libVLC ID.
+func (e *Engine) SetAudioTrack(id int) bool {
+	be, gen, ok := e.backend()
+	if !ok || !be.SetAudioTrack(id) {
+		return false
+	}
+	e.mu.Lock()
+	if gen == e.gen {
+		e.snap.AudioTrack = id
+		e.publishLocked()
+	}
+	e.mu.Unlock()
+	return true
+}
+
+// SetVideoTrack selects a video track by libVLC ID (-1 disables video).
+func (e *Engine) SetVideoTrack(id int) bool {
+	be, gen, ok := e.backend()
+	if !ok || !be.SetVideoTrack(id) {
+		return false
+	}
+	e.mu.Lock()
+	if gen == e.gen {
+		e.snap.VideoTrack = id
+		e.publishLocked()
+	}
+	e.mu.Unlock()
+	return true
+}
+
+// SetSubtitleTrack selects a subtitle track by libVLC ID (-1 disables).
+func (e *Engine) SetSubtitleTrack(id int) bool {
+	be, gen, ok := e.backend()
+	if !ok || !be.SetSubtitleTrack(id) {
+		return false
+	}
+	e.mu.Lock()
+	if gen == e.gen {
+		e.snap.SubtitleTrack = id
+		e.publishLocked()
+	}
+	e.mu.Unlock()
+	return true
+}
+
+// SetChapter jumps to a chapter by index.
+func (e *Engine) SetChapter(i int) bool {
+	be, gen, ok := e.backend()
+	if !ok || !be.SetChapter(i) {
+		return false
+	}
+	e.mu.Lock()
+	if gen == e.gen {
+		e.snap.Chapter = i
+		e.publishLocked()
+	}
+	e.mu.Unlock()
+	return true
+}
+
+// RefreshTracks re-reads tracks, subtitles and chapters from the backend.
+// The UI calls it when it opens a menu or after a load settles.
+func (e *Engine) RefreshTracks() {
+	be, gen, ok := e.backend()
+	if !ok {
+		return
+	}
+	audio := be.AudioTracks()
+	video := be.VideoTracks()
+	subs := be.SubtitleTracks()
+	audioID, videoID, subID := be.AudioTrack(), be.VideoTrack(), be.SubtitleTrack()
+	chapters := be.Chapters()
+	chapter := be.Chapter()
+	e.mu.Lock()
+	if gen == e.gen {
+		e.snap.AudioTracks, e.snap.VideoTracks, e.snap.SubtitleTracks = audio, video, subs
+		e.snap.AudioTrack, e.snap.VideoTrack, e.snap.SubtitleTrack = audioID, videoID, subID
+		e.snap.Chapters, e.snap.Chapter = chapters, chapter
+		e.publishLocked()
+	}
+	e.mu.Unlock()
 }
 
 // Stop stops playback and leaves the engine idle.

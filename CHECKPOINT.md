@@ -41,8 +41,11 @@
   coalesced snapshots, fake-backend tests + real libVLC dummy-output integration
   test; `cmd/gridplayer` now uses one Engine per cell. Local GUI re-acceptance:
   4 panes playing, loop wrapped past 10s, VideoToolbox ×4, clean teardown.
-- Remaining #2 work: track/audio/subtitle selection, chapters, end-of-list actions,
-  recovery policy; then #3–#5.
+- #2 tracks/chapters: `vlcmac` track/chapter queries + selection, engine snapshot
+  and `RefreshTracks`; feature.mkv fixture (3 chapters, 2 audio, 2 subtitle tracks);
+  real libVLC test switches audio/subtitle/chapter. CI/local green.
+- Remaining #2 work: external A/V slaves, end-of-list actions, recovery/network retry;
+  then #3–#5.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.

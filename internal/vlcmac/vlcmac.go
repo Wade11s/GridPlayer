@@ -87,6 +87,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -262,6 +263,18 @@ type Frame struct {
 	Stride int
 	// Chroma is the 4-byte chroma of the buffer (e.g. "RV32").
 	Chroma string
+}
+
+// Track is an audio, video or subtitle track.
+type Track struct {
+	ID   int
+	Name string
+}
+
+// Chapter is a title chapter.
+type Chapter struct {
+	Index int
+	Name  string
 }
 
 // registry routes libVLC callbacks (which carry the player pointer) to the
@@ -518,6 +531,113 @@ func (p *Player) VideoSize() (w, h int, ok bool) {
 		}
 	})
 	return w, h, ok
+}
+
+func trackList(head *C.libvlc_track_description_t) []Track {
+	if head == nil {
+		return nil
+	}
+	defer C.libvlc_track_description_list_release(head)
+	var out []Track
+	for d := head; d != nil; d = d.p_next {
+		name := ""
+		if d.psz_name != nil {
+			name = C.GoString(d.psz_name)
+		}
+		out = append(out, Track{ID: int(d.i_id), Name: name})
+	}
+	return out
+}
+
+func (p *Player) AudioTracks() (out []Track) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		out = trackList(C.libvlc_audio_get_track_description(mp))
+	})
+	return out
+}
+
+func (p *Player) VideoTracks() (out []Track) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		out = trackList(C.libvlc_video_get_track_description(mp))
+	})
+	return out
+}
+
+func (p *Player) SubtitleTracks() (out []Track) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		out = trackList(C.libvlc_video_get_spu_description(mp))
+	})
+	return out
+}
+
+func (p *Player) SetAudioTrack(id int) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		ok = C.libvlc_audio_set_track(mp, C.int(id)) == 0
+	})
+	return ok
+}
+
+func (p *Player) SetVideoTrack(id int) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		ok = C.libvlc_video_set_track(mp, C.int(id)) == 0
+	})
+	return ok
+}
+
+func (p *Player) SetSubtitleTrack(id int) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		ok = C.libvlc_video_set_spu(mp, C.int(id)) == 0
+	})
+	return ok
+}
+
+func (p *Player) AudioTrack() (id int) {
+	p.with(func(mp *C.libvlc_media_player_t) { id = int(C.libvlc_audio_get_track(mp)) })
+	return id
+}
+
+func (p *Player) VideoTrack() (id int) {
+	p.with(func(mp *C.libvlc_media_player_t) { id = int(C.libvlc_video_get_track(mp)) })
+	return id
+}
+
+func (p *Player) SubtitleTrack() (id int) {
+	p.with(func(mp *C.libvlc_media_player_t) { id = int(C.libvlc_video_get_spu(mp)) })
+	return id
+}
+
+func (p *Player) Chapters() (out []Chapter) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		var descs **C.struct_libvlc_chapter_description_t
+		n := int(C.libvlc_media_player_get_full_chapter_descriptions(mp, -1, &descs))
+		if n <= 0 || descs == nil || *descs == nil {
+			return
+		}
+		defer C.libvlc_chapter_descriptions_release(descs, C.unsigned(n))
+		// descs points at an array of chapter pointers.
+		arr := unsafe.Slice(descs, n)
+		for i := range arr {
+			name := ""
+			if arr[i] != nil && arr[i].psz_name != nil {
+				name = strings.TrimSpace(C.GoString(arr[i].psz_name))
+			}
+			out = append(out, Chapter{Index: i, Name: name})
+		}
+	})
+	return out
+}
+
+func (p *Player) SetChapter(i int) (ok bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		C.libvlc_media_player_set_chapter(mp, C.int(i))
+		ok = true
+	})
+	return ok
+}
+
+func (p *Player) Chapter() (i int) {
+	p.with(func(mp *C.libvlc_media_player_t) { i = int(C.libvlc_media_player_get_chapter(mp)) })
+	return i
 }
 
 // Release runs the fixed teardown: unbind NSView -> release player ->

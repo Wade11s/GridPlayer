@@ -126,6 +126,47 @@ func (b *vlcBackend) State() BackendState {
 func (b *vlcBackend) VideoSize() (int, int, bool) { return b.pl.VideoSize() }
 func (b *vlcBackend) Events() <-chan Event        { return b.out }
 
+func mapTracks(in []vlcmac.Track) []Track {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Track, len(in))
+	for i, t := range in {
+		out[i] = Track{ID: t.ID, Name: t.Name}
+	}
+	return out
+}
+
+func (b *vlcBackend) AudioTracks() []Track    { return mapTracks(b.pl.AudioTracks()) }
+func (b *vlcBackend) VideoTracks() []Track    { return mapTracks(b.pl.VideoTracks()) }
+func (b *vlcBackend) SubtitleTracks() []Track { return mapTracks(b.pl.SubtitleTracks()) }
+func (b *vlcBackend) AudioTrack() int         { return b.pl.AudioTrack() }
+func (b *vlcBackend) VideoTrack() int         { return b.pl.VideoTrack() }
+func (b *vlcBackend) SubtitleTrack() int      { return b.pl.SubtitleTrack() }
+func (b *vlcBackend) SetAudioTrack(id int) bool {
+	return b.pl.SetAudioTrack(id)
+}
+func (b *vlcBackend) SetVideoTrack(id int) bool {
+	return b.pl.SetVideoTrack(id)
+}
+func (b *vlcBackend) SetSubtitleTrack(id int) bool {
+	return b.pl.SetSubtitleTrack(id)
+}
+
+func (b *vlcBackend) Chapters() []Chapter {
+	in := b.pl.Chapters()
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]Chapter, len(in))
+	for i, c := range in {
+		out[i] = Chapter{Index: c.Index, Name: c.Name}
+	}
+	return out
+}
+func (b *vlcBackend) Chapter() int          { return b.pl.Chapter() }
+func (b *vlcBackend) SetChapter(i int) bool { return b.pl.SetChapter(i) }
+
 func (b *vlcBackend) Close() {
 	b.once.Do(func() {
 		close(b.done)
