@@ -50,6 +50,9 @@ type app struct {
 	cfg           grid.Config
 	fill          bool
 	stretch       bool
+	single        bool
+	singleSide    grid.StripSide
+	singleShare   *float64
 	aspect        string
 	scale         float64
 	crop          string
@@ -86,6 +89,19 @@ func (a *app) loadSettings() {
 		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
 		Rows: atoi(st.Get("playlist/grid_rows", "3"), 3),
 		Cols: atoi(st.Get("playlist/grid_cols", "3"), 3),
+	}
+	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
+	switch st.Get("playlist/single_mode_strip_side", "auto") {
+	case "right":
+		a.singleSide = grid.StripRight
+	case "left":
+		a.singleSide = grid.StripLeft
+	case "bottom":
+		a.singleSide = grid.StripBottom
+	case "top":
+		a.singleSide = grid.StripTop
+	default:
+		a.singleSide = grid.StripAuto
 	}
 	switch st.Get("video_defaults/cell_view_mode", "fill") {
 	case "fit":
@@ -149,6 +165,23 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_mode", modeName(a.cfg.Mode))
 	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
+	strip := "off"
+	if a.single {
+		strip = "swap"
+	}
+	a.settings.Set("playlist/single_mode_strip", strip)
+	side := "auto"
+	switch a.singleSide {
+	case grid.StripRight:
+		side = "right"
+	case grid.StripLeft:
+		side = "left"
+	case grid.StripBottom:
+		side = "bottom"
+	case grid.StripTop:
+		side = "top"
+	}
+	a.settings.Set("playlist/single_mode_strip_side", side)
 	view := "fill"
 	if a.stretch {
 		view = "stretch"
@@ -428,7 +461,11 @@ func (a *app) teardown() {
 func (a *app) view(c *ui.Context) {
 	a.shortcuts(c)
 	w, h := c.Size()
-	rects := grid.Layout(len(a.cells), grid.Rect{W: float64(w), H: float64(h)}, 4, a.cfg)
+	area := grid.Rect{W: float64(w), H: float64(h)}
+	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
+	if a.single && len(a.cells) > 1 {
+		rects, _ = grid.SingleLayout(len(a.cells), a.active, area, 4, a.singleSide, a.singleShare, 16.0/9.0)
+	}
 	if len(rects) == 0 {
 		ui.Text(c, "Open a video to begin").FontSize(20).Center()
 		return
@@ -592,6 +629,14 @@ func (a *app) openDialog(add bool) {
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
 	a.dirty = true
+	a.saveSettings()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) setSingleSide(side grid.StripSide) {
+	a.singleSide = side
 	a.saveSettings()
 	if a.win != nil {
 		a.win.Invalidate()
@@ -1007,6 +1052,22 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Fixed 4×4", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4})
 			}},
+			{Type: mygo.MenuItemSeparator},
+			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.single = !a.single
+				a.saveSettings()
+				a.refreshMenu()
+				if a.win != nil {
+					a.win.Invalidate()
+				}
+			}},
+			{Label: "Strip Side", Submenu: []*mygo.MenuItem{
+				{Label: "Auto", Click: func(*mygo.MenuItem, *mygo.Window) { a.setSingleSide(grid.StripAuto) }},
+				{Label: "Right", Click: func(*mygo.MenuItem, *mygo.Window) { a.setSingleSide(grid.StripRight) }},
+				{Label: "Left", Click: func(*mygo.MenuItem, *mygo.Window) { a.setSingleSide(grid.StripLeft) }},
+				{Label: "Bottom", Click: func(*mygo.MenuItem, *mygo.Window) { a.setSingleSide(grid.StripBottom) }},
+				{Label: "Top", Click: func(*mygo.MenuItem, *mygo.Window) { a.setSingleSide(grid.StripTop) }},
+			}},
 		}},
 		{Label: "View", Submenu: []*mygo.MenuItem{
 			{Label: "Fill (cover)", Type: mygo.MenuItemCheckbox, Checked: a.fill, Click: func(*mygo.MenuItem, *mygo.Window) {
@@ -1066,6 +1127,7 @@ func main() {
 	files := flag.String("files", "", "comma-separated media paths (default: 4 fixtures)")
 	playlistPath := flag.String("playlist", "", "load a .gpls playlist")
 	savePath := flag.String("save-playlist", "", "save the current playlist after 3s (automation)")
+	single := flag.Bool("single", false, "start in single mode")
 	userData := flag.String("user-data-dir", "", "override the user data directory")
 	flag.Parse()
 	if *userData != "" {
@@ -1094,6 +1156,7 @@ func main() {
 		}
 	}
 	a := newApp(paths)
+	a.single = *single
 	a.dirty = false
 	mygo.App.WhenReady(func() {
 		a.loadSettings()
