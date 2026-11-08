@@ -148,6 +148,22 @@ func NewView() uintptr {
 	return uintptr(v)
 }
 
+// NewClip creates a layer-backed NSView that clips its subviews (+1 owned).
+func NewClip() uintptr {
+	once.Do(initAppKit)
+	v := msgInitRec(send(class("NSView"), "alloc"), sel("initWithFrame:"),
+		NSRect{Size: NSSize{}})
+	send(v, "setWantsLayer:", 1)
+	send(send(v, "layer"), "setMasksToBounds:", 1)
+	return uintptr(v)
+}
+
+// AddSubview adds child inside parent.
+func AddSubview(parent, child uintptr) {
+	once.Do(initAppKit)
+	send(id(parent), "addSubview:", id(child))
+}
+
 // AddBelow adds view to contentView below surfaceView (webview order).
 func AddBelow(contentView, surfaceView, view uintptr) {
 	once.Do(initAppKit)

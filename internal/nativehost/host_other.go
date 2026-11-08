@@ -23,6 +23,8 @@ func ToMac(r DIP, height float64) NSRect {
 }
 
 func NewView() uintptr                                { return 0 }
+func NewClip() uintptr                                { return 0 }
+func AddSubview(parent, child uintptr)                {}
 func AddBelow(contentView, surfaceView, view uintptr) {}
 func SetFrame(view uintptr, frame NSRect)             {}
 func Frame(view uintptr) NSRect                       { return NSRect{} }

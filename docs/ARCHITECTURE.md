@@ -40,6 +40,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   menu opens or a load settles.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
+- `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per
+  cell, partial last row allowed). The UI renders those rects absolutely and
+  keeps the native VLC view in a clipping NSView: Fill computes a cover rect
+  (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
 - Tests: pure state-machine/commands with a fake backend, plus a darwin-only
   real-libVLC integration test with `--vout=dummy --aout=dummy` (no GUI).
 
