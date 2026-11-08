@@ -24,13 +24,14 @@ package vlcmac
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <vlc/libvlc.h>
 #include <vlc/libvlc_media.h>
 #include <vlc/libvlc_events.h>
 #include <vlc/libvlc_renderer_discoverer.h>
 #include <vlc/libvlc_media_player.h>
 
-extern void GoVLCEvent(void *player, int ev_type, long long time_ms);
+extern void GoVLCEvent(void *player, int ev_type, int64_t time_ms);
 
 static void call_event(const struct libvlc_event_t *ev, void *opaque) {
     long long t = 0;
