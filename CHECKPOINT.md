@@ -49,6 +49,11 @@
   menu (File/Playback/Grid/View/Tracks), per-cell overlay controls, Fill cover via
   clip view + Fit, shortcuts (Space/arrows/M/L/B/N/[/]), active-cell border.
   Local screenshots: 1-cell, 2-cell fill, 4-cell.
+- #5 local .app: `mygo.json` + pinned `go tool mygo`, icon, `scripts/build_app.sh`,
+  `scripts/smoke_app.sh`. `dist/darwin-arm64/GridPlayer.app` (ad-hoc signed)
+  launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;
+  no residual process. VLC remains external at /Applications/VLC.app (rpath +
+  VLC_PLUGIN_PATH), documented in docs/APP_BUILD.md. Not a public release.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.

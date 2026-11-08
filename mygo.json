@@ -1,0 +1,12 @@
+{
+  "name": "GridPlayer",
+  "slug": "gridplayer",
+  "identifier": "com.wade11.gridplayer.go",
+  "version": "0.1.0",
+  "copyright": "Copyright © 2026 Wade Huang",
+  "publisher": "Wade Huang",
+  "license": "GPL-3.0-or-later",
+  "main": "./cmd/gridplayer",
+  "out": "dist",
+  "resources": []
+}
