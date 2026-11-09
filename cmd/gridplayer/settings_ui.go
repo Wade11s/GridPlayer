@@ -9,8 +9,15 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/resolve"
 )
+
+type keyBindingDraft struct {
+	Action string
+	Label  string
+	Value  string
+}
 
 type settingsDraft struct {
 	tab int
@@ -37,6 +44,9 @@ type settingsDraft struct {
 	ytdlp      string
 	streamlink string
 	format     string
+
+	keys        []keyBindingDraft
+	keymapError string
 }
 
 var (
@@ -66,6 +76,7 @@ func defaultSettingsDraft() settingsDraft {
 		scale:      "Fit",
 		crop:       "None",
 		format:     "Best",
+		keys:       defaultKeyBindingDrafts(),
 	}
 }
 
@@ -88,7 +99,7 @@ func (a *app) openSettings() {
 func (a *app) settingsView(c *ui.Context) {
 	d := &a.settingsDraft
 	ui.Column(c).Fill().Padding(16).Gap(12).Children(func() {
-		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video", "Network")
+		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video", "Network", "Keymap")
 		ui.Scroll(c).Fill().Children(func() {
 			switch d.tab {
 			case 0:
@@ -99,16 +110,23 @@ func (a *app) settingsView(c *ui.Context) {
 				a.settingsGrid(c, d)
 			case 3:
 				a.settingsVideo(c, d)
-			default:
+			case 4:
 				a.settingsNetwork(c, d)
+			default:
+				a.settingsKeymap(c, d)
 			}
 		})
 		ui.Divider(c)
 		ui.Row(c).Gap(8).Children(func() {
 			if ui.PrimaryButton(c, "Apply").Clicked() {
-				a.applySettingsDraft(*d)
-				if a.settingsWin != nil {
-					a.settingsWin.Close()
+				if err := d.validateKeymap(); err != nil {
+					d.keymapError = err.Error()
+				} else {
+					d.keymapError = ""
+					a.applySettingsDraft(*d)
+					if a.settingsWin != nil {
+						a.settingsWin.Close()
+					}
 				}
 			}
 			if ui.Button(c, "Cancel").Clicked() && a.settingsWin != nil {
@@ -244,6 +262,49 @@ func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 	})
 }
 
+func (a *app) settingsKeymap(c *ui.Context, d *settingsDraft) {
+	ui.Column(c).Gap(8).Children(func() {
+		ui.Text(c, "Use space, left, m, cmd+shift+p, or none.").FontSize(12)
+		ui.Form(c, func() {
+			for i := range d.keys {
+				k := &d.keys[i]
+				ui.Field(c, k.Label, func() {
+					ui.TextInput(c, &k.Value)
+				})
+			}
+		})
+		if d.keymapError != "" {
+			ui.Text(c, d.keymapError).FontSize(12).TextColor(ui.RGB(255, 120, 120))
+		}
+	})
+}
+
+func defaultKeyBindingDrafts() []keyBindingDraft {
+	return keyBindingDrafts(keymap.Default())
+}
+
+func keyBindingDrafts(m keymap.Map) []keyBindingDraft {
+	out := make([]keyBindingDraft, 0, len(keymap.Actions))
+	for _, action := range keymap.Actions {
+		out = append(out, keyBindingDraft{
+			Action: action,
+			Label:  keymap.Labels[action],
+			Value:  m.Get(action).String(),
+		})
+	}
+	return out
+}
+
+func (d settingsDraft) validateKeymap() error {
+	m := keymap.Default()
+	for _, k := range d.keys {
+		if err := m.Set(k.Action, k.Value); err != nil {
+			return fmt.Errorf("%s: %w", k.Label, err)
+		}
+	}
+	return m.Validate()
+}
+
 func (a *app) currentSettingsDraft() settingsDraft {
 	d := defaultSettingsDraft()
 	d.volume = float64(a.defaultVolume)
@@ -283,6 +344,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 		d.streamlink = a.resolver.Streamlink
 		d.format = formatName(a.resolver.Format)
 	}
+	d.keys = keyBindingDrafts(a.keys)
 	return d
 }
 
@@ -306,6 +368,12 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.resolver.Path = strings.TrimSpace(d.ytdlp)
 	a.resolver.Streamlink = strings.TrimSpace(d.streamlink)
 	a.resolver.Format = formatFromName(d.format)
+	for _, k := range d.keys {
+		if err := a.keys.Set(k.Action, k.Value); err != nil {
+			a.status = err.Error()
+			break
+		}
+	}
 	oldCfg, oldFree, oldMosaic, oldSingle := a.cfg, a.free, a.mosaic, a.single
 	switch d.layout {
 	case "Auto Columns":

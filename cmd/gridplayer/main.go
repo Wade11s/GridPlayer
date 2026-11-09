@@ -26,6 +26,7 @@ import (
 	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/medialist"
 	"gridplayer-go/internal/nativehost"
 	"gridplayer-go/internal/playlist"
@@ -97,6 +98,7 @@ type app struct {
 	settingsWin         *mygo.Window
 	settingsDraft       settingsDraft
 	resolver            *resolve.Resolver
+	keys                keymap.Map
 	bookmarks           *bookmarks.Store
 	bookmarkWin         *mygo.Window
 	bookmarkRenameWin   *mygo.Window
@@ -125,6 +127,7 @@ func newApp(paths []string) *app {
 		defaultRate:   1,
 		defaultLoop:   true,
 		resolver:      resolve.New(),
+		keys:          keymap.Default(),
 	}
 	a.setPlaylist(paths)
 	return a
@@ -141,6 +144,7 @@ func (a *app) loadSettings() {
 		return
 	}
 	a.settings = st
+	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
 		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
 		Rows: atoi(st.Get("playlist/grid_rows", "3"), 3),
@@ -347,6 +351,7 @@ func (a *app) saveSettings() {
 	if raw, err := json.Marshal(a.recent); err == nil {
 		a.settings.Set("app/recent", string(raw))
 	}
+	a.keys.Save(func(k, v string) { a.settings.Set(k, v) })
 	if err := a.settings.Save(); err != nil {
 		log.Printf("settings save: %v", err)
 	}
@@ -1165,38 +1170,38 @@ func (a *app) shortcuts(c *ui.Context) {
 		return
 	}
 	eng := a.activeEngine()
-	if c.Shortcut(0, ui.KeySpace) && !c.ShortcutRepeated() && eng != nil {
+	if a.shortcut(c, "play_pause") && !c.ShortcutRepeated() && eng != nil {
 		eng.Toggle()
 	}
-	if c.Shortcut(0, ui.KeyLeft) && eng != nil {
+	if a.shortcut(c, "seek_back") && eng != nil {
 		eng.SeekTo(max(eng.Snapshot().Time-5000, 0))
 	}
-	if c.Shortcut(0, ui.KeyRight) && eng != nil {
+	if a.shortcut(c, "seek_forward") && eng != nil {
 		eng.SeekTo(eng.Snapshot().Time + 5000)
 	}
-	if c.Shortcut(0, ui.KeyUp) && eng != nil {
+	if a.shortcut(c, "volume_up") && eng != nil {
 		eng.SetVolume(min(eng.Snapshot().Volume+5, 100))
 	}
-	if c.Shortcut(0, ui.KeyDown) && eng != nil {
+	if a.shortcut(c, "volume_down") && eng != nil {
 		eng.SetVolume(max(eng.Snapshot().Volume-5, 0))
 	}
-	if c.Shortcut(0, ui.KeyM) && eng != nil {
+	if a.shortcut(c, "mute") && eng != nil {
 		eng.SetMute(!eng.Snapshot().Muted)
 	}
-	if c.Shortcut(0, ui.KeyL) && eng != nil {
+	if a.shortcut(c, "loop") && eng != nil {
 		eng.SetLoop(!eng.Snapshot().Loop)
 		_ = eng.Reload()
 	}
-	if c.Shortcut(0, ui.KeyB) {
+	if a.shortcut(c, "prev_cell") {
 		a.setActive((a.active - 1 + len(a.cells)) % len(a.cells))
 	}
-	if c.Shortcut(0, ui.KeyN) {
+	if a.shortcut(c, "next_cell") {
 		a.setActive((a.active + 1) % len(a.cells))
 	}
-	if c.Shortcut(0, ui.KeyBracketLeft) && eng != nil {
+	if a.shortcut(c, "rate_down") && eng != nil {
 		eng.SetRate(max(eng.Snapshot().Rate-0.25, 0.25))
 	}
-	if c.Shortcut(0, ui.KeyBracketRight) && eng != nil {
+	if a.shortcut(c, "rate_up") && eng != nil {
 		eng.SetRate(min(eng.Snapshot().Rate+0.25, 4))
 	}
 }
@@ -2021,7 +2026,7 @@ func (a *app) menu() *mygo.Menu {
 			{Role: mygo.RoleClose},
 		}},
 		{Label: "Playback", Submenu: []*mygo.MenuItem{
-			{Label: "Play/Pause", Accelerator: "Space", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Play/Pause", Accelerator: a.keys.Get("play_pause").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.Toggle()
 				}
@@ -2051,23 +2056,23 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Label: "Save Frame…", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
 			{Type: mygo.MenuItemSeparator},
-			{Label: "Seek -5s", Accelerator: "Left", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Seek -5s", Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.SeekTo(max(eng.Snapshot().Time-5000, 0))
 				}
 			}},
-			{Label: "Seek +5s", Accelerator: "Right", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Seek +5s", Accelerator: a.keys.Get("seek_forward").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.SeekTo(eng.Snapshot().Time + 5000)
 				}
 			}},
 			{Type: mygo.MenuItemSeparator},
-			{Label: "Mute", Accelerator: "M", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Mute", Accelerator: a.keys.Get("mute").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.SetMute(!eng.Snapshot().Muted)
 				}
 			}},
-			{Label: "Loop", Accelerator: "L", Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
+			{Label: "Loop", Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},
@@ -2075,10 +2080,10 @@ func (a *app) menu() *mygo.Menu {
 				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(2) }},
 			}},
 			{Type: mygo.MenuItemSeparator},
-			{Label: "Previous Cell", Accelerator: "B", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Previous Cell", Accelerator: a.keys.Get("prev_cell").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setActive((a.active - 1 + len(a.cells)) % len(a.cells))
 			}},
-			{Label: "Next Cell", Accelerator: "N", Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Next Cell", Accelerator: a.keys.Get("next_cell").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setActive((a.active + 1) % len(a.cells))
 			}},
 		}},

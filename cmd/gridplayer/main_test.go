@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/egoist/mygo/ui"
+
 	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
@@ -516,6 +519,60 @@ func TestApplyDocumentClampsSingleShare(t *testing.T) {
 	a.applyDocument(d, "")
 	if a.singleShare == nil || *a.singleShare != 0.05 {
 		t.Fatalf("low share %v", a.singleShare)
+	}
+}
+
+func TestBindingUI(t *testing.T) {
+	b, err := keymap.Parse("cmd+shift+p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, key, ok := bindingUI(b)
+	if !ok || key != ui.KeyP || mods != ui.Cmd|ui.Shift {
+		t.Fatalf("cmd+shift+p -> %v %v %v", mods, key, ok)
+	}
+	b, err = keymap.Parse("space")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mods, key, ok = bindingUI(b)
+	if !ok || key != ui.KeySpace || mods != 0 {
+		t.Fatalf("space -> %v %v %v", mods, key, ok)
+	}
+	b, _ = keymap.Parse("none")
+	if _, _, ok := bindingUI(b); ok {
+		t.Fatal("empty binding accepted")
+	}
+}
+
+func TestSettingsDraftKeymap(t *testing.T) {
+	a := &app{keys: keymap.Default()}
+	d := a.currentSettingsDraft()
+	if len(d.keys) != len(keymap.Actions) {
+		t.Fatalf("keys=%d", len(d.keys))
+	}
+	for i := range d.keys {
+		switch d.keys[i].Action {
+		case "play_pause":
+			d.keys[i].Value = "p"
+		case "mute":
+			d.keys[i].Value = "none"
+		}
+	}
+	if err := d.validateKeymap(); err != nil {
+		t.Fatal(err)
+	}
+	a.applySettingsDraft(d)
+	if got := a.keys.Get("play_pause").String(); got != "p" {
+		t.Fatalf("play %q", got)
+	}
+	if !a.keys.Get("mute").Empty() {
+		t.Fatalf("mute %q", a.keys.Get("mute").String())
+	}
+	d.keys[0].Value = "p"
+	d.keys[1].Value = "p"
+	if err := d.validateKeymap(); err == nil {
+		t.Fatal("duplicate keymap accepted")
 	}
 }
 
