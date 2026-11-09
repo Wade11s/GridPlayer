@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -573,6 +574,107 @@ func TestSettingsDraftKeymap(t *testing.T) {
 	d.keys[1].Value = "p"
 	if err := d.validateKeymap(); err == nil {
 		t.Fatal("duplicate keymap accepted")
+	}
+}
+
+func TestSubtitleArgs(t *testing.T) {
+	s := subtitleStyle{
+		Font:         "Arial",
+		Size:         48,
+		Color:        "#FFFF00",
+		OutlineColor: "#000000",
+		Outline:      4,
+		Bold:         true,
+		Opacity:      128,
+		Encoding:     "UTF-8",
+		Autodetect:   true,
+	}
+	args := strings.Join(s.args(), " ")
+	for _, want := range []string{
+		"--freetype-font=Arial",
+		"--freetype-fontsize=48",
+		"--freetype-color=16776960",
+		"--freetype-outline-color=0",
+		"--freetype-outline-thickness=4",
+		"--freetype-bold",
+		"--freetype-opacity=128",
+		"--subsdec-encoding=UTF-8",
+		"--sub-autodetect-file",
+	} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("args missing %q: %s", want, args)
+		}
+	}
+	empty := strings.Join((subtitleStyle{Opacity: 255}).args(), " ")
+	for _, want := range []string{"--freetype-outline-thickness=0", "--no-sub-autodetect-file"} {
+		if !strings.Contains(empty, want) {
+			t.Fatalf("empty style args missing %q: %s", want, empty)
+		}
+	}
+}
+
+func TestHexColor(t *testing.T) {
+	for in, want := range map[string]string{
+		"#FFFFFF": "16777215",
+		"FFFFFF":  "16777215",
+		"#000000": "0",
+		"#FFFF00": "16776960",
+		"#fff":    "",
+		"zzzzzz":  "",
+	} {
+		if got := hexColor(in); got != want {
+			t.Fatalf("%q -> %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSubtitleSize(t *testing.T) {
+	for in, want := range map[string]int{
+		"0":     0,
+		"12":    12,
+		"48":    48,
+		"48abc": 0,
+		"-5":    0,
+		"200":   96,
+	} {
+		if got := subtitleSize(in); got != want {
+			t.Fatalf("%q -> %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestSubtitleOpacity(t *testing.T) {
+	for in, want := range map[string]int{
+		"255":    255,
+		"128":    128,
+		"128abc": 255,
+		"500":    255,
+		"-5":     0,
+	} {
+		if got := subtitleOpacity(in); got != want {
+			t.Fatalf("%q -> %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestSettingsDraftSubtitles(t *testing.T) {
+	a := &app{}
+	d := defaultSettingsDraft()
+	d.subFont = "Arial"
+	d.subSize = "48"
+	d.subColor = "#FFFF00"
+	d.subOutlineColor = "#000000"
+	d.subOutline = "Normal"
+	d.subBold = true
+	d.subOpacity = 50
+	d.subEncoding = "UTF-8"
+	d.subAutodetect = true
+	a.applySettingsDraft(d)
+	s := a.subtitle
+	if s.Font != "Arial" || s.Size != 48 || s.Color != "#FFFF00" ||
+		s.OutlineColor != "#000000" || s.Outline != 4 || !s.Bold ||
+		s.Opacity != 128 || s.Encoding != "UTF-8" || !s.Autodetect {
+		t.Fatalf("subtitle %+v", s)
 	}
 }
 

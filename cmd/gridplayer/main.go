@@ -99,6 +99,7 @@ type app struct {
 	settingsDraft       settingsDraft
 	resolver            *resolve.Resolver
 	keys                keymap.Map
+	subtitle            subtitleStyle
 	bookmarks           *bookmarks.Store
 	bookmarkWin         *mygo.Window
 	bookmarkRenameWin   *mygo.Window
@@ -128,6 +129,7 @@ func newApp(paths []string) *app {
 		defaultLoop:   true,
 		resolver:      resolve.New(),
 		keys:          keymap.Default(),
+		subtitle:      subtitleStyle{Opacity: 255},
 	}
 	a.setPlaylist(paths)
 	return a
@@ -220,6 +222,15 @@ func (a *app) loadSettings() {
 	}
 	a.crop = st.Get("video_defaults/crop_ratio", "")
 	a.loadNetworkSettings(st)
+	a.subtitle.Font = st.Get("subtitles/font", "")
+	a.subtitle.Size = subtitleSize(st.Get("subtitles/font_size", "0"))
+	a.subtitle.Color = st.Get("subtitles/color", "")
+	a.subtitle.OutlineColor = st.Get("subtitles/outline_color", "")
+	a.subtitle.Outline = subtitleOutlineValue(st.Get("subtitles/outline", "None"))
+	a.subtitle.Bold = st.Get("subtitles/bold", "false") == "true"
+	a.subtitle.Opacity = subtitleOpacity(st.Get("subtitles/opacity", "255"))
+	a.subtitle.Encoding = st.Get("subtitles/encoding", "")
+	a.subtitle.Autodetect = st.Get("subtitles/autodetect", "false") == "true"
 	for i, c := range a.cells {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
@@ -348,6 +359,15 @@ func (a *app) saveSettings() {
 		a.settings.Set("network/ytdlp_path", a.resolver.Path)
 		a.settings.Set("network/streamlink_path", a.resolver.Streamlink)
 	}
+	a.settings.Set("subtitles/font", a.subtitle.Font)
+	a.settings.Set("subtitles/font_size", fmt.Sprint(a.subtitle.Size))
+	a.settings.Set("subtitles/color", a.subtitle.Color)
+	a.settings.Set("subtitles/outline_color", a.subtitle.OutlineColor)
+	a.settings.Set("subtitles/outline", subtitleOutlineName(a.subtitle.Outline))
+	a.settings.Set("subtitles/bold", fmt.Sprint(a.subtitle.Bold))
+	a.settings.Set("subtitles/opacity", fmt.Sprint(a.subtitle.Opacity))
+	a.settings.Set("subtitles/encoding", a.subtitle.Encoding)
+	a.settings.Set("subtitles/autodetect", fmt.Sprint(a.subtitle.Autodetect))
 	if raw, err := json.Marshal(a.recent); err == nil {
 		a.settings.Set("app/recent", string(raw))
 	}
@@ -600,6 +620,25 @@ func (a *app) closeCell(c *cell) {
 	}
 }
 
+// reloadCells recreates every live engine so instance-level options such as
+// subtitle styling take effect, resuming each cell at its current position.
+func (a *app) reloadCells() {
+	for _, c := range a.cells {
+		if c.eng == nil {
+			continue
+		}
+		s := c.eng.Snapshot()
+		if s.Phase != engine.Loading {
+			c.startAt = int(s.Time)
+			c.startPaused = s.Phase != engine.Playing
+		}
+		a.closeCell(c)
+	}
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
 // ensure creates the native view + engine for cell i and sizes it to r.
 // Main thread only (Draw callback).
 func (a *app) ensure(i int, r grid.Rect) {
@@ -633,6 +672,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		nativehost.SetFrame(clip, nativehost.ToMac(nativehost.DIP(r), h))
 		eng := engine.New(engine.NewVLCFactory(engine.VLCOptions{
 			View: func() uintptr { return view },
+			Args: a.subtitle.args(),
 		}))
 		eng.SetLoop(c.loop)
 		eng.SetVolume(c.volume)

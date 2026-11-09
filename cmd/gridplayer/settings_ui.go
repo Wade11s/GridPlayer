@@ -39,6 +39,16 @@ type settingsDraft struct {
 	scale  string
 	crop   string
 
+	subFont         string
+	subSize         string
+	subColor        string
+	subOutlineColor string
+	subOutline      string
+	subBold         bool
+	subOpacity      float64
+	subEncoding     string
+	subAutodetect   bool
+
 	proxy      string
 	cookies    string
 	ytdlp      string
@@ -50,33 +60,39 @@ type settingsDraft struct {
 }
 
 var (
-	layoutOptions = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
-	sizeOptions   = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
-	sideOptions   = []string{"Auto", "Right", "Left", "Bottom", "Top"}
-	viewOptions   = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
-	aspectOptions = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
-	scaleOptions  = []string{"Fit", "1x", "1.5x", "2x"}
-	cropOptions   = []string{"None", "16:9", "4:3", "2.35:1"}
-	formatOptions = []string{"Best", "Worst", "720p", "480p"}
+	layoutOptions   = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
+	sizeOptions     = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
+	sideOptions     = []string{"Auto", "Right", "Left", "Bottom", "Top"}
+	viewOptions     = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
+	aspectOptions   = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
+	scaleOptions    = []string{"Fit", "1x", "1.5x", "2x"}
+	cropOptions     = []string{"None", "16:9", "4:3", "2.35:1"}
+	formatOptions   = []string{"Best", "Worst", "720p", "480p"}
+	outlineOptions  = []string{"None", "Thin", "Normal", "Thick"}
+	encodingOptions = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
 )
 
 func defaultSettingsDraft() settingsDraft {
 	return settingsDraft{
-		volume:     80,
-		rate:       1,
-		loop:       true,
-		layout:     "Auto Rows",
-		rows:       "3",
-		cols:       "3",
-		snap:       true,
-		overlap:    true,
-		singleSide: "Auto",
-		view:       "Fill (cover)",
-		aspect:     "Auto",
-		scale:      "Fit",
-		crop:       "None",
-		format:     "Best",
-		keys:       defaultKeyBindingDrafts(),
+		volume:      80,
+		rate:        1,
+		loop:        true,
+		layout:      "Auto Rows",
+		rows:        "3",
+		cols:        "3",
+		snap:        true,
+		overlap:     true,
+		singleSide:  "Auto",
+		view:        "Fill (cover)",
+		aspect:      "Auto",
+		scale:       "Fit",
+		crop:        "None",
+		subOutline:  "None",
+		subOpacity:  100,
+		subEncoding: "Auto",
+		subSize:     "0",
+		format:      "Best",
+		keys:        defaultKeyBindingDrafts(),
 	}
 }
 
@@ -99,7 +115,7 @@ func (a *app) openSettings() {
 func (a *app) settingsView(c *ui.Context) {
 	d := &a.settingsDraft
 	ui.Column(c).Fill().Padding(16).Gap(12).Children(func() {
-		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video", "Network", "Keymap")
+		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video", "Subtitles", "Network", "Keymap")
 		ui.Scroll(c).Fill().Children(func() {
 			switch d.tab {
 			case 0:
@@ -111,6 +127,8 @@ func (a *app) settingsView(c *ui.Context) {
 			case 3:
 				a.settingsVideo(c, d)
 			case 4:
+				a.settingsSubtitles(c, d)
+			case 5:
 				a.settingsNetwork(c, d)
 			default:
 				a.settingsKeymap(c, d)
@@ -208,6 +226,41 @@ func (a *app) settingsVideo(c *ui.Context, d *settingsDraft) {
 		})
 		ui.Field(c, "Crop", func() {
 			ui.Select(c, &d.crop, cropOptions)
+		})
+	})
+}
+
+func (a *app) settingsSubtitles(c *ui.Context, d *settingsDraft) {
+	ui.Column(c).Gap(8).Children(func() {
+		ui.Text(c, "Changing the style reloads live cells at their current position.").FontSize(12)
+		ui.Form(c, func() {
+			ui.Field(c, "Font", func() {
+				ui.TextInput(c, &d.subFont)
+			}).Description("Blank = VLC default")
+			ui.Field(c, "Font size", func() {
+				ui.TextInput(c, &d.subSize)
+			}).Description("0 = VLC default; 1-96 pixels")
+			ui.Field(c, "Text color", func() {
+				ui.TextInput(c, &d.subColor)
+			}).Description("#RRGGBB; blank = default")
+			ui.Field(c, "Outline color", func() {
+				ui.TextInput(c, &d.subOutlineColor)
+			}).Description("#RRGGBB; blank = default")
+			ui.Field(c, "Outline", func() {
+				ui.Select(c, &d.subOutline, outlineOptions)
+			})
+			ui.Field(c, "Bold", func() {
+				ui.Checkbox(c, &d.subBold, "Bold subtitles")
+			})
+			ui.Field(c, "Opacity", func() {
+				ui.Slider(c, &d.subOpacity, 0, 100)
+			}).Description(fmt.Sprintf("%.0f%%", d.subOpacity))
+			ui.Field(c, "Encoding", func() {
+				ui.Select(c, &d.subEncoding, encodingOptions)
+			})
+			ui.Field(c, "Autodetect", func() {
+				ui.Checkbox(c, &d.subAutodetect, "Find sidecar subtitle files")
+			})
 		})
 	})
 }
@@ -344,6 +397,15 @@ func (a *app) currentSettingsDraft() settingsDraft {
 		d.streamlink = a.resolver.Streamlink
 		d.format = formatName(a.resolver.Format)
 	}
+	d.subFont = a.subtitle.Font
+	d.subSize = fmt.Sprint(a.subtitle.Size)
+	d.subColor = a.subtitle.Color
+	d.subOutlineColor = a.subtitle.OutlineColor
+	d.subOutline = subtitleOutlineName(a.subtitle.Outline)
+	d.subBold = a.subtitle.Bold
+	d.subOpacity = float64(a.subtitle.Opacity) * 100 / 255
+	d.subEncoding = subtitleEncodingName(a.subtitle.Encoding)
+	d.subAutodetect = a.subtitle.Autodetect
 	d.keys = keyBindingDrafts(a.keys)
 	return d
 }
@@ -360,6 +422,18 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.aspect = aspectFromName(d.aspect)
 	a.scale = scaleFromName(d.scale)
 	a.crop = cropFromName(d.crop)
+	oldSub := a.subtitle
+	a.subtitle = subtitleStyle{
+		Font:         strings.TrimSpace(d.subFont),
+		Size:         subtitleSize(d.subSize),
+		Color:        strings.TrimSpace(d.subColor),
+		OutlineColor: strings.TrimSpace(d.subOutlineColor),
+		Outline:      subtitleOutlineValue(d.subOutline),
+		Bold:         d.subBold,
+		Opacity:      clampInt(int(math.Round(d.subOpacity*255/100)), 0, 255),
+		Encoding:     subtitleEncodingValue(d.subEncoding),
+		Autodetect:   d.subAutodetect,
+	}
 	if a.resolver == nil {
 		a.resolver = resolve.New()
 	}
@@ -400,6 +474,9 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 			c.eng.SetScale(a.scale)
 			c.eng.SetCrop(a.crop)
 		}
+	}
+	if a.subtitle != oldSub {
+		a.reloadCells()
 	}
 	if a.cfg != oldCfg || a.free != oldFree || a.mosaic != oldMosaic || a.single != oldSingle {
 		a.dirty = true
