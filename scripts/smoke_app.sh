@@ -16,6 +16,19 @@ cp -R "$APP" "$SMOKE"
 cp testdata/fixtures/plane-a.mp4 testdata/fixtures/plane-b.mp4 \
    testdata/fixtures/plane-c.mp4 testdata/fixtures/plane-d.mp4 "$FIX/"
 
+[ -f "$SMOKE/Contents/Frameworks/libvlc.dylib" ] || {
+  echo "FAIL: bundled libvlc missing" >&2; exit 1;
+}
+[ -d "$SMOKE/Contents/Resources/vlc/plugins" ] || {
+  echo "FAIL: bundled VLC plugins missing" >&2; exit 1;
+}
+if otool -l "$SMOKE/Contents/MacOS/GridPlayer" | grep -q "/Applications/VLC.app"; then
+  echo "FAIL: app still has the build-machine VLC rpath" >&2; exit 1
+fi
+if ! otool -l "$SMOKE/Contents/MacOS/GridPlayer" | grep -q "@executable_path/../Frameworks"; then
+  echo "FAIL: bundled Frameworks rpath missing" >&2; exit 1
+fi
+
 open -n -W -a "$SMOKE" --args \
   --files "$FIX/plane-a.mp4,$FIX/plane-b.mp4,$FIX/plane-c.mp4,$FIX/plane-d.mp4" \
   --autoquit 8 --log "$LOG"

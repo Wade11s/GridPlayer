@@ -23,7 +23,9 @@ resolver/cookies, full settings UI, bundled VLC, complete media matrix.
 
 ## Build and run
 
-Requires VLC 3.0.24 at `/Applications/VLC.app` (or `VLC_APP=...`).
+Building requires VLC 3.0.24 at `/Applications/VLC.app` (or `VLC_APP=...`).
+The built `.app` bundles libVLC and its plugins, so running it does not need
+VLC installed.
 
 ```sh
 ./scripts/build.sh gridplayer
