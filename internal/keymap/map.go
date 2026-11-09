@@ -17,23 +17,27 @@ var Actions = []string{
 	"rate_up",
 	"frame_next",
 	"frame_prev",
+	"audio_later",
+	"audio_earlier",
 }
 
 // Labels are the user-facing action names.
 var Labels = map[string]string{
-	"play_pause":   "Play/Pause",
-	"seek_back":    "Seek -5s",
-	"seek_forward": "Seek +5s",
-	"volume_up":    "Volume up",
-	"volume_down":  "Volume down",
-	"mute":         "Mute",
-	"loop":         "Loop",
-	"prev_cell":    "Previous cell",
-	"next_cell":    "Next cell",
-	"rate_down":    "Rate down",
-	"rate_up":      "Rate up",
-	"frame_next":   "Next frame",
-	"frame_prev":   "Previous frame",
+	"play_pause":    "Play/Pause",
+	"seek_back":     "Seek -5s",
+	"seek_forward":  "Seek +5s",
+	"volume_up":     "Volume up",
+	"volume_down":   "Volume down",
+	"mute":          "Mute",
+	"loop":          "Loop",
+	"prev_cell":     "Previous cell",
+	"next_cell":     "Next cell",
+	"rate_down":     "Rate down",
+	"rate_up":       "Rate up",
+	"frame_next":    "Next frame",
+	"frame_prev":    "Previous frame",
+	"audio_later":   "Audio later",
+	"audio_earlier": "Audio earlier",
 }
 
 // Map is a set of action bindings.
@@ -45,19 +49,21 @@ type Map struct {
 func Default() Map {
 	m := Map{bindings: map[string]Binding{}}
 	for action, value := range map[string]string{
-		"play_pause":   "space",
-		"seek_back":    "left",
-		"seek_forward": "right",
-		"volume_up":    "up",
-		"volume_down":  "down",
-		"mute":         "m",
-		"loop":         "l",
-		"prev_cell":    "b",
-		"next_cell":    "n",
-		"rate_down":    "[",
-		"rate_up":      "]",
-		"frame_next":   "s",
-		"frame_prev":   "d",
+		"play_pause":    "space",
+		"seek_back":     "left",
+		"seek_forward":  "right",
+		"volume_up":     "up",
+		"volume_down":   "down",
+		"mute":          "m",
+		"loop":          "l",
+		"prev_cell":     "b",
+		"next_cell":     "n",
+		"rate_down":     "[",
+		"rate_up":       "]",
+		"frame_next":    "s",
+		"frame_prev":    "d",
+		"audio_later":   "k",
+		"audio_earlier": "j",
 	} {
 		b, err := Parse(value)
 		if err != nil {
