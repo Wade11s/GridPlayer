@@ -1,7 +1,8 @@
-// Package resolve turns a page URL into a direct media URL with yt-dlp.
+// Package resolve turns a page URL into a direct media URL with yt-dlp,
+// falling back to streamlink.
 //
-// It never reads the user's yt-dlp config, cookies or browser data:
-// --ignore-config is always passed. It does not download media, and it
+// It never reads the user's yt-dlp config: --ignore-config is always passed.
+// Cookies and a proxy are opt-in settings. It does not download media, and it
 // does not expand playlists. Direct schemes (rtsp, rtmp, ...) pass through.
 package resolve
 
@@ -36,30 +37,39 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 func (b *limitedBuffer) String() string { return b.buf.String() }
 func (b *limitedBuffer) Len() int       { return b.buf.Len() }
 
-// ErrUnavailable means yt-dlp is not installed.
-var ErrUnavailable = errors.New("resolve: yt-dlp not found")
+// ErrUnavailable means neither yt-dlp nor streamlink is installed.
+var ErrUnavailable = errors.New("resolve: yt-dlp/streamlink not found")
 
-// Resolver shells out to yt-dlp.
+// Resolver shells out to yt-dlp and streamlink.
 type Resolver struct {
-	Path    string
-	Timeout time.Duration
+	Path       string // yt-dlp
+	Streamlink string
+	Proxy      string
+	Cookies    string
+	Format     string
+	Timeout    time.Duration
 }
 
-// New finds yt-dlp on PATH.
+// New finds yt-dlp and streamlink on PATH.
 func New() *Resolver {
-	p, err := exec.LookPath("yt-dlp")
-	if err != nil {
-		return &Resolver{Timeout: 30 * time.Second}
+	r := &Resolver{Format: "best", Timeout: 30 * time.Second}
+	if p, err := exec.LookPath("yt-dlp"); err == nil {
+		r.Path = p
 	}
-	return &Resolver{Path: p, Timeout: 30 * time.Second}
+	if p, err := exec.LookPath("streamlink"); err == nil {
+		r.Streamlink = p
+	}
+	return r
 }
 
-// Available reports whether yt-dlp was found.
-func (r *Resolver) Available() bool { return r != nil && r.Path != "" }
+// Available reports whether at least one resolver was found.
+func (r *Resolver) Available() bool {
+	return r != nil && (r.Path != "" || r.Streamlink != "")
+}
 
-// Resolve returns a direct media URL. For schemes yt-dlp does not handle,
-// it returns raw unchanged. A yt-dlp failure is returned as an error; the
-// caller may choose to play raw directly.
+// Resolve returns a direct media URL. For schemes the resolvers do not
+// handle, it returns raw unchanged. yt-dlp is tried first, then streamlink;
+// both failures are reported together.
 func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -77,6 +87,59 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 	if !r.Available() {
 		return "", ErrUnavailable
 	}
+
+	var failures []string
+	if r.Path != "" {
+		got, err := r.run(ctx, r.Path, r.ytdlpArgs(u, raw))
+		if err == nil {
+			return got, nil
+		}
+		failures = append(failures, "yt-dlp: "+err.Error())
+	}
+	if r.Streamlink != "" {
+		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw))
+		if err == nil {
+			return got, nil
+		}
+		failures = append(failures, "streamlink: "+err.Error())
+	}
+	msg := strings.Join(failures, "; ")
+	if len(msg) > 800 {
+		msg = msg[:800]
+	}
+	return "", fmt.Errorf("resolve: %s", msg)
+}
+
+func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
+	format := strings.TrimSpace(r.Format)
+	if format == "" {
+		format = "best"
+	}
+	args := []string{
+		"--ignore-config", "--no-warnings", "--skip-download", "--no-playlist",
+		"-g", "-f", format,
+	}
+	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
+		args = append(args, "--proxy", proxy)
+	}
+	if cookies := strings.TrimSpace(r.Cookies); cookies != "" {
+		args = append(args, "--cookies", cookies)
+	}
+	if u.Scheme == "file" {
+		args = append(args, "--enable-file-urls")
+	}
+	return append(args, "--", raw)
+}
+
+func (r *Resolver) streamlinkArgs(raw string) []string {
+	args := []string{"--stream-url", "--default-stream", "best"}
+	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
+		args = append(args, "--http-proxy", proxy)
+	}
+	return append(args, "--", raw)
+}
+
+func (r *Resolver) run(ctx context.Context, path string, args []string) (string, error) {
 	timeout := r.Timeout
 	if timeout <= 0 {
 		timeout = 30 * time.Second
@@ -84,27 +147,19 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	args := []string{
-		"--ignore-config", "--no-warnings", "--skip-download", "--no-playlist",
-		"-g", "-f", "best",
-	}
-	if u.Scheme == "file" {
-		args = append(args, "--enable-file-urls")
-	}
-	args = append(args, "--", raw)
-	cmd := exec.CommandContext(cctx, r.Path, args...)
+	cmd := exec.CommandContext(cctx, path, args...)
 	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		if cctx.Err() != nil {
-			return "", fmt.Errorf("resolve: yt-dlp timed out after %s", timeout)
+			return "", fmt.Errorf("timed out after %s", timeout)
 		}
 		msg := strings.TrimSpace(stderr.String())
 		if len(msg) > 400 {
 			msg = msg[:400]
 		}
-		return "", fmt.Errorf("resolve: yt-dlp failed: %v: %s", err, msg)
+		return "", fmt.Errorf("%v: %s", err, msg)
 	}
 	for _, line := range strings.Split(stdout.String(), "\n") {
 		line = strings.TrimSpace(line)
@@ -112,5 +167,5 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 			return line, nil
 		}
 	}
-	return "", errors.New("resolve: yt-dlp returned no URL")
+	return "", errors.New("returned no URL")
 }

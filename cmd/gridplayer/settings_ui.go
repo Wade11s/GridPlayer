@@ -3,11 +3,13 @@ package main
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/resolve"
 )
 
 type settingsDraft struct {
@@ -29,6 +31,12 @@ type settingsDraft struct {
 	aspect string
 	scale  string
 	crop   string
+
+	proxy      string
+	cookies    string
+	ytdlp      string
+	streamlink string
+	format     string
 }
 
 var (
@@ -39,6 +47,7 @@ var (
 	aspectOptions = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
 	scaleOptions  = []string{"Fit", "1x", "1.5x", "2x"}
 	cropOptions   = []string{"None", "16:9", "4:3", "2.35:1"}
+	formatOptions = []string{"Best", "Best video+audio", "Worst", "720p", "480p"}
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -56,6 +65,7 @@ func defaultSettingsDraft() settingsDraft {
 		aspect:     "Auto",
 		scale:      "Fit",
 		crop:       "None",
+		format:     "Best",
 	}
 }
 
@@ -78,7 +88,7 @@ func (a *app) openSettings() {
 func (a *app) settingsView(c *ui.Context) {
 	d := &a.settingsDraft
 	ui.Column(c).Fill().Padding(16).Gap(12).Children(func() {
-		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video")
+		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video", "Network")
 		ui.Scroll(c).Fill().Children(func() {
 			switch d.tab {
 			case 0:
@@ -87,8 +97,10 @@ func (a *app) settingsView(c *ui.Context) {
 				a.settingsPlayback(c, d)
 			case 2:
 				a.settingsGrid(c, d)
-			default:
+			case 3:
 				a.settingsVideo(c, d)
+			default:
+				a.settingsNetwork(c, d)
 			}
 		})
 		ui.Divider(c)
@@ -182,6 +194,56 @@ func (a *app) settingsVideo(c *ui.Context, d *settingsDraft) {
 	})
 }
 
+func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
+	ui.Form(c, func() {
+		ui.Field(c, "Proxy", func() {
+			ui.TextInput(c, &d.proxy)
+		}).Description("http://host:port — passed to yt-dlp and streamlink")
+		ui.Field(c, "Cookies file", func() {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &d.cookies)
+				if ui.Button(c, "Browse…").Clicked() {
+					if paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+						Parent: a.settingsWin,
+						Title:  "Cookies file",
+					}); err == nil && len(paths) > 0 {
+						d.cookies = paths[0]
+					}
+				}
+			})
+		})
+		ui.Field(c, "yt-dlp path", func() {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &d.ytdlp)
+				if ui.Button(c, "Browse…").Clicked() {
+					if paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+						Parent: a.settingsWin,
+						Title:  "yt-dlp",
+					}); err == nil && len(paths) > 0 {
+						d.ytdlp = paths[0]
+					}
+				}
+			})
+		})
+		ui.Field(c, "Streamlink path", func() {
+			ui.Row(c).Gap(8).Children(func() {
+				ui.TextInput(c, &d.streamlink)
+				if ui.Button(c, "Browse…").Clicked() {
+					if paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+						Parent: a.settingsWin,
+						Title:  "streamlink",
+					}); err == nil && len(paths) > 0 {
+						d.streamlink = paths[0]
+					}
+				}
+			})
+		})
+		ui.Field(c, "Quality", func() {
+			ui.Select(c, &d.format, formatOptions)
+		}).Description("yt-dlp format; streamlink uses best")
+	})
+}
+
 func (a *app) currentSettingsDraft() settingsDraft {
 	d := defaultSettingsDraft()
 	d.volume = float64(a.defaultVolume)
@@ -214,6 +276,13 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.aspect = aspectName(a.aspect)
 	d.scale = scaleName(a.scale)
 	d.crop = cropName(a.crop)
+	if a.resolver != nil {
+		d.proxy = a.resolver.Proxy
+		d.cookies = a.resolver.Cookies
+		d.ytdlp = a.resolver.Path
+		d.streamlink = a.resolver.Streamlink
+		d.format = formatName(a.resolver.Format)
+	}
 	return d
 }
 
@@ -229,6 +298,14 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.aspect = aspectFromName(d.aspect)
 	a.scale = scaleFromName(d.scale)
 	a.crop = cropFromName(d.crop)
+	if a.resolver == nil {
+		a.resolver = resolve.New()
+	}
+	a.resolver.Proxy = strings.TrimSpace(d.proxy)
+	a.resolver.Cookies = strings.TrimSpace(d.cookies)
+	a.resolver.Path = strings.TrimSpace(d.ytdlp)
+	a.resolver.Streamlink = strings.TrimSpace(d.streamlink)
+	a.resolver.Format = formatFromName(d.format)
 	oldCfg, oldFree, oldMosaic, oldSingle := a.cfg, a.free, a.mosaic, a.single
 	switch d.layout {
 	case "Auto Columns":
@@ -358,6 +435,36 @@ func scaleFromName(s string) float64 {
 		return 2
 	default:
 		return 0
+	}
+}
+
+func formatName(s string) string {
+	switch s {
+	case "bestvideo+bestaudio/best":
+		return "Best video+audio"
+	case "worst":
+		return "Worst"
+	case "best[height<=720]":
+		return "720p"
+	case "best[height<=480]":
+		return "480p"
+	default:
+		return "Best"
+	}
+}
+
+func formatFromName(s string) string {
+	switch s {
+	case "Best video+audio":
+		return "bestvideo+bestaudio/best"
+	case "Worst":
+		return "worst"
+	case "720p":
+		return "best[height<=720]"
+	case "480p":
+		return "best[height<=480]"
+	default:
+		return "best"
 	}
 }
 

@@ -198,6 +198,11 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.scale = "1.5x"
 	d.crop = "16:9"
 	d.singleSide = "Left"
+	d.proxy = "http://proxy:8080"
+	d.cookies = "/tmp/cookies.txt"
+	d.ytdlp = "/usr/local/bin/yt-dlp"
+	d.streamlink = "/usr/local/bin/streamlink"
+	d.format = "720p"
 	a.applySettingsDraft(d)
 	if !a.mosaic || a.free || a.single {
 		t.Fatalf("layout free=%v mosaic=%v single=%v", a.free, a.mosaic, a.single)
@@ -213,6 +218,13 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if a.singleSide != grid.StripLeft {
 		t.Fatalf("side=%v", a.singleSide)
+	}
+	if a.resolver == nil || a.resolver.Proxy != "http://proxy:8080" ||
+		a.resolver.Cookies != "/tmp/cookies.txt" ||
+		a.resolver.Path != "/usr/local/bin/yt-dlp" ||
+		a.resolver.Streamlink != "/usr/local/bin/streamlink" ||
+		a.resolver.Format != "best[height<=720]" {
+		t.Fatalf("resolver: %+v", a.resolver)
 	}
 	if len(a.mosaicTiles) != 2 {
 		t.Fatalf("mosaic tiles=%d", len(a.mosaicTiles))

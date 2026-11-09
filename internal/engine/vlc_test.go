@@ -3,6 +3,9 @@
 package engine
 
 import (
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -172,5 +175,42 @@ func TestRealVLCLocalHLS(t *testing.T) {
 		t.Logf("length still unknown after play: %+v", s)
 		e.Close()
 		return
+	}
+}
+
+// TestRealVLCHTTPMedia serves the fixture over HTTP and lets libVLC's own
+// HTTP access open it, covering the non-resolver HTTP path end to end.
+func TestRealVLCHTTPMedia(t *testing.T) {
+	fixture, err := filepath.Abs("../../testdata/fixtures/plane-a.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); err != nil {
+		t.Skip("fixture missing")
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("cannot listen for HTTP fixture: %v", err)
+	}
+	srv := &httptest.Server{
+		Listener: ln,
+		Config:   &http.Server{Handler: http.FileServer(http.Dir(filepath.Dir(fixture)))},
+	}
+	srv.Start()
+	defer srv.Close()
+
+	e := New(NewVLCFactory(VLCOptions{Args: []string{
+		"--vout=dummy", "--aout=dummy", "--network-caching=100",
+	}}))
+	defer e.Close()
+	if err := e.Load(srv.URL + "/plane-a.mp4"); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for e.Snapshot().Phase != Playing && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if s := e.Snapshot(); s.Phase != Playing {
+		t.Fatalf("never played over HTTP: %+v", s)
 	}
 }
