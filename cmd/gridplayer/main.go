@@ -132,6 +132,7 @@ type app struct {
 	retryTimes          atomic.Int32
 	listFailMode        atomic.Int32
 	listFailWait        atomic.Int32
+	autoReloadMin       atomic.Int64
 }
 
 func newApp(paths []string) *app {
@@ -245,6 +246,7 @@ func (a *app) loadSettings() {
 		st.Get("video_defaults/network_retry_mode", "times"),
 		atoi(st.Get("video_defaults/network_retry_times", "3"), defaultRetryTimes),
 	)
+	a.autoReloadMin.Store(int64(atoi(st.Get("video_defaults/auto_reload_timer", "0"), 0)))
 	a.setListFailPolicy(
 		st.Get("video_defaults/list_fail_action", listFailPlayNext),
 		atoi(st.Get("video_defaults/list_fail_wait", "2"), defaultListFailWait),
@@ -414,6 +416,7 @@ func (a *app) saveSettings() {
 		a.settings.Set("video_defaults/list_fail_action", listFailPlayNext)
 	}
 	a.settings.Set("video_defaults/list_fail_wait", fmt.Sprint(a.listFailWait.Load()))
+	a.settings.Set("video_defaults/auto_reload_timer", fmt.Sprint(a.autoReloadMin.Load()))
 	if a.resolver != nil {
 		a.settings.Set("network/proxy", a.resolver.Proxy)
 		a.settings.Set("network/cookies", a.resolver.Cookies)
@@ -761,6 +764,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		}
 		c.eng, c.view, c.clip = eng, view, clip
 		go a.watch(c, eng)
+		go a.autoReloadLoop(c, eng)
 	}
 	nativehost.SetFrame(c.clip, nativehost.ToMac(nativehost.DIP(r), h))
 	fill, stretch := viewModeFlags(a.cellViewMode(c))
@@ -791,6 +795,31 @@ func (a *app) ensure(i int, r grid.Rect) {
 	}
 	nativehost.SetFrame(c.view, nativehost.ToMac(
 		nativehost.DIP{X: vx, Y: vy, W: vw, H: vh}, float64(r.H)))
+}
+
+// autoReloadLoop reloads a live cell on the auto reload timer.
+// 0 minutes disables it.
+func (a *app) autoReloadLoop(c *cell, eng *engine.Engine) {
+	for {
+		minutes := int(a.autoReloadMin.Load())
+		if minutes <= 0 {
+			time.Sleep(time.Second)
+			if a.closed.Load() {
+				return
+			}
+			continue
+		}
+		time.Sleep(autoReloadInterval(minutes))
+		if a.closed.Load() || c.eng != eng {
+			return
+		}
+		mygo.RunOnMain(func() {
+			if a.closed.Load() || c.eng != eng {
+				return
+			}
+			a.autoReloadReloadsCell(c)
+		})
+	}
 }
 
 func (a *app) watch(c *cell, eng *engine.Engine) {
