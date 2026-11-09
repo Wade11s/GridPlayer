@@ -686,6 +686,17 @@ func (a *app) view(c *ui.Context) {
 		for i, r := range rects {
 			a.cellView(c, i, r, theme)
 		}
+		if a.free {
+			for i, r := range rects {
+				h := ui.Box(c.Key(fmt.Sprintf("resize-%d", i))).
+					Absolute().Left(float32(r.X + r.W - 16)).Top(float32(r.Y + r.H - 16)).
+					Width(16).Height(16).Radius(3).Background(theme.Accent)
+				if dx, dy, ok := h.Dragged(); ok && (dx != 0 || dy != 0) {
+					a.freeTiles = grid.ResizeTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+					a.dirty = true
+				}
+			}
+		}
 		if a.status != "" {
 			ui.Text(c, a.status).Absolute().Left(10).Bottom(6).FontSize(12).
 				TextColor(ui.RGB(255, 180, 120))
@@ -707,8 +718,10 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	base := ui.Box(c.Key(fmt.Sprintf("cell-%d", i))).
 		Absolute().Left(float32(r.X)).Top(float32(r.Y)).
 		Width(float32(r.W)).Height(float32(r.H)).
-		Radius(6).Background(ui.RGB(20, 20, 24)).
-		Drag(i)
+		Radius(6).Background(ui.RGB(20, 20, 24))
+	if !a.free {
+		base = base.Drag(i)
+	}
 	if over, ok := ui.DragOver[int](base); ok && over != i {
 		border = theme.Accent
 	}
@@ -756,6 +769,12 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		})
 	if el.Clicked() {
 		a.active = i
+	}
+	if a.free && len(a.freeTiles) > i {
+		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
+			a.freeTiles = grid.MoveTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+			a.dirty = true
+		}
 	}
 	// Free tiles keep saved positions; full drag-to-move/resize is a later
 	// increment (the cell is a drag-swap source in grid mode today).

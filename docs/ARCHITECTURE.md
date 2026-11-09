@@ -62,6 +62,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - Mosaic initial arrangement (`internal/grid.Mosaic`): first tile big on the
   left (half for ≤4, third above), rest as equal tiles in a right-hand tier.
   Locked tiles snap to saved boxes and the full Arrange optimizer are later.
+- Free Tiles: `FreeLayout` fractions + gap inset; in Free mode the cell drag
+  moves (MoveTile) and a bottom-right handle resizes (ResizeTile), clamped to
+  the page and a 64×48 minimum. Overlap/lock/arrange remain later.
 - Single Mode uses `internal/grid.SingleLayout`: one active cell big, the
   others in a strip (Auto/Right/Left/Bottom/Top), share clamped 5%..40%,
   tiles centered along the strip. Clicking a strip cell makes it big.
