@@ -1013,3 +1013,52 @@ func TestAutoReloadInterval(t *testing.T) {
 		t.Fatal("should clamp to 1000 minutes")
 	}
 }
+
+func TestPictureRectGeometry(t *testing.T) {
+	// Square video in a wide cell, fit: the picture is the cell height.
+	r := placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 1})
+	if r.W != 100 || r.H != 100 || r.X != 50 || r.Y != 0 {
+		t.Fatalf("fit: %+v", r)
+	}
+	// Same, fill: the picture covers the cell width.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, true, false, viewZoom{Scale: 1})
+	if r.W != 200 || r.H != 200 || r.X != 0 || r.Y != -50 {
+		t.Fatalf("fill: %+v", r)
+	}
+	// Stretch ignores the video shape.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, false, true, viewZoom{Scale: 1})
+	if r.W != 200 || r.H != 100 {
+		t.Fatalf("stretch: %+v", r)
+	}
+	// Zoom doubles the picture about the centre.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 2})
+	if r.W != 200 || r.H != 200 || r.X != 0 || r.Y != -50 {
+		t.Fatalf("zoom: %+v", r)
+	}
+	// Zoom about the top-left keeps that corner fixed.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 2})
+	if r.X != 0 || r.Y != -50 {
+		t.Fatalf("anchor: %+v", r)
+	}
+	if placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 1, ShiftX: 0.25}).X != 100 {
+		t.Fatal("shift")
+	}
+	if clampZoom(0.1) != 0.25 || clampZoom(9) != 4 || clampZoom(1.5) != 1.5 {
+		t.Fatal("clampZoom")
+	}
+	if clampShift(999, 100, 200) != 100 || clampShift(-999, 100, 50) != -50 {
+		t.Fatal("clampShift")
+	}
+}
+
+func TestParseAnchor(t *testing.T) {
+	if x, y := parseAnchor("top-left"); x != 0 || y != 0 {
+		t.Fatalf("top-left %v %v", x, y)
+	}
+	if x, y := parseAnchor("wat"); x != 0.5 || y != 0.5 {
+		t.Fatalf("unknown %v %v", x, y)
+	}
+	if anchorName(0, 1) != "bottom-left" {
+		t.Fatal("name")
+	}
+}

@@ -47,15 +47,18 @@ type cell struct {
 	failed  bool
 	listErr string
 
-	volume      int
-	muted       bool
-	rate        float64
-	audioDelay  int64
-	startAt     int
-	startPaused bool
-	pauseOnPlay atomic.Bool
-	retries     atomic.Int32
-	viewMode    string
+	volume           int
+	muted            bool
+	rate             float64
+	audioDelay       int64
+	startAt          int
+	startPaused      bool
+	pauseOnPlay      atomic.Bool
+	retries          atomic.Int32
+	viewMode         string
+	zoom             float64
+	anchorX, anchorY float64
+	shiftX, shiftY   float64
 
 	list      []string
 	listIndex int
@@ -127,6 +130,8 @@ type app struct {
 	defaultMuted        bool
 	defaultRate         float64
 	defaultLoop         bool
+	defaultZoom         float64
+	defaultAnchor       string
 	defaultEnd          string
 	retryMode           atomic.Int32
 	retryTimes          atomic.Int32
@@ -144,6 +149,8 @@ func newApp(paths []string) *app {
 		defaultVolume: 80,
 		defaultRate:   1,
 		defaultLoop:   true,
+		defaultZoom:   1,
+		defaultAnchor: "center",
 		resolver:      resolve.New(),
 		keys:          keymap.Default(),
 		subtitle:      subtitleStyle{Opacity: 255},
@@ -256,6 +263,12 @@ func (a *app) loadSettings() {
 	if a.scale < 0 {
 		a.scale = 0
 	}
+	if z := atof(st.Get("video_defaults/zoom", "1"), 1); z > 0 {
+		a.defaultZoom = clampZoom(z)
+	} else {
+		a.defaultZoom = 1
+	}
+	a.defaultAnchor = st.Get("video_defaults/anchor", "center")
 	a.crop = st.Get("video_defaults/crop_ratio", "")
 	a.loadNetworkSettings(st)
 	a.subtitle.Font = st.Get("subtitles/font", "")
@@ -272,6 +285,8 @@ func (a *app) loadSettings() {
 		c.muted = i > 0 || a.defaultMuted
 		c.rate = a.defaultRate
 		c.loop = a.defaultLoop
+		c.zoom = a.defaultZoom
+		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 		c.viewMode = viewModeName(a.fill, a.stretch)
 	}
 	if raw := st.Get("app/recent", ""); raw != "" {
@@ -383,6 +398,8 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/cell_view_mode", view)
 	a.settings.Set("video_defaults/aspect_ratio", a.aspect)
 	a.settings.Set("video_defaults/scale", fmt.Sprintf("%g", a.scale))
+	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))
+	a.settings.Set("video_defaults/anchor", a.defaultAnchor)
 	a.settings.Set("video_defaults/crop_ratio", a.crop)
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
@@ -779,22 +796,10 @@ func (a *app) ensure(i int, r grid.Rect) {
 		c.eng.SetScale(a.scale)
 		c.eng.SetCrop(a.crop)
 	}
-	vw, vh, vx, vy := float64(r.W), float64(r.H), 0.0, 0.0
-	if fill && !stretch && s.Width > 0 && s.Height > 0 {
-		videoAspect := float64(s.Width) / float64(s.Height)
-		cellAspect := r.W / r.H
-		if cellAspect > videoAspect {
-			vw = r.W
-			vh = r.W / videoAspect
-		} else {
-			vh = r.H
-			vw = r.H * videoAspect
-		}
-		vx = (r.W - vw) / 2
-		vy = (r.H - vh) / 2
-	}
+	place := placePicture(videoShape{W: float64(s.Width), H: float64(s.Height)},
+		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
 	nativehost.SetFrame(c.view, nativehost.ToMac(
-		nativehost.DIP{X: vx, Y: vy, W: vw, H: vh}, float64(r.H)))
+		nativehost.DIP{X: place.X, Y: place.Y, W: place.W, H: place.H}, float64(r.H)))
 }
 
 // autoReloadLoop reloads a live cell on the auto reload timer.
@@ -2170,6 +2175,33 @@ func (a *app) setAspect(aspect string) {
 	a.saveSettings()
 }
 
+func (a *app) setZoom(scale float64) {
+	a.defaultZoom = clampZoom(scale)
+	for _, c := range a.cells {
+		c.zoom = a.defaultZoom
+	}
+	a.saveSettings()
+	a.refreshMenu()
+}
+
+func (a *app) setAnchor(name string) {
+	a.defaultAnchor = name
+	x, y := parseAnchor(name)
+	for _, c := range a.cells {
+		c.anchorX, c.anchorY = x, y
+	}
+	a.saveSettings()
+	a.refreshMenu()
+}
+
+func (a *app) shiftPicture(dx, dy float64) {
+	for _, c := range a.cells {
+		c.shiftX = clampShift(c.shiftX+dx, 1, 1)
+		c.shiftY = clampShift(c.shiftY+dy, 1, 1)
+	}
+	a.saveSettings()
+}
+
 func (a *app) setScale(scale float64) {
 	a.scale = scale
 	for _, c := range a.cells {
@@ -2666,6 +2698,32 @@ func (a *app) menu() *mygo.Menu {
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1) }},
 				{Label: "1.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1.5) }},
 				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(2) }},
+			}},
+			{Label: "Zoom", Submenu: []*mygo.MenuItem{
+				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(0.5) }},
+				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(1) }},
+				{Label: "1.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(1.5) }},
+				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(2) }},
+				{Label: "4x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(4) }},
+			}},
+			{Label: "Anchor", Submenu: []*mygo.MenuItem{
+				{Label: "Center", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("center") }},
+				{Label: "Top", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("top") }},
+				{Label: "Bottom", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("bottom") }},
+				{Label: "Left", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("left") }},
+				{Label: "Right", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("right") }},
+				{Label: "Top-left", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("top-left") }},
+				{Label: "Top-right", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("top-right") }},
+				{Label: "Bottom-left", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("bottom-left") }},
+				{Label: "Bottom-right", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("bottom-right") }},
+			}},
+			{Type: mygo.MenuItemSeparator},
+			{Label: "Move Picture", Submenu: []*mygo.MenuItem{
+				{Label: "Left", Click: func(*mygo.MenuItem, *mygo.Window) { a.shiftPicture(-0.1, 0) }},
+				{Label: "Right", Click: func(*mygo.MenuItem, *mygo.Window) { a.shiftPicture(0.1, 0) }},
+				{Label: "Up", Click: func(*mygo.MenuItem, *mygo.Window) { a.shiftPicture(0, -0.1) }},
+				{Label: "Down", Click: func(*mygo.MenuItem, *mygo.Window) { a.shiftPicture(0, 0.1) }},
+				{Label: "Center", Click: func(*mygo.MenuItem, *mygo.Window) { a.shiftPicture(-1, -1) }},
 			}},
 			{Label: "Crop", Submenu: []*mygo.MenuItem{
 				{Label: "None", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("") }},
