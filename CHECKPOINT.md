@@ -84,6 +84,15 @@
 - PR #38 merged at `bf6d6e4`: subtitle styling. Main `bf6d6e4`: CI green,
   full race/vet/build green, GUI set 48px/yellow (live reload args confirmed)
   and 96px/red/thick outline (large red subtitles) on feature.mkv.
+- PR #39 merged at `9e47f07` (head `ce96484`): network retry. Failed
+  http/https/rtsp/rtmp/udp/mms/srt loads reload on the main thread after
+  1s, 2s, 5s, 15s, then 30s. Settings default
+  `video_defaults/network_retry_mode=times` and `network_retry_times=3`
+  (off / times / infinite). `ReloadIfFailed` will not load a newer
+  generation. Local files are not retried. CI `vet-build-test` green on
+  `ce96484`, `go test ./... -race` green, `.app` smoke 4× VideoToolbox.
+  Independent review of `97903dc` FAILed (off-main reload); re-review of
+  `ce96484` PASS. List-fail skip and per-item retry overrides remain open.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
