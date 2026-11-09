@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-snapshots merge)
+# Migration Checkpoint — 2026-11-09 (post-grid-state-persist merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -73,6 +73,10 @@
 - PR #35 merged at `7df3f65`: named playlist/grid snapshots. Main `7df3f65`:
   CI green, full race/vet/build green, GUI saved a 4-cell snapshot, switched
   to Stretch, restored Fill from Snapshot 1; live-engine restore test PASS.
+- PR #36 merged at `b460d1a`: grid layout/free/mosaic/single persistence.
+  Main `b460d1a`: CI green, full race/vet/build green, GUI free playlist kept
+  4 tiles and Free Tiles checked; mosaic snapshot kept 4 tiles + lock 0 and
+  restored Mosaic/Lock Active Tile after switching to Auto Rows.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -196,7 +200,11 @@
 - #4 snapshots (merged 7df3f65): `internal/snapshots` atomic named store;
   Save Current / restore / Delete menu; restore replaces cells/grid, applies
   per-item state to live engines, and marks the playlist unsaved. Snapshot
-  export/import and free/mosaic tile geometry remain open.
+  export/import remains open.
+- #4 grid state persistence (merged b460d1a): documents store `grid_layout`,
+  free/mosaic tiles, mosaic locks, single side/share; restore validates tiles
+  and lock bounds and clamps single share; older documents fall back to
+  `grid_state`. Mosaic optimizer/PUSH/z-order still open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
