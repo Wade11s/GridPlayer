@@ -60,6 +60,7 @@ type settingsDraft struct {
 
 	listFail     string
 	listFailWait string
+	endAction    string
 
 	keys        []keyBindingDraft
 	keymapError string
@@ -78,6 +79,7 @@ var (
 	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
 	retryModeOptions = []string{"Off", "Fixed attempts", "Keep trying"}
 	listFailOptions  = []string{"Play next", "Show error"}
+	endActionOptions = []string{"Loop file", "Next file", "Previous file", "Shuffle", "Pause", "Stop"}
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -104,6 +106,7 @@ func defaultSettingsDraft() settingsDraft {
 		retryTimes:   "3",
 		listFail:     "Play next",
 		listFailWait: "2",
+		endAction:    "Loop file",
 		keys:         defaultKeyBindingDrafts(),
 	}
 }
@@ -189,6 +192,9 @@ func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, "Default loop", func() {
 			ui.Checkbox(c, &d.loop, "Loop new cells")
 		})
+		ui.Field(c, "When finished", func() {
+			ui.Select(c, &d.endAction, endActionOptions)
+		}).Description("New lists still play the next item when this stays Loop file.")
 		ui.Field(c, "On network error", func() {
 			ui.Select(c, &d.retryMode, retryModeOptions)
 		}).Description("Reloads a failed network video. Local files stay failed.")
@@ -446,6 +452,10 @@ func (a *app) currentSettingsDraft() settingsDraft {
 		d.listFail = "Play next"
 	}
 	d.listFailWait = fmt.Sprint(a.listFailWait.Load())
+	d.endAction = endActionName(a.defaultEnd)
+	if a.defaultEnd == "" && !a.defaultLoop {
+		d.endAction = "Stop"
+	}
 	d.keys = keyBindingDrafts(a.keys)
 	return d
 }
@@ -454,7 +464,11 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultVolume = clampInt(int(math.Round(d.volume)), 0, 100)
 	a.defaultMuted = d.muted
 	a.defaultRate = clampFloat(d.rate, 0.25, 4)
-	a.defaultLoop = d.loop
+	a.defaultEnd = endActionValue(d.endAction)
+	if a.defaultEnd == endLoop && !d.loop {
+		a.defaultEnd = endStop
+	}
+	a.defaultLoop = a.defaultEnd == endLoop
 	a.setRetryPolicy(retryModeValue(d.retryMode), atoi(d.retryTimes, defaultRetryTimes))
 	a.setListFailPolicy(listFailValue(d.listFail), atoi(d.listFailWait, defaultListFailWait))
 	a.snap = d.snap
