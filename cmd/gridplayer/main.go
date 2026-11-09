@@ -1576,6 +1576,12 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.shortcut(c, "rate_up") && eng != nil {
 		eng.SetRate(min(eng.Snapshot().Rate+0.25, 4))
 	}
+	if a.shortcut(c, "frame_next") && eng != nil {
+		eng.NextFrame()
+	}
+	if a.shortcut(c, "frame_prev") && eng != nil {
+		eng.PreviousFrame()
+	}
 	if a.shortcut(c, "audio_later") {
 		a.nudgeAudioDelay(engine.AudioDelayStepMS)
 	}
@@ -2489,6 +2495,16 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Type: mygo.MenuItemSeparator},
+			{Label: "Next Frame", Accelerator: a.keys.Get("frame_next").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				if eng := a.activeEngine(); eng != nil {
+					eng.NextFrame()
+				}
+			}},
+			{Label: "Previous Frame", Accelerator: a.keys.Get("frame_prev").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				if eng := a.activeEngine(); eng != nil {
+					eng.PreviousFrame()
+				}
+			}},
 			{Label: "Audio Later", Accelerator: a.keys.Get("audio_later").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.nudgeAudioDelay(engine.AudioDelayStepMS)
 			}},

@@ -139,6 +139,8 @@ type Backend interface {
 	AddSubtitle(path string) bool
 	AddAudio(path string) bool
 	Screenshot(path string) error
+	NextFrame()
+	PreviousFrame()
 	Events() <-chan Event
 	Close()
 }
@@ -787,6 +789,41 @@ func (e *Engine) RefreshTracks() {
 		e.publishLocked()
 	}
 	e.mu.Unlock()
+}
+
+// NextFrame pauses and advances one frame. libVLC only steps forward.
+func (e *Engine) NextFrame() {
+	be, gen, ok := e.backend()
+	if !ok {
+		return
+	}
+	be.NextFrame()
+	e.optimistic(gen, Paused)
+}
+
+// PreviousFrame pauses and seeks back one frame. fps <= 0 uses 25fps.
+func (e *Engine) PreviousFrame() {
+	be, gen, ok := e.backend()
+	if !ok {
+		return
+	}
+	be.PreviousFrame()
+	e.optimistic(gen, Paused)
+}
+
+// FrameStepBack is the seek target one frame before now.
+func FrameStepBack(nowMS int64, fps float64) int64 {
+	if fps < 1 {
+		fps = 25
+	}
+	step := int64(1000 / fps)
+	if step < 1 {
+		step = 1
+	}
+	if nowMS <= step {
+		return 0
+	}
+	return nowMS - step
 }
 
 // Screenshot saves the current video frame to path.

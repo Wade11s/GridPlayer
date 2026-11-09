@@ -90,6 +90,23 @@ func (b *Backend) Stop() {
 	b.stopped = true
 }
 
+func (b *Backend) NextFrame() {
+	b.Pause()
+	b.mu.Lock()
+	b.offset += FrameMs
+	if b.offset > LengthMs-FrameMs {
+		b.offset = LengthMs - FrameMs
+	}
+	b.mu.Unlock()
+}
+
+func (b *Backend) PreviousFrame() {
+	b.Pause()
+	b.mu.Lock()
+	b.offset = engine.FrameStepBack(b.offset, FPS)
+	b.mu.Unlock()
+}
+
 func (b *Backend) SetAudioDelay(ms int64) {
 	b.mu.Lock()
 	b.delay = ms

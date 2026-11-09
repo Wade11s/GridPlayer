@@ -32,6 +32,8 @@ type fakeBackend struct {
 	addSubCalls   int
 	addAudioCalls int
 	shots         []string
+	nextFrames    int
+	prevFrames    int
 	aspect        string
 	scale         float64
 	crop          string
@@ -162,6 +164,20 @@ func (f *fakeBackend) AddAudio(path string) bool {
 	f.addAudioCalls++
 	f.audio = append(f.audio, Track{ID: 88, Name: path})
 	return true
+}
+func (f *fakeBackend) NextFrame() {
+	f.mu.Lock()
+	f.time += 40
+	f.state = BackendPaused
+	f.nextFrames++
+	f.mu.Unlock()
+}
+func (f *fakeBackend) PreviousFrame() {
+	f.mu.Lock()
+	f.time = FrameStepBack(f.time, 25)
+	f.state = BackendPaused
+	f.prevFrames++
+	f.mu.Unlock()
 }
 func (f *fakeBackend) Screenshot(path string) error {
 	if f.closed {
@@ -463,6 +479,39 @@ func TestViewSettingsAndExternalTracks(t *testing.T) {
 	}
 	if len(f.shots) != 1 || f.shots[0] != "/tmp/shot.png" {
 		t.Fatalf("shots=%v", f.shots)
+	}
+}
+
+func TestFrameStepBack(t *testing.T) {
+	if got := FrameStepBack(1000, 25); got != 960 {
+		t.Fatalf("25fps step %d", got)
+	}
+	if got := FrameStepBack(10, 25); got != 0 {
+		t.Fatalf("clamp %d", got)
+	}
+	if got := FrameStepBack(1000, 0); got != 960 {
+		t.Fatalf("default fps %d", got)
+	}
+}
+
+func TestEngineStepsFrames(t *testing.T) {
+	f := newFake()
+	f.time = 1000
+	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	defer e.Close()
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	e.NextFrame()
+	e.PreviousFrame()
+	f.mu.Lock()
+	next, prev, tm := f.nextFrames, f.prevFrames, f.time
+	f.mu.Unlock()
+	if next != 1 || prev != 1 {
+		t.Fatalf("next=%d prev=%d", next, prev)
+	}
+	if tm != FrameStepBack(1040, 25) {
+		t.Fatalf("time %d", tm)
 	}
 }
 

@@ -15,6 +15,8 @@ var Actions = []string{
 	"next_cell",
 	"rate_down",
 	"rate_up",
+	"frame_next",
+	"frame_prev",
 	"audio_later",
 	"audio_earlier",
 }
@@ -32,6 +34,8 @@ var Labels = map[string]string{
 	"next_cell":     "Next cell",
 	"rate_down":     "Rate down",
 	"rate_up":       "Rate up",
+	"frame_next":    "Next frame",
+	"frame_prev":    "Previous frame",
 	"audio_later":   "Audio later",
 	"audio_earlier": "Audio earlier",
 }
@@ -56,6 +60,8 @@ func Default() Map {
 		"next_cell":     "n",
 		"rate_down":     "[",
 		"rate_up":       "]",
+		"frame_next":    "s",
+		"frame_prev":    "d",
 		"audio_later":   "k",
 		"audio_earlier": "j",
 	} {
