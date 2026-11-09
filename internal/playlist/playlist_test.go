@@ -84,3 +84,27 @@ func TestValidationAndRelativePaths(t *testing.T) {
 		t.Fatalf("uris %q %q", d.Videos[1].URI, d.Videos[2].URI)
 	}
 }
+
+func TestListItemFieldsRoundTrip(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"list.m3u","list_index":2,"list_end":"next",` +
+		`"cell_view_mode":"stretch","playback_state":"paused"}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.ListIndex != 2 || v.ListEnd != "next" ||
+		v.CellViewMode != "stretch" || v.PlaybackState != "paused" {
+		t.Fatalf("video %+v", v)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"list_index":2`, `"list_end":"next"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+}
