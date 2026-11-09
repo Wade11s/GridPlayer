@@ -303,6 +303,79 @@ func TestLoadFailureAndCloseIdempotent(t *testing.T) {
 	e.Close()
 }
 
+func TestFailedSurvivesStopped(t *testing.T) {
+	f := newFake()
+	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	defer e.Close()
+	if err := e.Load("bad.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	f.emit(Event{Kind: EventFailed})
+	waitFor(t, "failed", func() bool { return e.Snapshot().Phase == Failed })
+	f.emit(Event{Kind: EventStopped})
+	time.Sleep(20 * time.Millisecond)
+	if s := e.Snapshot(); s.Phase != Failed {
+		t.Fatalf("failure cleared by stopped: %+v", s)
+	}
+}
+
+func TestReloadIfFailedHonorsGeneration(t *testing.T) {
+	calls := 0
+	e := New(func(path string, loop bool) (Backend, error) {
+		calls++
+		f := newFake()
+		f.emit(Event{Kind: EventFailed})
+		return f, nil
+	})
+	defer e.Close()
+	if err := e.Load("http://example/a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "failed", func() bool { return e.Snapshot().Phase == Failed })
+	gen := e.Snapshot().Gen
+	if err := e.ReloadIfFailed(gen + 1); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("stale generation reloaded, calls=%d", calls)
+	}
+	if err := e.Load("http://example/b.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.ReloadIfFailed(gen); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("newer load was reloaded by the old generation, calls=%d", calls)
+	}
+	waitFor(t, "failed again", func() bool { return e.Snapshot().Phase == Failed })
+	if err := e.ReloadIfFailed(e.Snapshot().Gen); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Fatalf("matching failed generation did not reload, calls=%d", calls)
+	}
+}
+
+func TestToggleReloadsFailed(t *testing.T) {
+	calls := 0
+	e := New(func(path string, loop bool) (Backend, error) {
+		calls++
+		if calls == 1 {
+			return nil, errors.New("boom")
+		}
+		return newFake(), nil
+	})
+	defer e.Close()
+	if err := e.Load("bad.mp4"); err == nil {
+		t.Fatal("want load error")
+	}
+	e.Toggle()
+	if calls != 2 {
+		t.Fatalf("reload calls=%d", calls)
+	}
+}
+
 func TestLoopCarriedIntoFactoryAndEnded(t *testing.T) {
 	f := newFake()
 	var gotLoop bool

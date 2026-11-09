@@ -222,7 +222,11 @@ func (e *Engine) publishLocked() {
 func (e *Engine) Load(path string) error {
 	e.loadMu.Lock()
 	defer e.loadMu.Unlock()
+	return e.loadLocked(path)
+}
 
+// loadLocked replaces the media. The caller holds e.loadMu.
+func (e *Engine) loadLocked(path string) error {
 	e.mu.Lock()
 	if e.closed {
 		e.mu.Unlock()
@@ -297,13 +301,31 @@ func (e *Engine) Load(path string) error {
 // Reload re-opens the current media, applying settings that libVLC fixes
 // when a media opens (loop). It is a no-op before the first Load.
 func (e *Engine) Reload() error {
+	e.loadMu.Lock()
+	defer e.loadMu.Unlock()
 	e.mu.Lock()
 	path := e.path
 	e.mu.Unlock()
 	if path == "" {
 		return nil
 	}
-	return e.Load(path)
+	return e.loadLocked(path)
+}
+
+// ReloadIfFailed reopens the current media only while gen is still the
+// failed generation. The check and the load share loadMu, so a newer Load
+// cannot commit between them.
+func (e *Engine) ReloadIfFailed(gen uint64) error {
+	e.loadMu.Lock()
+	defer e.loadMu.Unlock()
+	e.mu.Lock()
+	if e.closed || e.gen != gen || e.snap.Phase != Failed || e.path == "" {
+		e.mu.Unlock()
+		return nil
+	}
+	path := e.path
+	e.mu.Unlock()
+	return e.loadLocked(path)
 }
 
 func (e *Engine) pump(gen uint64, be Backend, quit chan struct{}) {
@@ -375,7 +397,7 @@ func (e *Engine) apply(gen uint64, be Backend, ev Event) {
 	case EventPaused:
 		e.snap.Phase = Paused
 	case EventStopped:
-		if e.snap.Phase != Ended {
+		if e.snap.Phase != Ended && e.snap.Phase != Failed {
 			e.snap.Phase = Idle
 		}
 	case EventEnded:
@@ -439,6 +461,10 @@ func (e *Engine) Pause() {
 
 // Toggle plays if paused, pauses if playing.
 func (e *Engine) Toggle() {
+	if e.Snapshot().Phase == Failed {
+		_ = e.Reload()
+		return
+	}
 	if e.Snapshot().Phase == Playing {
 		e.Pause()
 		return
