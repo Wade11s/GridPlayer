@@ -85,6 +85,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - Finder files drop on a cell (`DroppedFiles`) to insert before it, or on the
   window (`OnFileDrop`) to append; a single `.gpls` opens as a playlist.
   `insertCells` splices new cell structs while keeping live engines/views.
+- Settings uses a second MyGo window with `ui.Tabs`/`ui.Form`: General and
+  Playback edit defaults for new cells, Grid maps the layout modes plus
+  snap/overlap, and Video applies fill/fit/stretch, aspect, scale and crop to
+  live engines. Apply persists settings.ini; Cancel discards the draft.
 - Cells drag with `ui.Element.Drag(index)` and take `ui.Drop[int]`; a drop
   swaps the two cell structs (path, engine, native view) and re-frames both
   slots on the next frame. `DragOver` highlights the target. No frame-locked

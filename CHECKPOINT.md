@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-snap-overlap merge)
+# Migration Checkpoint — 2026-11-09 (post-settings-ui merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -49,6 +49,10 @@
 - PR #28 merged at `9ec176d`: tile snapping and optional free-mode overlap.
   Main `9ec176d`: CI green, full race/vet/build green, GUI acceptance 4×
   VideoToolbox, Grid toggles persisted `grid_snap=false`/`grid_overlap=false`.
+- PR #29 merged at `8b1590e`: Settings window (General/Playback/Grid/Video).
+  Main `8b1590e`: CI green, full race/vet/build green, GUI acceptance 4×
+  VideoToolbox, Settings Apply persisted `grid_overlap=false`, Cancel closed
+  without changes.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -147,6 +151,11 @@
   preserved, atomic save; app restores grid/Fill-Fit/default volume-mute/window
   bounds/recent list, `--user-data-dir` isolation. Full settings dialog/keymap/
   legacy migrations remain open.
+- #4 settings window (merged 8b1590e): File > Settings… (Cmd+,) with
+  General/Playback/Grid/Video tabs; applies layout, snap/overlap, default
+  volume/mute/rate/loop, view mode/aspect/scale/crop; Apply/Cancel/Reset;
+  persists `video_defaults/rate`/`loop`. Keymap editing, subtitle styling,
+  network/proxy and translations remain open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
