@@ -126,6 +126,60 @@ func TestArrangeDeterministic(t *testing.T) {
 	}
 }
 
+func TestArrangeEverySingleLock(t *testing.T) {
+	for n := 2; n <= 12; n++ {
+		for locked := 0; locked < n; locked++ {
+			lock := map[int]bool{locked: true}
+			tiles := Mosaic(n)
+			got := Arrange(n, tiles, lock)
+			checkArrange(t, n, tiles, got, lock)
+		}
+	}
+}
+
+func TestArrangeDoubleLocks(t *testing.T) {
+	for n := 4; n <= 10; n++ {
+		for a := 0; a < n; a++ {
+			for b := a + 1; b < n; b++ {
+				lock := map[int]bool{a: true, b: true}
+				tiles := Mosaic(n)
+				got := Arrange(n, tiles, lock)
+				checkArrange(t, n, tiles, got, lock)
+			}
+		}
+	}
+}
+
+func checkArrange(t *testing.T, n int, before, got []Tile, lock map[int]bool) {
+	t.Helper()
+	if len(got) != n {
+		t.Fatalf("n=%d lock=%v len=%d", n, lock, len(got))
+	}
+	for i := 0; i < n; i++ {
+		b := got[i].Box
+		if b[0] < -1e-9 || b[1] < -1e-9 || b[2] > 1+1e-9 || b[3] > 1+1e-9 {
+			t.Fatalf("n=%d lock=%v tile %d outside %+v", n, lock, i, b)
+		}
+		if b[2] <= b[0] || b[3] <= b[1] {
+			t.Fatalf("n=%d lock=%v tile %d empty %+v", n, lock, i, b)
+		}
+		if lock[i] && b != before[i].Box {
+			t.Fatalf("n=%d lock=%v locked tile %d moved: %+v != %+v", n, lock, i, b, before[i].Box)
+		}
+		for j := i + 1; j < n; j++ {
+			if boxesOverlap(b, got[j].Box) {
+				t.Fatalf("n=%d lock=%v tiles %d/%d overlap: %+v %+v", n, lock, i, j, b, got[j].Box)
+			}
+		}
+	}
+	again := Arrange(n, before, lock)
+	for i := range got {
+		if got[i].Box != again[i].Box {
+			t.Fatalf("n=%d lock=%v tile %d not deterministic", n, lock, i)
+		}
+	}
+}
+
 func boxesOverlap(a, b [4]float64) bool {
 	ox := math.Max(0, math.Min(a[2], b[2])-math.Max(a[0], b[0]))
 	oy := math.Max(0, math.Min(a[3], b[3])-math.Max(a[1], b[1]))
