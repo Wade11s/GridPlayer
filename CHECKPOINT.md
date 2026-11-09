@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-rtsp-e2e merge)
+# Migration Checkpoint — 2026-11-09 (post-snapshots merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -70,6 +70,9 @@
 - PR #34 merged at `3d52674`: RTSP end-to-end test with a local VLC RTSP
   server. Main `3d52674`: CI green, full race/vet/build green, escalated
   `TestRealVLCRTSP` PASS (3.38 s); in-sandbox it skips at port reservation.
+- PR #35 merged at `7df3f65`: named playlist/grid snapshots. Main `7df3f65`:
+  CI green, full race/vet/build green, GUI saved a 4-cell snapshot, switched
+  to Stretch, restored Fill from Snapshot 1; live-engine restore test PASS.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -190,6 +193,10 @@
   volume/mute/rate/loop, view mode/aspect/scale/crop; Apply/Cancel/Reset;
   persists `video_defaults/rate`/`loop`. Keymap editing, subtitle styling,
   network/proxy and translations remain open.
+- #4 snapshots (merged 7df3f65): `internal/snapshots` atomic named store;
+  Save Current / restore / Delete menu; restore replaces cells/grid, applies
+  per-item state to live engines, and marks the playlist unsaved. Snapshot
+  export/import and free/mosaic tile geometry remain open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
