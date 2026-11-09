@@ -269,7 +269,12 @@ func TestRealVLCRTSP(t *testing.T) {
 		t.Skip("fixture missing")
 	}
 
-	const port = 18554
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skipf("cannot reserve RTSP port: %v", err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
 	url := fmt.Sprintf("rtsp://127.0.0.1:%d/live", port)
 	logFile, err := os.CreateTemp("", "gridplayer-rtsp-*.log")
 	if err != nil {
