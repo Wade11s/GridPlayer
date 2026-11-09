@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-bookmarks-manager merge)
+# Migration Checkpoint — 2026-11-09 (post-stream-resolver merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -56,6 +56,10 @@
 - PR #30 merged at `fd1a779`: per-file bookmarks manager with rename/delete.
   Main `fd1a779`: CI green, full race/vet/build green, GUI acceptance on a
   `list.m3u` cell (1 VideoToolbox), per-item key and manager render verified.
+- PR #31 merged at `f6aca2d`: streamlink fallback, proxy/cookies/quality
+  settings and Network tab. Main `f6aca2d`: CI green, full race/vet/build
+  green, loopback HTTP→libVLC test PASS, local HLS via yt-dlp played with
+  VideoToolbox and clean teardown.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -122,11 +126,17 @@
 - #8 streams (partial): deterministic local HLS fixture (3 renditions), URL MRL
   loading via `libvlc_media_new_location`, `file://` HLS GUI playback verified,
   Open URL dialog; scale default fixed to fit (0) after the 1x regression.
-  HTTP/RTSP + yt-dlp/streamlink, cookies, proxy, adaptive quality still open.
+  RTSP end-to-end, adaptive mid-playback quality and streamlink cookies still
+  open.
 - #8 URL resolver: `internal/resolve` yt-dlp (ignore-config, no cookies,
   skip-download, no-playlist) with direct fallback; Open URL dialog and
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
   adaptive quality still open.
+- #8 stream resolver (merged f6aca2d): yt-dlp first then streamlink;
+  proxy/cookies/format for yt-dlp, proxy for streamlink; Settings > Network
+  for proxy/cookies/tool paths/quality; `playURL` snapshots options before the
+  goroutine; fake-tool, file-skip, real-HLS and loopback HTTP→libVLC tests.
+  RTSP, adaptive mid-playback quality and streamlink cookies remain open.
 - #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
 - #12 bookmarks (merged a24fc43): `internal/bookmarks` positions in
   `bookmarks.json` (atomic, dedupe by name, sorted after replacement);
