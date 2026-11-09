@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -58,6 +59,7 @@ type cell struct {
 	list      []string
 	listIndex int
 	listEnd   string
+	endAction string
 	listFail  string
 	// listFailWait is set when this cell overrides the default wait.
 	// Zero means move on at once.
@@ -124,6 +126,7 @@ type app struct {
 	defaultMuted        bool
 	defaultRate         float64
 	defaultLoop         bool
+	defaultEnd          string
 	retryMode           atomic.Int32
 	retryTimes          atomic.Int32
 	listFailMode        atomic.Int32
@@ -229,6 +232,14 @@ func (a *app) loadSettings() {
 		a.defaultRate = 4
 	}
 	a.defaultLoop = st.Get("video_defaults/loop", "true") == "true"
+	if raw := st.Get("video_defaults/end_action", ""); raw != "" {
+		a.defaultEnd = normalizeEndAction(raw)
+		if a.defaultEnd == endLoop {
+			a.defaultLoop = true
+		} else if a.defaultEnd != "" {
+			a.defaultLoop = false
+		}
+	}
 	a.setRetryPolicy(
 		st.Get("video_defaults/network_retry_mode", "times"),
 		atoi(st.Get("video_defaults/network_retry_times", "3"), defaultRetryTimes),
@@ -374,6 +385,15 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
 	a.settings.Set("video_defaults/rate", fmt.Sprintf("%g", a.defaultRate))
 	a.settings.Set("video_defaults/loop", fmt.Sprint(a.defaultLoop))
+	end := normalizeEndAction(a.defaultEnd)
+	if end == "" {
+		if a.defaultLoop {
+			end = endLoop
+		} else {
+			end = endStop
+		}
+	}
+	a.settings.Set("video_defaults/end_action", end)
 	switch a.retryMode.Load() {
 	case retryOff:
 		a.settings.Set("video_defaults/network_retry_mode", "off")
@@ -558,6 +578,10 @@ func (a *app) newCell(i int, p string) *cell {
 				c.path = items[0]
 				c.loop = false
 				c.listEnd = "loop"
+				c.endAction = endNext
+				if action := normalizeEndAction(a.defaultEnd); action != "" && action != endLoop {
+					c.endAction = action
+				}
 			}
 		}
 	}
@@ -857,14 +881,14 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 								if snap.Gen != gen || snap.Phase != engine.Failed {
 									return
 								}
-								a.advanceList(c)
+								a.stepOnFailure(c)
 							})
 						})
 					})
 				}
 			}
-			if s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
-				mygo.RunOnMain(func() { a.advanceList(c) })
+			if s.Phase == engine.Ended && c.shouldAdvance(s.Gen) {
+				mygo.RunOnMain(func() { a.finishVideo(c) })
 			}
 			if a.win != nil && !a.closed.Load() {
 				a.win.Invalidate()
@@ -1047,6 +1071,132 @@ func cloneWait(wait *int) *int {
 	}
 	copied := *wait
 	return &copied
+}
+
+func (a *app) finishVideo(c *cell) {
+	if c == nil {
+		return
+	}
+	switch c.finishAction() {
+	case endNext:
+		if len(c.list) > 0 {
+			a.advanceList(c)
+		}
+	case endPrevious:
+		a.stepPrevious(c)
+	case endShuffle:
+		a.shuffleList(c)
+	case endStop:
+		if c.eng != nil {
+			c.eng.Stop()
+		}
+	case endPause:
+		if c.eng != nil {
+			c.eng.Pause()
+		}
+	}
+}
+
+func (a *app) stepOnFailure(c *cell) {
+	if c == nil {
+		return
+	}
+	switch c.finishAction() {
+	case endPrevious:
+		a.stepPrevious(c)
+	case endShuffle:
+		a.shuffleList(c)
+	default:
+		a.advanceList(c)
+	}
+}
+
+func (a *app) stepPrevious(c *cell) {
+	if c == nil || len(c.list) == 0 {
+		return
+	}
+	if c.listIndex == 0 {
+		switch c.listEnd {
+		case "stop":
+			return
+		case "next":
+			a.previousCellFrom(c)
+			return
+		}
+	}
+	a.previousList(c)
+}
+
+func (a *app) previousCellFrom(c *cell) {
+	idx := -1
+	for i, x := range a.cells {
+		if x == c {
+			idx = i
+			break
+		}
+	}
+	if idx <= 0 {
+		return
+	}
+	a.setActive(idx - 1)
+	if eng := a.activeEngine(); eng != nil {
+		eng.Play()
+	}
+}
+
+func (a *app) shuffleList(c *cell) {
+	if c == nil || len(c.list) == 0 {
+		return
+	}
+	if len(c.list) == 1 {
+		a.advanceList(c)
+		return
+	}
+	index := pickShuffle(len(c.list), c.listIndex, randIntN)
+	a.loadListIndex(c, index)
+}
+
+func randIntN(n int) int { return rand.IntN(n) }
+
+func (a *app) loadListIndex(c *cell, index int) {
+	if c == nil || index < 0 || index >= len(c.list) || c.advancing {
+		return
+	}
+	c.skipGen = 0
+	c.advancing = true
+	defer func() { c.advancing = false }()
+	c.listIndex = index
+	c.path = c.list[index]
+	c.startAt = 0
+	c.retries.Store(0)
+	if c.eng != nil {
+		c.eng.SetStartPosition(0)
+		if err := c.eng.Load(c.path); err != nil {
+			a.status = err.Error()
+		}
+	}
+	a.refreshMenu()
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Invalidate()
+	}
+}
+
+func (a *app) setEndAction(mode string) {
+	c := a.activeCell()
+	if c == nil {
+		return
+	}
+	mode = normalizeEndAction(mode)
+	if mode == "" {
+		mode = endLoop
+	}
+	c.endAction = mode
+	c.loop = mode == endLoop
+	if c.eng != nil {
+		c.eng.SetLoop(c.loop)
+	}
+	a.dirty = true
+	a.refreshMenu()
 }
 
 func (a *app) setListFail(mode string) {
@@ -1663,6 +1813,10 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			case "loop", "stop", "next":
 				c.listEnd = v.ListEnd
 			}
+			if action := normalizeEndAction(v.EndAction); action != "" {
+				c.endAction = action
+				c.loop = action == endLoop
+			}
 			switch v.ListFail {
 			case listFailPlayNext, listFailShowError:
 				c.listFail = v.ListFail
@@ -1785,6 +1939,7 @@ func (a *app) document() *playlist.Document {
 			CellViewMode:    a.cellViewMode(c),
 			ListIndex:       c.listIndex,
 			ListEnd:         c.listEnd,
+			EndAction:       c.endAction,
 			ListFail:        c.listFail,
 			ListFailWait:    cloneWait(c.listFailWait),
 		}
@@ -2197,13 +2352,17 @@ func (a *app) menu() *mygo.Menu {
 	fill, stretch := a.activeViewFlags()
 	listEnd := "loop"
 	listFail := listFailPlayNext
+	endAction := endLoop
 	hasList := false
-	if c := a.activeCell(); c != nil && len(c.list) > 0 {
-		hasList = true
-		if c.listEnd != "" {
-			listEnd = c.listEnd
+	if c := a.activeCell(); c != nil {
+		endAction = c.finishAction()
+		if len(c.list) > 0 {
+			hasList = true
+			if c.listEnd != "" {
+				listEnd = c.listEnd
+			}
+			listFail = a.listFailAction(c)
 		}
-		listFail = a.listFailAction(c)
 	}
 	snapshotRestore, snapshotRemove := a.snapshotMenuItems()
 	snapshotMenu := []*mygo.MenuItem{
@@ -2262,6 +2421,20 @@ func (a *app) menu() *mygo.Menu {
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("stop") }},
 				{Label: "Next Cell", Type: mygo.MenuItemRadio, Checked: listEnd == "next", Disabled: !hasList,
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("next") }},
+			}},
+			{Label: "When Finished", Submenu: []*mygo.MenuItem{
+				{Label: "Loop File", Type: mygo.MenuItemRadio, Checked: endAction == endLoop,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setEndAction(endLoop) }},
+				{Label: "Next File", Type: mygo.MenuItemRadio, Checked: endAction == endNext, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setEndAction(endNext) }},
+				{Label: "Previous File", Type: mygo.MenuItemRadio, Checked: endAction == endPrevious, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setEndAction(endPrevious) }},
+				{Label: "Shuffle", Type: mygo.MenuItemRadio, Checked: endAction == endShuffle, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setEndAction(endShuffle) }},
+				{Label: "Pause", Type: mygo.MenuItemRadio, Checked: endAction == endPause,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setEndAction(endPause) }},
+				{Label: "Stop", Type: mygo.MenuItemRadio, Checked: endAction == endStop,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setEndAction(endStop) }},
 			}},
 			{Label: "When Video Fails", Submenu: []*mygo.MenuItem{
 				{Label: "Play Next", Type: mygo.MenuItemRadio, Checked: listFail == listFailPlayNext, Disabled: !hasList,
