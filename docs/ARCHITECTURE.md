@@ -99,6 +99,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `list_index` and `list_end`. A restored paused cell pauses on the first
   Playing event; View follows the active cell; End of List chooses loop, stop,
   or the next cell (stopping at the last).
+- Snapshots are named playlist documents in `snapshots.json`. Save Current
+  captures the live document, restore replaces the cells/grid and marks the
+  playlist unsaved, and Delete removes the entry.
 - Cells drag with `ui.Element.Drag(index)` and take `ui.Drop[int]`; a drop
   swaps the two cell structs (path, engine, native view) and re-frames both
   slots on the next frame. `DragOver` highlights the target. No frame-locked

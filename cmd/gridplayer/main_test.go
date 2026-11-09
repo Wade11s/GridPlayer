@@ -10,6 +10,7 @@ import (
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
+	"gridplayer-go/internal/snapshots"
 )
 
 func TestSwapCells(t *testing.T) {
@@ -387,5 +388,68 @@ func TestDocumentViewMode(t *testing.T) {
 	v := d.Videos[0]
 	if v.CellViewMode != "stretch" || v.ListIndex != 2 || v.ListEnd != "stop" {
 		t.Fatalf("video %+v", v)
+	}
+}
+
+func TestApplyDocumentRestoresSnapshot(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{
+			{
+				URI:             "a.mp4",
+				CurrentPosition: 1234,
+				IsMuted:         true,
+				Volume:          0.5,
+				Rate:            1.5,
+				CellViewMode:    "stretch",
+				PlaybackState:   "paused",
+				ListEnd:         "next",
+			},
+			{URI: "b.mp4", CellViewMode: "fit"},
+		},
+	}
+	d.SetGridState("fixed", 2, 3)
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.applyDocument(d, "")
+	if len(a.cells) != 2 {
+		t.Fatalf("cells=%d", len(a.cells))
+	}
+	c := a.cells[0]
+	if c.viewMode != "stretch" || !c.startPaused || c.startAt != 1234 ||
+		!c.muted || c.volume != 50 || c.rate != 1.5 {
+		t.Fatalf("cell %+v", c)
+	}
+	if a.cells[1].viewMode != "fit" {
+		t.Fatalf("second view %q", a.cells[1].viewMode)
+	}
+	if a.cfg.Mode != grid.Fixed || a.cfg.Rows != 2 || a.cfg.Cols != 3 {
+		t.Fatalf("grid %+v", a.cfg)
+	}
+	if a.playlistPath != "" || a.dirty {
+		t.Fatalf("path=%q dirty=%v", a.playlistPath, a.dirty)
+	}
+}
+
+func TestSnapshotNameAndRestore(t *testing.T) {
+	store := snapshots.New(filepath.Join(t.TempDir(), "snapshots.json"))
+	doc := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4", CellViewMode: "stretch"}},
+	}
+	if err := store.Save("Snapshot 1", doc); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save("Snapshot 2", doc); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{snapshots: store, defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	if got := a.snapshotName(); got != "Snapshot 3" {
+		t.Fatalf("name %q", got)
+	}
+	a.restoreSnapshot("Snapshot 1")
+	if len(a.cells) != 1 || a.cells[0].viewMode != "stretch" || !a.dirty {
+		t.Fatalf("restore cells=%d dirty=%v", len(a.cells), a.dirty)
 	}
 }
