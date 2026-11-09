@@ -95,6 +95,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `left`, `m`, `cmd+shift+p` or `none`; Settings > Keymap edits the
   `keymap/*` settings, and both the shortcuts and menu accelerators use the
   same map.
+- Subtitles: Settings > Subtitles maps font, size, colors, outline, bold,
+  opacity, encoding and autodetect to libVLC `--freetype-*`/`--subsdec-*`
+  options. Apply recreates live engines at their current position so the
+  instance-level style takes effect.
 - Bookmarks are keyed by the current file (`cell.path`), so playlist items have
   their own positions rather than sharing the list source. A second window
   lists the active file's bookmarks with jump/rename/delete/clear; the menu and
