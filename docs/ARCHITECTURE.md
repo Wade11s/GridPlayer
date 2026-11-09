@@ -48,6 +48,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   (plus `--enable-file-urls` for file://), never reading user config/cookies.
   Direct schemes pass through; on failure the UI falls back to the raw URL
   where libVLC can play it. `--url` exercises the path at startup.
+- Bookmarks: `internal/bookmarks` stores per-source positions in
+  `bookmarks.json` (atomic save, name replace, sorted). The Bookmarks menu
+  adds the active position, lists/jumps, and clears the active source.
 - Media lists: `internal/medialist` expands folders and m3u/pls/xspf into
   one cell's ordered list (HLS manifests pass through as one stream). The
   cell advances on Ended, wraps when `listLoop`, and Playback has
