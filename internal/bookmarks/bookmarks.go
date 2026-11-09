@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -67,6 +68,39 @@ func (s *Store) List(file string) []Bookmark {
 	return append([]Bookmark(nil), s.Files[file]...)
 }
 
+// Has reports whether file has a bookmark named name.
+func (s *Store) Has(file, name string) bool {
+	for _, b := range s.Files[file] {
+		if b.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Rename changes a bookmark's name. Empty and duplicate names are rejected.
+func (s *Store) Rename(file, oldName, newName string) error {
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return errors.New("bookmark name is empty")
+	}
+	if oldName == newName {
+		return nil
+	}
+	if s.Has(file, newName) {
+		return errors.New("bookmark name already exists")
+	}
+	list := s.Files[file]
+	for i := range list {
+		if list[i].Name == oldName {
+			list[i].Name = newName
+			s.Files[file] = list
+			return nil
+		}
+	}
+	return errors.New("bookmark not found")
+}
+
 // Remove deletes a bookmark by name.
 func (s *Store) Remove(file, name string) {
 	list := s.Files[file]
@@ -81,6 +115,11 @@ func (s *Store) Remove(file, name string) {
 		return
 	}
 	s.Files[file] = out
+}
+
+// Clear removes all bookmarks for file.
+func (s *Store) Clear(file string) {
+	delete(s.Files, file)
 }
 
 // Save writes the store atomically.

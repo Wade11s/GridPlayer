@@ -67,3 +67,31 @@ func TestAddKeepsSortedAfterReplace(t *testing.T) {
 		t.Fatalf("replace earlier: %+v", got)
 	}
 }
+
+func TestRenameHasClear(t *testing.T) {
+	s := &Store{Files: map[string][]Bookmark{}}
+	s.Add("a.mp4", "Intro", 1000)
+	s.Add("a.mp4", "Later", 5000)
+	if !s.Has("a.mp4", "Intro") || s.Has("a.mp4", "Missing") {
+		t.Fatalf("Has: %+v", s.List("a.mp4"))
+	}
+	if err := s.Rename("a.mp4", "Intro", "Opening"); err != nil {
+		t.Fatal(err)
+	}
+	if s.Has("a.mp4", "Intro") || !s.Has("a.mp4", "Opening") {
+		t.Fatalf("rename: %+v", s.List("a.mp4"))
+	}
+	if err := s.Rename("a.mp4", "Opening", "Later"); err == nil {
+		t.Fatal("duplicate rename accepted")
+	}
+	if err := s.Rename("a.mp4", "Opening", "  "); err == nil {
+		t.Fatal("empty rename accepted")
+	}
+	if err := s.Rename("a.mp4", "Missing", "X"); err == nil {
+		t.Fatal("missing rename accepted")
+	}
+	s.Clear("a.mp4")
+	if len(s.List("a.mp4")) != 0 || s.Has("a.mp4", "Later") {
+		t.Fatalf("clear: %+v", s.List("a.mp4"))
+	}
+}

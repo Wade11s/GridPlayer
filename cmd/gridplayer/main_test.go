@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/grid"
 )
 
@@ -234,5 +235,37 @@ func TestSettingsDraftLayouts(t *testing.T) {
 		if got := tc.a.currentSettingsDraft().layout; got != tc.want {
 			t.Fatalf("%s: got %q want %q", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestBookmarkKeyUsesCurrentItem(t *testing.T) {
+	a := &app{active: 0, cells: []*cell{{source: "list.m3u", path: "item2.mp4"}}}
+	if got := a.bookmarkKey(); got != "item2.mp4" {
+		t.Fatalf("bookmark key %q", got)
+	}
+	a.cells[0].path = ""
+	if got := a.bookmarkKey(); got != "list.m3u" {
+		t.Fatalf("fallback key %q", got)
+	}
+	a.active = 2
+	if got := a.bookmarkKey(); got != "" {
+		t.Fatalf("inactive key %q", got)
+	}
+}
+
+func TestBookmarkNameSkipsExisting(t *testing.T) {
+	s, err := bookmarks.Load(filepath.Join(t.TempDir(), "bookmarks.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.Add("a.mp4", "Bookmark 1", 1000)
+	s.Add("a.mp4", "Bookmark 2", 2000)
+	a := &app{bookmarks: s}
+	if got := a.bookmarkName("a.mp4"); got != "Bookmark 3" {
+		t.Fatalf("name %q", got)
+	}
+	s.Add("a.mp4", "Bookmark 3", 3000)
+	if got := a.bookmarkName("a.mp4"); got != "Bookmark 4" {
+		t.Fatalf("collision name %q", got)
 	}
 }

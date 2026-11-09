@@ -58,49 +58,54 @@ type cell struct {
 }
 
 type app struct {
-	win           *mygo.Window
-	resolve       func() (cv, sv uintptr, h float64, ok bool)
-	cells         []*cell
-	active        int
-	cfg           grid.Config
-	fill          bool
-	stretch       bool
-	single        bool
-	singleSide    grid.StripSide
-	singleShare   *float64
-	free          bool
-	freeTiles     []grid.Tile
-	mosaic        bool
-	mosaicTiles   []grid.Tile
-	mosaicLocked  map[int]bool
-	snap          bool
-	overlap       bool
-	freeArea      [2]float64
-	moveIdx       int
-	moveLast      [2]float32
-	moveOK        bool
-	aspect        string
-	scale         float64
-	crop          string
-	closed        atomic.Bool
-	status        string
-	doc           *playlist.Document
-	dirty         bool
-	forceQuit     bool
-	playlistPath  string
-	urlWin        *mygo.Window
-	urlInput      string
-	settingsWin   *mygo.Window
-	settingsDraft settingsDraft
-	resolver      *resolve.Resolver
-	bookmarks     *bookmarks.Store
-	pending       []pendingDrop
-	settings      *settings.Store
-	recent        []string
-	defaultVolume int
-	defaultMuted  bool
-	defaultRate   float64
-	defaultLoop   bool
+	win                 *mygo.Window
+	resolve             func() (cv, sv uintptr, h float64, ok bool)
+	cells               []*cell
+	active              int
+	cfg                 grid.Config
+	fill                bool
+	stretch             bool
+	single              bool
+	singleSide          grid.StripSide
+	singleShare         *float64
+	free                bool
+	freeTiles           []grid.Tile
+	mosaic              bool
+	mosaicTiles         []grid.Tile
+	mosaicLocked        map[int]bool
+	snap                bool
+	overlap             bool
+	freeArea            [2]float64
+	moveIdx             int
+	moveLast            [2]float32
+	moveOK              bool
+	aspect              string
+	scale               float64
+	crop                string
+	closed              atomic.Bool
+	status              string
+	doc                 *playlist.Document
+	dirty               bool
+	forceQuit           bool
+	playlistPath        string
+	urlWin              *mygo.Window
+	urlInput            string
+	settingsWin         *mygo.Window
+	settingsDraft       settingsDraft
+	resolver            *resolve.Resolver
+	bookmarks           *bookmarks.Store
+	bookmarkWin         *mygo.Window
+	bookmarkRenameWin   *mygo.Window
+	bookmarkRenameKey   string
+	bookmarkRenameOld   string
+	bookmarkRenameInput string
+	pending             []pendingDrop
+	settings            *settings.Store
+	recent              []string
+	defaultVolume       int
+	defaultMuted        bool
+	defaultRate         float64
+	defaultLoop         bool
 }
 
 func newApp(paths []string) *app {
@@ -688,6 +693,10 @@ func (a *app) advanceList(c *cell) {
 			a.status = err.Error()
 		}
 	}
+	a.refreshMenu()
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Invalidate()
+	}
 }
 
 func (a *app) previousList(c *cell) {
@@ -708,6 +717,10 @@ func (a *app) previousList(c *cell) {
 		if err := c.eng.Load(c.path); err != nil {
 			a.status = err.Error()
 		}
+	}
+	a.refreshMenu()
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Invalidate()
 	}
 }
 
@@ -830,6 +843,14 @@ func (a *app) teardown() {
 	if a.settingsWin != nil {
 		a.settingsWin.Close()
 		a.settingsWin = nil
+	}
+	if a.bookmarkRenameWin != nil {
+		a.bookmarkRenameWin.Close()
+		a.bookmarkRenameWin = nil
+	}
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Close()
+		a.bookmarkWin = nil
 	}
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
@@ -1427,6 +1448,9 @@ func (a *app) refreshMenu() {
 	if a.win != nil {
 		mygo.App.SetMenu(a.menu())
 	}
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Invalidate()
+	}
 }
 
 func (a *app) addTrack(kind string) {
@@ -1515,6 +1539,19 @@ func (a *app) activeSource() string {
 	return c.path
 }
 
+// bookmarkKey is the current file, not the playlist/list source, so a
+// playlist's bookmarks follow the item that is actually playing.
+func (a *app) bookmarkKey() string {
+	if a.active < 0 || a.active >= len(a.cells) {
+		return ""
+	}
+	c := a.cells[a.active]
+	if c.path != "" {
+		return c.path
+	}
+	return c.source
+}
+
 func fmtClock(ms int64) string {
 	if ms < 0 {
 		ms = 0
@@ -1525,17 +1562,29 @@ func fmtClock(ms int64) string {
 
 func (a *app) addBookmark() {
 	eng := a.activeEngine()
-	src := a.activeSource()
-	if eng == nil || src == "" || a.bookmarks == nil {
+	key := a.bookmarkKey()
+	if eng == nil || key == "" || a.bookmarks == nil {
 		return
 	}
 	pos := eng.Snapshot().Time
-	name := fmtClock(pos)
-	a.bookmarks.Add(src, name, pos)
+	name := a.bookmarkName(key)
+	a.bookmarks.Add(key, name, pos)
 	if err := a.bookmarks.Save(); err != nil {
 		a.status = err.Error()
 	}
 	a.refreshMenu()
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Invalidate()
+	}
+}
+
+func (a *app) bookmarkName(key string) string {
+	for n := len(a.bookmarks.List(key)) + 1; ; n++ {
+		name := fmt.Sprintf("Bookmark %d", n)
+		if !a.bookmarks.Has(key, name) {
+			return name
+		}
+	}
 }
 
 func (a *app) jumpBookmark(pos int64) {
@@ -1545,17 +1594,18 @@ func (a *app) jumpBookmark(pos int64) {
 }
 
 func (a *app) clearBookmarks() {
-	src := a.activeSource()
-	if a.bookmarks == nil || src == "" {
+	key := a.bookmarkKey()
+	if a.bookmarks == nil || key == "" {
 		return
 	}
-	for _, b := range a.bookmarks.List(src) {
-		a.bookmarks.Remove(src, b.Name)
-	}
+	a.bookmarks.Clear(key)
 	if err := a.bookmarks.Save(); err != nil {
 		a.status = err.Error()
 	}
 	a.refreshMenu()
+	if a.bookmarkWin != nil {
+		a.bookmarkWin.Invalidate()
+	}
 }
 
 func (a *app) saveFrame(eng *engine.Engine) {
@@ -1598,7 +1648,7 @@ func (a *app) menu() *mygo.Menu {
 	}
 	bookmarkItems := make([]*mygo.MenuItem, 0)
 	if a.bookmarks != nil {
-		for _, b := range a.bookmarks.List(a.activeSource()) {
+		for _, b := range a.bookmarks.List(a.bookmarkKey()) {
 			b := b
 			bookmarkItems = append(bookmarkItems, &mygo.MenuItem{
 				Label: fmt.Sprintf("%s — %s", b.Name, fmtClock(b.Position)),
@@ -1792,6 +1842,7 @@ func (a *app) menu() *mygo.Menu {
 		}},
 		{Label: "Bookmarks", Submenu: append([]*mygo.MenuItem{
 			{Label: "Add Bookmark", Click: func(*mygo.MenuItem, *mygo.Window) { a.addBookmark() }},
+			{Label: "Manage Bookmarks…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openBookmarkManager() }},
 			{Label: "Clear This File's Bookmarks", Click: func(*mygo.MenuItem, *mygo.Window) { a.clearBookmarks() }},
 			{Type: mygo.MenuItemSeparator},
 		}, bookmarkItems...)},
