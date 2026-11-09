@@ -93,6 +93,14 @@
   `ce96484`, `go test ./... -race` green, `.app` smoke 4× VideoToolbox.
   Independent review of `97903dc` FAILed (off-main reload); re-review of
   `ce96484` PASS. List-fail skip and per-item retry overrides remain open.
+- PR #41 merged at `f118f1d` (head `6e8a40a`): failed list items play the next
+  item after `video_defaults/list_fail_wait` (default 2s) when retry will not
+  run again. `show_error` stays put. Stop after more than 10 network failures
+  in a row, or after every item has failed. Per-cell override is
+  `list_fail` / `list_fail_wait` in `.gpls`. CI green, full race green on
+  main `f118f1d`, `.app` smoke 4× VideoToolbox. Independent review of
+  `6e8a40a` PASS. Per-item previous/shuffle and a ticking countdown remain open.
+
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
