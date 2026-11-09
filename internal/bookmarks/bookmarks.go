@@ -52,6 +52,7 @@ func (s *Store) Add(file, name string, pos int64) {
 		if list[i].Name == name {
 			list[i].Position = pos
 			list[i].Created = time.Now().Unix()
+			sort.Slice(list, func(i, j int) bool { return list[i].Position < list[j].Position })
 			s.Files[file] = list
 			return
 		}

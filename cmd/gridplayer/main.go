@@ -309,6 +309,7 @@ func (a *app) setPlaylist(paths []string) {
 		a.cells = nil
 		a.active = 0
 		a.dirty = true
+		a.refreshMenu()
 		if a.win != nil {
 			a.win.Invalidate()
 		}
@@ -344,6 +345,7 @@ func (a *app) setPlaylist(paths []string) {
 	if a.active < 0 {
 		a.active = 0
 	}
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -408,6 +410,7 @@ func (a *app) insertCells(at int, files []string) {
 	a.freeTiles = grid.FreeLayout(len(a.cells))
 	a.active = at
 	a.dirty = true
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -634,6 +637,16 @@ func (a *app) activeEngine() *engine.Engine {
 	return a.cells[a.active].eng
 }
 
+// setActive changes the active cell and refreshes the menu so the
+// Bookmarks submenu follows the newly active source.
+func (a *app) setActive(i int) {
+	if i < 0 || i >= len(a.cells) || a.active == i {
+		return
+	}
+	a.active = i
+	a.refreshMenu()
+}
+
 func (a *app) teardown() {
 	if !a.closed.CompareAndSwap(false, true) {
 		return
@@ -775,7 +788,7 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 			})
 		})
 	if el.Clicked() {
-		a.active = i
+		a.setActive(i)
 	}
 	if a.free && len(a.freeTiles) > i {
 		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
@@ -804,6 +817,7 @@ func (a *app) swapCells(from, to int) {
 	a.cells[from], a.cells[to] = a.cells[to], a.cells[from]
 	a.active = to
 	a.dirty = true
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -837,10 +851,10 @@ func (a *app) shortcuts(c *ui.Context) {
 		_ = eng.Reload()
 	}
 	if c.Shortcut(0, ui.KeyB) {
-		a.active = (a.active - 1 + len(a.cells)) % len(a.cells)
+		a.setActive((a.active - 1 + len(a.cells)) % len(a.cells))
 	}
 	if c.Shortcut(0, ui.KeyN) {
-		a.active = (a.active + 1) % len(a.cells)
+		a.setActive((a.active + 1) % len(a.cells))
 	}
 	if c.Shortcut(0, ui.KeyBracketLeft) && eng != nil {
 		eng.SetRate(max(eng.Snapshot().Rate-0.25, 0.25))
@@ -1465,10 +1479,10 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Previous Cell", Accelerator: "B", Click: func(*mygo.MenuItem, *mygo.Window) {
-				a.active = (a.active - 1 + len(a.cells)) % len(a.cells)
+				a.setActive((a.active - 1 + len(a.cells)) % len(a.cells))
 			}},
 			{Label: "Next Cell", Accelerator: "N", Click: func(*mygo.MenuItem, *mygo.Window) {
-				a.active = (a.active + 1) % len(a.cells)
+				a.setActive((a.active + 1) % len(a.cells))
 			}},
 		}},
 		{Label: "Grid", Submenu: []*mygo.MenuItem{
