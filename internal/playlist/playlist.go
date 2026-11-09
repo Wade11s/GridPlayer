@@ -44,6 +44,7 @@ type Video struct {
 	EndAction       string                     `json:"end_action,omitempty"`
 	ListFail        string                     `json:"list_fail,omitempty"`
 	ListFailWait    *int                       `json:"list_fail_wait,omitempty"`
+	AudioDelay      int64                      `json:"audio_delay_ms,omitempty"`
 	Extra           map[string]json.RawMessage `json:"-"`
 }
 
@@ -61,7 +62,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	}
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
-		"list_fail", "list_fail_wait", "end_action"} {
+		"list_fail", "list_fail_wait", "end_action", "audio_delay_ms"} {
 		delete(all, k)
 	}
 	if len(all) > 0 {

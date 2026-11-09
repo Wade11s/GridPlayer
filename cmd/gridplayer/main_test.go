@@ -977,3 +977,21 @@ func TestShuffleListChangesItem(t *testing.T) {
 		t.Fatalf("shuffle stayed on %d %q", c.listIndex, c.path)
 	}
 }
+
+func TestAudioDelayPersistsPerVideo(t *testing.T) {
+	a := &app{cells: []*cell{{path: "a.mp4", audioDelay: -450}}}
+	v := a.document().Videos[0]
+	if v.AudioDelay != -450 {
+		t.Fatalf("saved %d", v.AudioDelay)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.setPlaylist([]string{"a.mp4"})
+	b.applyDocument(&playlist.Document{Format: playlist.FormatID, Version: 1, Videos: []playlist.Video{{URI: "a.mp4", AudioDelay: -450}}}, "")
+	if b.cells[0].audioDelay != -450 {
+		t.Fatalf("restored %d", b.cells[0].audioDelay)
+	}
+	if len(b.cells[0].list) != 0 {
+		t.Fatalf("plain file became a list: %v", b.cells[0].list)
+
+	}
+}
