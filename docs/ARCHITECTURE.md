@@ -48,6 +48,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   (plus `--enable-file-urls` for file://), never reading user config/cookies.
   Direct schemes pass through; on failure the UI falls back to the raw URL
   where libVLC can play it. `--url` exercises the path at startup.
+- Media lists: `internal/medialist` expands folders and m3u/pls/xspf into
+  one cell's ordered list (HLS manifests pass through as one stream). The
+  cell advances on Ended, wraps when `listLoop`, and Playback has
+  Previous/Next in List; the badge shows `i/n`.
 - Streams: `SetMedia` uses `libvlc_media_new_location` for `scheme://` media,
   so `file://` HLS and `http(s)://` URLs open through libVLC directly.
   `testdata/fixtures/hls/` is a deterministic local VOD HLS (3 renditions);

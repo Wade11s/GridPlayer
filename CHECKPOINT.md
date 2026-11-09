@@ -92,6 +92,10 @@
   Open URL dialog; scale default fixed to fit (0) after the 1x regression.
   HTTP/RTSP + yt-dlp/streamlink, cookies, proxy, adaptive quality still open.
 - #8 URL resolver: `internal/resolve` yt-dlp (ignore-config, no cookies,
+- #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
+  list advances on Ended, wraps, Previous/Next menu, badge i/n; list.m3u
+  fixture and state test. Persisted list source + per-item settings and
+  end-action policy still open.
   skip-download, no-playlist) with direct fallback; Open URL dialog and
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
   adaptive quality still open.

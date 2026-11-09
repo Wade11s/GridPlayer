@@ -40,3 +40,20 @@ func TestInsertCells(t *testing.T) {
 		t.Fatal("append failed")
 	}
 }
+
+func TestListAdvanceAndWrap(t *testing.T) {
+	c := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 0, listLoop: true, path: "a.mp4"}
+	a := &app{cells: []*cell{c}}
+	a.advanceList(c)
+	if c.listIndex != 1 || c.path != "b.mp4" {
+		t.Fatalf("advance %d %q", c.listIndex, c.path)
+	}
+	a.advanceList(c)
+	if c.listIndex != 0 || c.path != "a.mp4" {
+		t.Fatalf("wrap %d %q", c.listIndex, c.path)
+	}
+	a.previousList(c)
+	if c.listIndex != 1 || c.path != "b.mp4" {
+		t.Fatalf("previous %d %q", c.listIndex, c.path)
+	}
+}
