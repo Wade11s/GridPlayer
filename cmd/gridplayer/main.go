@@ -7,10 +7,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +26,7 @@ import (
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/nativehost"
 	"gridplayer-go/internal/playlist"
+	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
 	"gridplayer-go/internal/vlcmac"
 )
@@ -71,6 +74,7 @@ type app struct {
 	playlistPath  string
 	urlWin        *mygo.Window
 	urlInput      string
+	resolver      *resolve.Resolver
 	pending       []pendingDrop
 	settings      *settings.Store
 	recent        []string
@@ -79,7 +83,7 @@ type app struct {
 }
 
 func newApp(paths []string) *app {
-	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80}
+	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80, resolver: resolve.New()}
 	a.setPlaylist(paths)
 	return a
 }
@@ -774,18 +778,53 @@ func (a *app) urlView(c *ui.Context) {
 		ui.TextInput(c.Key("url"), &a.urlInput).Label("URL")
 		ui.Row(c).Gap(8).Children(func() {
 			if ui.Button(c.Key("url-ok"), "Open").Clicked() && strings.TrimSpace(a.urlInput) != "" {
-				url := strings.TrimSpace(a.urlInput)
+				raw := strings.TrimSpace(a.urlInput)
 				if a.urlWin != nil {
 					a.urlWin.Close()
 				}
-				a.setPlaylist([]string{url})
-				a.addRecent(url)
+				a.playURL(raw)
 			}
 			if ui.Button(c.Key("url-cancel"), "Cancel").Clicked() && a.urlWin != nil {
 				a.urlWin.Close()
 			}
 		})
 	})
+}
+
+func (a *app) playURL(raw string) {
+	a.addRecent(raw)
+	if a.resolver == nil {
+		a.resolver = resolve.New()
+	}
+	a.status = "resolving " + raw
+	go func() {
+		direct, err := a.resolver.Resolve(context.Background(), raw)
+		mygo.RunOnMain(func() {
+			if err != nil {
+				if playableDirect(raw) {
+					a.status = "resolver: " + err.Error() + " (direct)"
+					a.setPlaylist([]string{raw})
+				} else {
+					a.status = err.Error()
+				}
+				return
+			}
+			a.status = ""
+			a.setPlaylist([]string{direct})
+		})
+	}()
+}
+
+func playableDirect(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" {
+		return false
+	}
+	switch strings.ToLower(u.Scheme) {
+	case "http", "https", "file", "rtsp", "rtmp", "udp", "mms":
+		return true
+	}
+	return false
 }
 
 func (a *app) setGrid(cfg grid.Config) {
@@ -1344,6 +1383,7 @@ func main() {
 	single := flag.Bool("single", false, "start in single mode")
 	free := flag.Bool("free", false, "start with free tiles")
 	mosaic := flag.Bool("mosaic", false, "start with mosaic layout")
+	openURL := flag.String("url", "", "open a URL through yt-dlp resolution at startup")
 	userData := flag.String("user-data-dir", "", "override the user data directory")
 	flag.Parse()
 	if *userData != "" {
@@ -1370,6 +1410,11 @@ func main() {
 		if _, err := os.Stat(p); err != nil {
 			log.Printf("missing media %s: %v", p, err)
 		}
+	}
+	if *openURL != "" {
+		// The URL is resolved after startup; do not create (and then have
+		// to close) the default fixture cells first.
+		paths = nil
 	}
 	a := newApp(paths)
 	a.dirty = false
@@ -1428,6 +1473,9 @@ func main() {
 			}
 		})
 		mygo.App.SetMenu(a.menu())
+		if *openURL != "" {
+			a.playURL(*openURL)
+		}
 		if *screenshot != "" {
 			go func() {
 				time.Sleep(3 * time.Second)
