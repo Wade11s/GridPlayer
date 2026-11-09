@@ -995,3 +995,21 @@ func TestAudioDelayPersistsPerVideo(t *testing.T) {
 
 	}
 }
+
+func TestAutoReloadInterval(t *testing.T) {
+	if autoReloadInterval(0) != 0 {
+		t.Fatal("0 minutes should disable")
+	}
+	if autoReloadInterval(-3) != 0 {
+		t.Fatal("negative should disable")
+	}
+	if autoReloadInterval(1) != time.Minute {
+		t.Fatal("1 minute")
+	}
+	if autoReloadInterval(5) != 5*time.Minute {
+		t.Fatal("5 minutes")
+	}
+	if autoReloadInterval(100000) != 1000*time.Minute {
+		t.Fatal("should clamp to 1000 minutes")
+	}
+}

@@ -61,6 +61,7 @@ type settingsDraft struct {
 	listFail     string
 	listFailWait string
 	endAction    string
+	autoReload   string
 
 	keys        []keyBindingDraft
 	keymapError string
@@ -195,6 +196,9 @@ func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, "When finished", func() {
 			ui.Select(c, &d.endAction, endActionOptions)
 		}).Description("New lists still play the next item when this stays Loop file.")
+		ui.Field(c, "Auto reload time", func() {
+			ui.TextInput(c, &d.autoReload)
+		}).Description("Minutes between live reloads. 0 disables. Streams only.")
 		ui.Field(c, "On network error", func() {
 			ui.Select(c, &d.retryMode, retryModeOptions)
 		}).Description("Reloads a failed network video. Local files stay failed.")
@@ -452,6 +456,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 		d.listFail = "Play next"
 	}
 	d.listFailWait = fmt.Sprint(a.listFailWait.Load())
+	d.autoReload = fmt.Sprint(a.autoReloadMin.Load())
 	d.endAction = endActionName(a.defaultEnd)
 	if a.defaultEnd == "" && !a.defaultLoop {
 		d.endAction = "Stop"
@@ -470,7 +475,9 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	}
 	a.defaultLoop = a.defaultEnd == endLoop
 	a.setRetryPolicy(retryModeValue(d.retryMode), atoi(d.retryTimes, defaultRetryTimes))
+	a.autoReloadMin.Store(int64(clampInt(atoi(d.autoReload, 0), 0, 1000)))
 	a.setListFailPolicy(listFailValue(d.listFail), atoi(d.listFailWait, defaultListFailWait))
+	d.autoReload = fmt.Sprint(a.autoReloadMin.Load())
 	a.snap = d.snap
 	a.overlap = d.overlap
 	a.singleSide = sideFromName(d.singleSide)
