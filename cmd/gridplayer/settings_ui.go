@@ -320,7 +320,12 @@ func aspectName(s string) string {
 	if s == "" {
 		return "Auto"
 	}
-	return s
+	for _, o := range aspectOptions {
+		if o == s {
+			return s
+		}
+	}
+	return "Auto"
 }
 
 func aspectFromName(s string) string {
@@ -360,7 +365,12 @@ func cropName(s string) string {
 	if s == "" {
 		return "None"
 	}
-	return s
+	for _, o := range cropOptions {
+		if o == s {
+			return s
+		}
+	}
+	return "None"
 }
 
 func cropFromName(s string) string {
