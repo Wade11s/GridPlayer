@@ -1340,6 +1340,77 @@ func parseMode(s string) grid.Mode {
 	}
 }
 
+func (a *app) layoutName() string {
+	switch {
+	case a.single:
+		return "single"
+	case a.mosaic:
+		return "mosaic"
+	case a.free:
+		return "free"
+	default:
+		return modeName(a.cfg.Mode)
+	}
+}
+
+func stripSideName(s grid.StripSide) string {
+	switch s {
+	case grid.StripRight:
+		return "right"
+	case grid.StripLeft:
+		return "left"
+	case grid.StripBottom:
+		return "bottom"
+	case grid.StripTop:
+		return "top"
+	default:
+		return "auto"
+	}
+}
+
+func stripSideFromName(s string) grid.StripSide {
+	switch s {
+	case "right":
+		return grid.StripRight
+	case "left":
+		return grid.StripLeft
+	case "bottom":
+		return grid.StripBottom
+	case "top":
+		return grid.StripTop
+	default:
+		return grid.StripAuto
+	}
+}
+
+func validTiles(tiles []grid.Tile) bool {
+	for _, t := range tiles {
+		if !t.Valid() {
+			return false
+		}
+	}
+	return true
+}
+
+func setRawSetting(d *playlist.Document, key string, value any) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return
+	}
+	if d.Settings == nil {
+		d.Settings = map[string]json.RawMessage{}
+	}
+	d.Settings[key] = raw
+}
+
+func getRawSetting(d *playlist.Document, key string, value any) bool {
+	raw, ok := d.Settings[key]
+	if !ok {
+		return false
+	}
+	return json.Unmarshal(raw, value) == nil
+}
+
 // loadPlaylist replaces the cells and grid from a .gpls file. Main thread.
 func (a *app) loadPlaylist(path string) error {
 	d, err := playlist.Load(path)
@@ -1417,6 +1488,58 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 	if mode, rows, cols := d.GridState(); mode != "" {
 		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
 	}
+	a.free, a.mosaic, a.single = false, false, false
+	a.singleShare = nil
+	layout := ""
+	_ = getRawSetting(d, "grid_layout", &layout)
+	switch layout {
+	case "free":
+		a.free = true
+	case "mosaic":
+		a.mosaic = true
+	case "single":
+		a.single = true
+		var side string
+		if getRawSetting(d, "single_side", &side) {
+			a.singleSide = stripSideFromName(side)
+		} else {
+			a.singleSide = grid.StripAuto
+		}
+		var share float64
+		if getRawSetting(d, "single_share", &share) && share > 0 {
+			if share < 0.05 {
+				share = 0.05
+			}
+			if share > 0.4 {
+				share = 0.4
+			}
+			a.singleShare = &share
+		}
+	}
+	if a.free {
+		var tiles []grid.Tile
+		if getRawSetting(d, "grid_free_tiles", &tiles) && len(tiles) == len(a.cells) && validTiles(tiles) {
+			a.freeTiles = tiles
+		} else {
+			a.freeTiles = grid.FreeLayout(len(a.cells))
+		}
+	}
+	if a.mosaic {
+		a.ensureMosaic()
+		var tiles []grid.Tile
+		if getRawSetting(d, "grid_mosaic_tiles", &tiles) && len(tiles) == len(a.cells) && validTiles(tiles) {
+			a.mosaicTiles = tiles
+		}
+		var locked []int
+		if getRawSetting(d, "grid_mosaic_locked", &locked) {
+			a.mosaicLocked = map[int]bool{}
+			for _, i := range locked {
+				if i >= 0 && i < len(a.cells) {
+					a.mosaicLocked[i] = true
+				}
+			}
+		}
+	}
 	a.playlistPath = path
 	a.dirty = false
 	a.refreshMenu()
@@ -1461,6 +1584,36 @@ func (a *app) document() *playlist.Document {
 		d.Videos[i] = v
 	}
 	d.SetGridState(modeName(a.cfg.Mode), a.cfg.Rows, a.cfg.Cols)
+	setRawSetting(d, "grid_layout", a.layoutName())
+	if a.single {
+		setRawSetting(d, "single_side", stripSideName(a.singleSide))
+		if a.singleShare != nil {
+			setRawSetting(d, "single_share", *a.singleShare)
+		} else {
+			delete(d.Settings, "single_share")
+		}
+	} else {
+		delete(d.Settings, "single_side")
+		delete(d.Settings, "single_share")
+	}
+	if a.free {
+		setRawSetting(d, "grid_free_tiles", a.freeTiles)
+	} else {
+		delete(d.Settings, "grid_free_tiles")
+	}
+	if a.mosaic {
+		a.ensureMosaic()
+		setRawSetting(d, "grid_mosaic_tiles", a.mosaicTiles)
+		locked := make([]int, 0, len(a.mosaicLocked))
+		for i := range a.mosaicLocked {
+			locked = append(locked, i)
+		}
+		sort.Ints(locked)
+		setRawSetting(d, "grid_mosaic_locked", locked)
+	} else {
+		delete(d.Settings, "grid_mosaic_tiles")
+		delete(d.Settings, "grid_mosaic_locked")
+	}
 	return d
 }
 
@@ -1946,6 +2099,7 @@ func (a *app) menu() *mygo.Menu {
 				a.free = !a.free
 				if a.free {
 					a.mosaic = false
+					a.single = false
 				}
 				a.saveSettings()
 				a.refreshMenu()
@@ -1989,6 +2143,10 @@ func (a *app) menu() *mygo.Menu {
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.single = !a.single
+				if a.single {
+					a.free = false
+					a.mosaic = false
+				}
 				a.saveSettings()
 				a.refreshMenu()
 				if a.win != nil {
@@ -2111,6 +2269,8 @@ func main() {
 		a.loadSettings()
 		if *single {
 			a.single = true
+			a.free = false
+			a.mosaic = false
 		}
 		if *mosaic {
 			a.mosaic = true
@@ -2119,6 +2279,8 @@ func main() {
 		}
 		if *free {
 			a.free = true
+			a.mosaic = false
+			a.single = false
 		}
 		if *playlistPath != "" {
 			if err := a.loadPlaylist(*playlistPath); err != nil {

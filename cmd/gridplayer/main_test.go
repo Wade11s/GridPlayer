@@ -393,6 +393,132 @@ func TestDocumentViewMode(t *testing.T) {
 	}
 }
 
+func TestDocumentPersistsFreeGrid(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+		free:  true,
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0, 0, 0.6, 1}},
+			{Box: [4]float64{0.6, 0, 1, 1}},
+		},
+	}
+	d := a.document()
+	var layout string
+	if !getRawSetting(d, "grid_layout", &layout) || layout != "free" {
+		t.Fatalf("layout %q", layout)
+	}
+	var tiles []grid.Tile
+	if !getRawSetting(d, "grid_free_tiles", &tiles) || len(tiles) != 2 ||
+		tiles[0].Box != a.freeTiles[0].Box {
+		t.Fatalf("tiles %+v", tiles)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if !b.free || b.mosaic || b.single || len(b.freeTiles) != 2 || b.freeTiles[0].Box != a.freeTiles[0].Box {
+		t.Fatalf("restored free=%v mosaic=%v single=%v tiles=%+v", b.free, b.mosaic, b.single, b.freeTiles)
+	}
+}
+
+func TestDocumentPersistsMosaicGrid(t *testing.T) {
+	a := &app{
+		cells:  []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
+		mosaic: true,
+	}
+	a.ensureMosaic()
+	a.mosaicTiles[1].Box = [4]float64{0.4, 0.1, 0.8, 0.9}
+	a.mosaicLocked = map[int]bool{1: true}
+	d := a.document()
+	var layout string
+	if !getRawSetting(d, "grid_layout", &layout) || layout != "mosaic" {
+		t.Fatalf("layout %q", layout)
+	}
+	var locked []int
+	if !getRawSetting(d, "grid_mosaic_locked", &locked) || len(locked) != 1 || locked[0] != 1 {
+		t.Fatalf("locked %+v", locked)
+	}
+	var tiles []grid.Tile
+	if !getRawSetting(d, "grid_mosaic_tiles", &tiles) || len(tiles) != 3 ||
+		tiles[1].Box != a.mosaicTiles[1].Box {
+		t.Fatalf("tiles %+v", tiles)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if !b.mosaic || b.free || b.single || !b.mosaicLocked[1] || len(b.mosaicTiles) != 3 ||
+		b.mosaicTiles[1].Box != a.mosaicTiles[1].Box {
+		t.Fatalf("restored free=%v mosaic=%v single=%v locked=%v tiles=%+v", b.free, b.mosaic, b.single, b.mosaicLocked, b.mosaicTiles)
+	}
+}
+
+func TestDocumentPersistsSingleMode(t *testing.T) {
+	share := 0.25
+	a := &app{
+		cells:       []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+		single:      true,
+		singleSide:  grid.StripRight,
+		singleShare: &share,
+	}
+	d := a.document()
+	var layout, side string
+	var gotShare float64
+	if !getRawSetting(d, "grid_layout", &layout) || layout != "single" {
+		t.Fatalf("layout %q", layout)
+	}
+	if !getRawSetting(d, "single_side", &side) || side != "right" {
+		t.Fatalf("side %q", side)
+	}
+	if !getRawSetting(d, "single_share", &gotShare) || gotShare != 0.25 {
+		t.Fatalf("share %v", gotShare)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if !b.single || b.free || b.mosaic || b.singleSide != grid.StripRight ||
+		b.singleShare == nil || *b.singleShare != 0.25 {
+		t.Fatalf("restored free=%v mosaic=%v single=%v side=%v share=%v", b.free, b.mosaic, b.single, b.singleSide, b.singleShare)
+	}
+}
+
+func TestApplyDocumentClearsStaleLayouts(t *testing.T) {
+	a := &app{
+		cells:  []*cell{{path: "a.mp4"}},
+		free:   true,
+		mosaic: true,
+		single: true,
+	}
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4"}},
+	}
+	d.SetGridState("auto_rows", 0, 0)
+	a.applyDocument(d, "")
+	if a.free || a.mosaic || a.single {
+		t.Fatalf("stale layout free=%v mosaic=%v single=%v", a.free, a.mosaic, a.single)
+	}
+	if a.cfg.Mode != grid.AutoRows {
+		t.Fatalf("grid %+v", a.cfg)
+	}
+}
+
+func TestApplyDocumentClampsSingleShare(t *testing.T) {
+	a := &app{cells: []*cell{{path: "a.mp4"}}}
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4"}},
+	}
+	setRawSetting(d, "grid_layout", "single")
+	setRawSetting(d, "single_share", 5.0)
+	a.applyDocument(d, "")
+	if a.singleShare == nil || *a.singleShare != 0.4 {
+		t.Fatalf("high share %v", a.singleShare)
+	}
+	setRawSetting(d, "single_share", 0.01)
+	a.applyDocument(d, "")
+	if a.singleShare == nil || *a.singleShare != 0.05 {
+		t.Fatalf("low share %v", a.singleShare)
+	}
+}
+
 func TestApplyDocumentRestoresSnapshot(t *testing.T) {
 	d := &playlist.Document{
 		Format:  playlist.FormatID,
