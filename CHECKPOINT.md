@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-settings-ui merge)
+# Migration Checkpoint — 2026-11-09 (post-bookmarks-manager merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -53,6 +53,9 @@
   Main `8b1590e`: CI green, full race/vet/build green, GUI acceptance 4×
   VideoToolbox, Settings Apply persisted `grid_overlap=false`, Cancel closed
   without changes.
+- PR #30 merged at `fd1a779`: per-file bookmarks manager with rename/delete.
+  Main `fd1a779`: CI green, full race/vet/build green, GUI acceptance on a
+  `list.m3u` cell (1 VideoToolbox), per-item key and manager render verified.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -125,11 +128,14 @@
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
   adaptive quality still open.
 - #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
-- #12 bookmarks (merged a24fc43): `internal/bookmarks` per-source positions in
+- #12 bookmarks (merged a24fc43): `internal/bookmarks` positions in
   `bookmarks.json` (atomic, dedupe by name, sorted after replacement);
-  Bookmarks menu add/list/jump/clear for the active source, refreshed when the
-  active cell changes. In-playlist per-item keys, name prompt, rename/delete UI
-  still open.
+  Bookmarks menu add/list/jump/clear.
+- #12 bookmarks manager (merged fd1a779): keys by the current file (playlist
+  item), default `Bookmark N` names skip collisions, `Has`/`Rename`/`Clear`,
+  and a manager window with add/jump/rename/delete/clear; menu and manager
+  follow active-cell and playlist-item changes. Lists/snapshots, colors and
+  per-playlist bookmark scopes remain open.
   list advances on Ended (once per generation), wraps, Previous/Next menu,
   badge i/n; list.m3u fixture and state test. Source path is persisted;
   per-item settings and end/fail actions still open.

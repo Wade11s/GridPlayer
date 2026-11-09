@@ -89,6 +89,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   Playback edit defaults for new cells, Grid maps the layout modes plus
   snap/overlap, and Video applies fill/fit/stretch, aspect, scale and crop to
   live engines. Apply persists settings.ini; Cancel discards the draft.
+- Bookmarks are keyed by the current file (`cell.path`), so playlist items have
+  their own positions rather than sharing the list source. A second window
+  lists the active file's bookmarks with jump/rename/delete/clear; the menu and
+  manager refresh when the active cell or playlist item changes.
 - Cells drag with `ui.Element.Drag(index)` and take `ui.Drop[int]`; a drop
   swaps the two cell structs (path, engine, native view) and re-frames both
   slots on the next frame. `DragOver` highlights the target. No frame-locked
