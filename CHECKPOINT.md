@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-stream-resolver merge)
+# Migration Checkpoint — 2026-11-09 (post-vlc-bundle merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -60,6 +60,9 @@
   settings and Network tab. Main `f6aca2d`: CI green, full race/vet/build
   green, loopback HTTP→libVLC test PASS, local HLS via yt-dlp played with
   VideoToolbox and clean teardown.
+- PR #32 merged at `6ad006e`: libVLC + plugins bundled into the .app. Main
+  `6ad006e`: CI green, full race/vet/build green, bundled app smoke PASS
+  (4× VideoToolbox), dyld log shows only bundled libvlc/libvlccore.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -153,11 +156,13 @@
   engine, Save Frame dialog + Shot overlay + `--screenshot` automation;
   PNG verified from a playing fixture. Zoom/shift/transform, free tiles/
   mosaic, streams, settings UI, VLC bundling still open.
-- #5 local .app: `mygo.json` + pinned `go tool mygo`, icon, `scripts/build_app.sh`,
-  `scripts/smoke_app.sh`. `dist/darwin-arm64/GridPlayer.app` (ad-hoc signed)
-  launches via `open`, plays 4 fixtures, logs VideoToolbox ×4, exits cleanly;
-  no residual process. VLC remains external at /Applications/VLC.app (rpath +
-  VLC_PLUGIN_PATH), documented in docs/APP_BUILD.md. Not a public release.
+- #5 local .app (merged 6ad006e): `mygo.json` + pinned `go tool mygo`, icon,
+  `scripts/build_app.sh`, `scripts/smoke_app.sh`. The .app bundles
+  libvlc/libvlccore and 88 MB of VLC plugins under Contents/Frameworks and
+  Contents/Resources/vlc/plugins, uses only the
+  `@executable_path/../Frameworks` rpath, is ad-hoc signed, and needs no
+  installed VLC at runtime. Smoke: 4× VideoToolbox; dyld shows bundled libs.
+  Developer ID signing/notarization and universal binary remain open.
 - #4 playlist persistence (partial): `internal/playlist` JSON v1 read/write with
   unknown-field preservation + atomic save; app load/save/save-as, startup
   `--playlist`, position/mute/volume/rate/view/grid restore, unsaved prompt.

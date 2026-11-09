@@ -128,7 +128,10 @@ Failed genuine HW attempt after 3 substantive tries => blocked, reported, no sco
 - `internal/engine`: session/generation fencing. Every callback carries a generation; stale events are dropped. Bounded channel (e.g. depth 8 frames) between libVLC thread and UI; overflow drops oldest, never blocks libVLC. `stop -> unbind -> detach -> release` is an explicit, tested sequence (mirrors Qt teardown, including "release from player side, not GUI thread").
 - Main-thread rule: UI mutation only via `mygo.RunOnMain`/`postMain` (loop.go) or inside view builders (`ui.Context` on the main thread). Callback goroutines never touch `ui` directly.
 - Resolution/Retina: MyGo `Surface.Size()` returns DIPs + scale; the layout works in DIPs, VideoSurface converts to device pixels for libVLC/`Bitmap`. Occlusion honors `OccludableSurface` (hold muted/background work).
-- VLC SDK discovery: prefer `$VLC_APP_PATH`, else `/Applications/VLC.app`; require `libvlc.dylib`, `libvlccore.dylib`, `plugins/`, `include/vlc/`. Support a bundled-copy layout for the `.app` (Frameworks + dylib @rpath + plugin path). No sudo, no Gatekeeper changes.
+- VLC SDK discovery: a `.app` bundle first uses its own
+  `Contents/Frameworks/libvlc.dylib` + `libvlccore.dylib` and
+  `Contents/Resources/vlc/plugins`; development binaries fall back to
+  `$VLC_APP` or `/Applications/VLC.app`. No sudo, no Gatekeeper changes.
 
 ## CI / gate design (§4.2, §5)
 
