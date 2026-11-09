@@ -585,7 +585,12 @@ func (a *app) view(c *ui.Context) {
 		rects, _ = grid.SingleLayout(len(a.cells), a.active, area, 4, a.singleSide, a.singleShare, 16.0/9.0)
 	}
 	if len(rects) == 0 {
-		ui.Text(c, "Open a video to begin").FontSize(20).Center()
+		ui.Column(c).Fill().Center().Gap(8).Children(func() {
+			ui.Text(c, "Open a video to begin").FontSize(20)
+			if a.status != "" {
+				ui.Text(c, a.status).FontSize(12).TextColor(ui.RGB(255, 180, 120))
+			}
+		})
 		return
 	}
 	theme := c.Theme()
