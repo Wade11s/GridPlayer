@@ -88,6 +88,10 @@
   Zoom/anchor/shift/transform, free tiles/mosaic, streams, settings UI and
   VLC bundling still open.
 - #8 streams (partial): deterministic local HLS fixture (3 renditions), URL MRL
+- #8 URL resolver: `internal/resolve` yt-dlp (ignore-config, no cookies,
+  skip-download, no-playlist) with direct fallback; Open URL dialog and
+  `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
+  adaptive quality still open.
   loading via `libvlc_media_new_location`, `file://` HLS GUI playback verified,
   Open URL dialog; scale default fixed to fit (0) after the 1x regression.
   HTTP/RTSP + yt-dlp/streamlink, cookies, proxy, adaptive quality still open.

@@ -43,6 +43,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `media_player_add_slave` with a `file://` MRL. The engine applies stored
   settings at `Load` and keeps external attachments across reloads. The UI
   exposes aspect/scale/crop and file loading for the active cell.
+- URL resolution: `internal/resolve` shells out to `yt-dlp` with
+  `--ignore-config --no-warnings --skip-download --no-playlist -g -f best`
+  (plus `--enable-file-urls` for file://), never reading user config/cookies.
+  Direct schemes pass through; on failure the UI falls back to the raw URL
+  where libVLC can play it. `--url` exercises the path at startup.
 - Streams: `SetMedia` uses `libvlc_media_new_location` for `scheme://` media,
   so `file://` HLS and `http(s)://` URLs open through libVLC directly.
   `testdata/fixtures/hls/` is a deterministic local VOD HLS (3 renditions);
