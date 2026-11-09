@@ -32,10 +32,13 @@ func (s subtitleStyle) args() []string {
 	if c := hexColor(s.OutlineColor); c != "" {
 		args = append(args, "--freetype-outline-color="+c)
 	}
-	switch s.Outline {
-	case 2, 4, 6:
-		args = append(args, fmt.Sprintf("--freetype-outline-thickness=%d", s.Outline))
+	outline := s.Outline
+	switch outline {
+	case 0, 2, 4, 6:
+	default:
+		outline = 0
 	}
+	args = append(args, fmt.Sprintf("--freetype-outline-thickness=%d", outline))
 	if s.Bold {
 		args = append(args, "--freetype-bold")
 	}
@@ -47,8 +50,18 @@ func (s subtitleStyle) args() []string {
 	}
 	if s.Autodetect {
 		args = append(args, "--sub-autodetect-file")
+	} else {
+		args = append(args, "--no-sub-autodetect-file")
 	}
 	return args
+}
+
+func subtitleSize(s string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return 0
+	}
+	return clampInt(v, 0, 96)
 }
 
 func hexColor(s string) string {

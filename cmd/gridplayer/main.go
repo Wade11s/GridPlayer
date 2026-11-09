@@ -223,7 +223,7 @@ func (a *app) loadSettings() {
 	a.crop = st.Get("video_defaults/crop_ratio", "")
 	a.loadNetworkSettings(st)
 	a.subtitle.Font = st.Get("subtitles/font", "")
-	a.subtitle.Size = clampInt(atoi(st.Get("subtitles/font_size", "0"), 0), 0, 96)
+	a.subtitle.Size = subtitleSize(st.Get("subtitles/font_size", "0"))
 	a.subtitle.Color = st.Get("subtitles/color", "")
 	a.subtitle.OutlineColor = st.Get("subtitles/outline_color", "")
 	a.subtitle.Outline = subtitleOutlineValue(st.Get("subtitles/outline", "None"))

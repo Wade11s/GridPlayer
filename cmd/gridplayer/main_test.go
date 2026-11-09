@@ -605,8 +605,11 @@ func TestSubtitleArgs(t *testing.T) {
 			t.Fatalf("args missing %q: %s", want, args)
 		}
 	}
-	if got := (subtitleStyle{Opacity: 255}).args(); len(got) != 0 {
-		t.Fatalf("empty style args: %v", got)
+	empty := strings.Join((subtitleStyle{Opacity: 255}).args(), " ")
+	for _, want := range []string{"--freetype-outline-thickness=0", "--no-sub-autodetect-file"} {
+		if !strings.Contains(empty, want) {
+			t.Fatalf("empty style args missing %q: %s", want, empty)
+		}
 	}
 }
 
@@ -621,6 +624,21 @@ func TestHexColor(t *testing.T) {
 	} {
 		if got := hexColor(in); got != want {
 			t.Fatalf("%q -> %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSubtitleSize(t *testing.T) {
+	for in, want := range map[string]int{
+		"0":     0,
+		"12":    12,
+		"48":    48,
+		"48abc": 0,
+		"-5":    0,
+		"200":   96,
+	} {
+		if got := subtitleSize(in); got != want {
+			t.Fatalf("%q -> %d, want %d", in, got, want)
 		}
 	}
 }

@@ -239,7 +239,7 @@ func (a *app) settingsSubtitles(c *ui.Context, d *settingsDraft) {
 			}).Description("Blank = VLC default")
 			ui.Field(c, "Font size", func() {
 				ui.TextInput(c, &d.subSize)
-			}).Description("0 = VLC default; 12-96 pixels")
+			}).Description("0 = VLC default; 1-96 pixels")
 			ui.Field(c, "Text color", func() {
 				ui.TextInput(c, &d.subColor)
 			}).Description("#RRGGBB; blank = default")
@@ -425,7 +425,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	oldSub := a.subtitle
 	a.subtitle = subtitleStyle{
 		Font:         strings.TrimSpace(d.subFont),
-		Size:         clampInt(atoi(d.subSize, 0), 0, 96),
+		Size:         subtitleSize(d.subSize),
 		Color:        strings.TrimSpace(d.subColor),
 		OutlineColor: strings.TrimSpace(d.subOutlineColor),
 		Outline:      subtitleOutlineValue(d.subOutline),
