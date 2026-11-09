@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-08 (post-bootstrap review)
+# Migration Checkpoint — 2026-11-09 (post-bookmarks merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -38,6 +38,11 @@
 - PRs #7–#16 merged through `aedfbcb`: engine core/tracks/chapters/view/external,
   grid+drag+single+file-drop, playlist/settings persistence, local .app +
   smoke. Main `aedfbcb`: CI green, race tests green, .app smoke 4× VideoToolbox.
+- PRs #17–#26 merged through `a24fc43`: frame screenshots, HLS/URL resolver,
+  free tiles + drag/resize, media lists, dummy backend, bookmarks. Main
+  `a24fc43`: CI green, `go vet`/`go test ./... -race`/build green, local GUI
+  acceptance 4× VideoToolbox, bookmark add/jump/clear and active-cell menu
+  refresh verified.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -99,10 +104,11 @@
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
   adaptive quality still open.
 - #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
-- #12 bookmarks (partial): `internal/bookmarks` per-source positions in
-  `bookmarks.json` (atomic, dedupe by name, sorted); Bookmarks menu add/list/
-  jump/clear for the active source. In-playlist bookmark persistence and
-  rename/delete UI still open.
+- #12 bookmarks (merged a24fc43): `internal/bookmarks` per-source positions in
+  `bookmarks.json` (atomic, dedupe by name, sorted after replacement);
+  Bookmarks menu add/list/jump/clear for the active source, refreshed when the
+  active cell changes. In-playlist per-item keys, name prompt, rename/delete UI
+  still open.
   list advances on Ended (once per generation), wraps, Previous/Next menu,
   badge i/n; list.m3u fixture and state test. Source path is persisted;
   per-item settings and end/fail actions still open.
