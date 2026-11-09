@@ -1702,8 +1702,8 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				wait := *v.ListFailWait
 				c.listFailWait = &wait
 			}
-			c.audioDelay = int64(v.AudioDelay)
 		}
+		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		if c.eng != nil {
 			reload := c.path != oldPath
 			if reload {
