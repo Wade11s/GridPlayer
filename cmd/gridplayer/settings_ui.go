@@ -47,7 +47,7 @@ var (
 	aspectOptions = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
 	scaleOptions  = []string{"Fit", "1x", "1.5x", "2x"}
 	cropOptions   = []string{"None", "16:9", "4:3", "2.35:1"}
-	formatOptions = []string{"Best", "Best video+audio", "Worst", "720p", "480p"}
+	formatOptions = []string{"Best", "Worst", "720p", "480p"}
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -440,8 +440,6 @@ func scaleFromName(s string) float64 {
 
 func formatName(s string) string {
 	switch s {
-	case "bestvideo+bestaudio/best":
-		return "Best video+audio"
 	case "worst":
 		return "Worst"
 	case "best[height<=720]":
@@ -455,8 +453,6 @@ func formatName(s string) string {
 
 func formatFromName(s string) string {
 	switch s {
-	case "Best video+audio":
-		return "bestvideo+bestaudio/best"
 	case "Worst":
 		return "worst"
 	case "720p":

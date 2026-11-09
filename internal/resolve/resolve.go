@@ -96,7 +96,7 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 		}
 		failures = append(failures, "yt-dlp: "+err.Error())
 	}
-	if r.Streamlink != "" {
+	if u.Scheme != "file" && r.Streamlink != "" {
 		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw))
 		if err == nil {
 			return got, nil

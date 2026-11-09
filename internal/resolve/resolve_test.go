@@ -149,6 +149,16 @@ func TestResolveBothFail(t *testing.T) {
 	}
 }
 
+func TestResolveFileURLDoesNotUseStreamlink(t *testing.T) {
+	y := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
+	s := fakeTool(t, "streamlink", `echo "https://stream.example/should-not"`)
+	r := &Resolver{Path: y, Streamlink: s}
+	_, err := r.Resolve(context.Background(), "file:///tmp/x.m3u8")
+	if err == nil || strings.Contains(err.Error(), "streamlink") {
+		t.Fatalf("file URL used streamlink: %v", err)
+	}
+}
+
 func TestResolveNoTools(t *testing.T) {
 	r := &Resolver{}
 	if _, err := r.Resolve(context.Background(), "https://example.com/live"); !errors.Is(err, ErrUnavailable) {
