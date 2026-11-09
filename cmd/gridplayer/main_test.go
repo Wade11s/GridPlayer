@@ -83,6 +83,12 @@ func TestListEndStopAndNext(t *testing.T) {
 	if a.active != 1 {
 		t.Fatalf("next cell active=%d", a.active)
 	}
+	last := &cell{list: []string{"a.mp4"}, listIndex: 0, listEnd: "next", path: "a.mp4"}
+	a = &app{cells: []*cell{other, last}, active: 1}
+	a.advanceList(last)
+	if a.active != 1 {
+		t.Fatalf("last cell wrapped active=%d", a.active)
+	}
 }
 
 func TestShouldAdvanceOncePerGeneration(t *testing.T) {

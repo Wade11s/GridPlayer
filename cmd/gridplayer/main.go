@@ -745,10 +745,10 @@ func (a *app) nextCellFrom(c *cell) {
 			break
 		}
 	}
-	if idx < 0 || len(a.cells) < 2 {
+	if idx < 0 || idx+1 >= len(a.cells) {
 		return
 	}
-	a.setActive((idx + 1) % len(a.cells))
+	a.setActive(idx + 1)
 	if eng := a.activeEngine(); eng != nil {
 		eng.Play()
 	}
