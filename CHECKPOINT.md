@@ -99,6 +99,10 @@
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
   adaptive quality still open.
 - #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
+- #12 bookmarks (partial): `internal/bookmarks` per-source positions in
+  `bookmarks.json` (atomic, dedupe by name, sorted); Bookmarks menu add/list/
+  jump/clear for the active source. In-playlist bookmark persistence and
+  rename/delete UI still open.
   list advances on Ended (once per generation), wraps, Previous/Next menu,
   badge i/n; list.m3u fixture and state test. Source path is persisted;
   per-item settings and end/fail actions still open.
