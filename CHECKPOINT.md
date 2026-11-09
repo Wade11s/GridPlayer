@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-bookmarks merge)
+# Migration Checkpoint — 2026-11-09 (post-mosaic-arrange merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -43,6 +43,9 @@
   `a24fc43`: CI green, `go vet`/`go test ./... -race`/build green, local GUI
   acceptance 4× VideoToolbox, bookmark add/jump/clear and active-cell menu
   refresh verified.
+- PR #27 merged at `040b770`: mosaic lock + wall-aware Arrange. Main
+  `040b770`: CI green, full race/vet/build green, GUI acceptance 4×
+  VideoToolbox, one- and two-lock arrange verified with persisted boxes.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -70,8 +73,14 @@
   (ResizeTile), clamped to page/min size; unit tests. Overlap/lock/arrange
   still open.
 - #3 mosaic initial arrange (merged d2014c3): `internal/grid.Mosaic` tiered
-  tiles + Grid toggle/`--mosaic`/`playlist/grid_mosaic`. Locked tiles,
-  snap/arrange optimizer, overlap/lock still open.
+  tiles + Grid toggle/`--mosaic`/`playlist/grid_mosaic`.
+- #3 mosaic lock/arrange (merged 040b770): `internal/grid.Arrange` keeps
+  locked tiles fixed, cuts the page around them, fills free pieces with
+  justified rows, and falls back to `Mosaic(n)` when no room remains; app
+  drag/resize, lock/unlock, Arrange Mosaic, and
+  `grid_mosaic_tiles`/`grid_mosaic_locked` persistence; exhaustive
+  single/double-lock tests. Snap targets, optimizer/reorder-to-fit, overlap
+  modes and z-order still open.
 - #2 dummy backend (merged 96f027c): `internal/dummy` 100s/25fps deterministic
   clock (mutex-guarded, loop wrap, honest stop, PNG screenshot, Tick events);
   engine-load test under `-race`. Full dummy GUI driver and free drag/resize
