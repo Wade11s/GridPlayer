@@ -32,3 +32,48 @@ func (t Tile) Rect(area Rect, gap float64) Rect {
 	}
 	return r
 }
+
+// MoveTile shifts tile i by dx/dy DIPs, keeping it inside the unit area.
+func MoveTile(tiles []Tile, i int, dx, dy, areaW, areaH float64) []Tile {
+	if i < 0 || i >= len(tiles) || areaW <= 0 || areaH <= 0 {
+		return tiles
+	}
+	out := append([]Tile(nil), tiles...)
+	b := out[i].Box
+	b[0] += dx / areaW
+	b[2] += dx / areaW
+	b[1] += dy / areaH
+	b[3] += dy / areaH
+	if b[0] < 0 {
+		b[2] -= b[0]
+		b[0] = 0
+	}
+	if b[1] < 0 {
+		b[3] -= b[1]
+		b[1] = 0
+	}
+	if b[2] > 1 {
+		b[0] -= b[2] - 1
+		b[2] = 1
+	}
+	if b[3] > 1 {
+		b[1] -= b[3] - 1
+		b[3] = 1
+	}
+	out[i].Box = b
+	return out
+}
+
+// ResizeTile resizes tile i's bottom-right corner by dx/dy DIPs, keeping a
+// minimum 64x48 point size and staying inside the unit area.
+func ResizeTile(tiles []Tile, i int, dx, dy, areaW, areaH float64) []Tile {
+	if i < 0 || i >= len(tiles) || areaW <= 0 || areaH <= 0 {
+		return tiles
+	}
+	out := append([]Tile(nil), tiles...)
+	b := out[i].Box
+	b[2] = min(max(b[2]+dx/areaW, b[0]+64/areaW), 1)
+	b[3] = min(max(b[3]+dy/areaH, b[1]+48/areaH), 1)
+	out[i].Box = b
+	return out
+}

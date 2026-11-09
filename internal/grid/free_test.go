@@ -53,3 +53,22 @@ func TestFreeOneTile(t *testing.T) {
 		t.Fatalf("%v", tiles[0].Box)
 	}
 }
+
+func TestMoveTileClamps(t *testing.T) {
+	tiles := MoveTile(FreeLayout(2), 0, -500, -100, 1280, 720)
+	b := tiles[0].Box
+	if b[0] < 0 || b[1] < 0 || b[2]-b[0] <= 0 || b[3]-b[1] <= 0 {
+		t.Fatalf("moved out: %+v", b)
+	}
+}
+
+func TestResizeTileMinAndBound(t *testing.T) {
+	tiles := ResizeTile(FreeLayout(1), 0, 5000, -5000, 1280, 720)
+	if tiles[0].Box[2] != 1 || tiles[0].Box[3] < 48.0/720 {
+		t.Fatalf("resize out of bounds: %+v", tiles[0].Box)
+	}
+	orig := FreeLayout(2)
+	if got := ResizeTile(orig, 9, 10, 10, 1280, 720); got[0].Box != orig[0].Box {
+		t.Fatal("invalid resize changed tiles")
+	}
+}

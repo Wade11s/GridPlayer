@@ -61,9 +61,12 @@
   test covers insert/append. Free/mosaic still open.
 - #3 free tiles (merged 25d1846): `internal/grid.FreeLayout` auto-arrange
   fractions + gap inset + toggle/`--free`/settings round-trip.
+- #3 free drag/resize: cell drag moves (MoveTile), bottom-right handle resizes
+  (ResizeTile), clamped to page/min size; unit tests. Overlap/lock/arrange
+  still open.
 - #3 mosaic initial arrange (merged d2014c3): `internal/grid.Mosaic` tiered
   tiles + Grid toggle/`--mosaic`/`playlist/grid_mosaic`. Locked tiles,
-  snap/arrange optimizer, free drag/resize still open.
+  snap/arrange optimizer, overlap/lock still open.
 - #2 dummy backend (merged 96f027c): `internal/dummy` 100s/25fps deterministic
   clock (mutex-guarded, loop wrap, honest stop, PNG screenshot, Tick events);
   engine-load test under `-race`. Full dummy GUI driver and free drag/resize
