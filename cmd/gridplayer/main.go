@@ -228,7 +228,7 @@ func (a *app) loadSettings() {
 	a.subtitle.OutlineColor = st.Get("subtitles/outline_color", "")
 	a.subtitle.Outline = subtitleOutlineValue(st.Get("subtitles/outline", "None"))
 	a.subtitle.Bold = st.Get("subtitles/bold", "false") == "true"
-	a.subtitle.Opacity = clampInt(atoi(st.Get("subtitles/opacity", "255"), 255), 0, 255)
+	a.subtitle.Opacity = subtitleOpacity(st.Get("subtitles/opacity", "255"))
 	a.subtitle.Encoding = st.Get("subtitles/encoding", "")
 	a.subtitle.Autodetect = st.Get("subtitles/autodetect", "false") == "true"
 	for i, c := range a.cells {
@@ -628,8 +628,10 @@ func (a *app) reloadCells() {
 			continue
 		}
 		s := c.eng.Snapshot()
-		c.startAt = int(s.Time)
-		c.startPaused = s.Phase != engine.Playing
+		if s.Phase != engine.Loading {
+			c.startAt = int(s.Time)
+			c.startPaused = s.Phase != engine.Playing
+		}
 		a.closeCell(c)
 	}
 	if a.win != nil {

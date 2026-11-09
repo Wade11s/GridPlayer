@@ -64,6 +64,14 @@ func subtitleSize(s string) int {
 	return clampInt(v, 0, 96)
 }
 
+func subtitleOpacity(s string) int {
+	v, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return 255
+	}
+	return clampInt(v, 0, 255)
+}
+
 func hexColor(s string) string {
 	s = strings.TrimSpace(strings.TrimPrefix(s, "#"))
 	if len(s) != 6 {

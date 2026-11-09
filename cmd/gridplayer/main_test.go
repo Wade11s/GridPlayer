@@ -643,6 +643,20 @@ func TestSubtitleSize(t *testing.T) {
 	}
 }
 
+func TestSubtitleOpacity(t *testing.T) {
+	for in, want := range map[string]int{
+		"255":    255,
+		"128":    128,
+		"128abc": 255,
+		"500":    255,
+		"-5":     0,
+	} {
+		if got := subtitleOpacity(in); got != want {
+			t.Fatalf("%q -> %d, want %d", in, got, want)
+		}
+	}
+}
+
 func TestSettingsDraftSubtitles(t *testing.T) {
 	a := &app{}
 	d := defaultSettingsDraft()
