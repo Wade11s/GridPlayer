@@ -303,6 +303,41 @@ func TestLoadFailureAndCloseIdempotent(t *testing.T) {
 	e.Close()
 }
 
+func TestFailedSurvivesStopped(t *testing.T) {
+	f := newFake()
+	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	defer e.Close()
+	if err := e.Load("bad.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	f.emit(Event{Kind: EventFailed})
+	waitFor(t, "failed", func() bool { return e.Snapshot().Phase == Failed })
+	f.emit(Event{Kind: EventStopped})
+	time.Sleep(20 * time.Millisecond)
+	if s := e.Snapshot(); s.Phase != Failed {
+		t.Fatalf("failure cleared by stopped: %+v", s)
+	}
+}
+
+func TestToggleReloadsFailed(t *testing.T) {
+	calls := 0
+	e := New(func(path string, loop bool) (Backend, error) {
+		calls++
+		if calls == 1 {
+			return nil, errors.New("boom")
+		}
+		return newFake(), nil
+	})
+	defer e.Close()
+	if err := e.Load("bad.mp4"); err == nil {
+		t.Fatal("want load error")
+	}
+	e.Toggle()
+	if calls != 2 {
+		t.Fatalf("reload calls=%d", calls)
+	}
+}
+
 func TestLoopCarriedIntoFactoryAndEnded(t *testing.T) {
 	f := newFake()
 	var gotLoop bool

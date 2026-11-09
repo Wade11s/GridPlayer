@@ -657,6 +657,37 @@ func TestSubtitleOpacity(t *testing.T) {
 	}
 }
 
+func TestRetryable(t *testing.T) {
+	for _, path := range []string{
+		"http://example/a.m3u8",
+		"https://example/a.mp4",
+		"rtsp://example/live",
+		"rtmp://example/live",
+	} {
+		if !retryable(path) {
+			t.Fatalf("%q not retryable", path)
+		}
+	}
+	for _, path := range []string{"a.mp4", "file:///a.mp4", ""} {
+		if retryable(path) {
+			t.Fatalf("%q retryable", path)
+		}
+	}
+}
+
+func TestRetryDelay(t *testing.T) {
+	for attempt, want := range map[int32]time.Duration{
+		0: time.Second,
+		1: time.Second,
+		2: 2 * time.Second,
+		3: 4 * time.Second,
+	} {
+		if got := retryDelay(attempt); got != want {
+			t.Fatalf("attempt %d -> %s, want %s", attempt, got, want)
+		}
+	}
+}
+
 func TestSettingsDraftSubtitles(t *testing.T) {
 	a := &app{}
 	d := defaultSettingsDraft()

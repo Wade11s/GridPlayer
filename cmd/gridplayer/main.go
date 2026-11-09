@@ -52,6 +52,7 @@ type cell struct {
 	startAt     int
 	startPaused bool
 	pauseOnPlay atomic.Bool
+	retries     atomic.Int32
 	viewMode    string
 
 	list      []string
@@ -727,13 +728,50 @@ func (a *app) ensure(i int, r grid.Rect) {
 }
 
 func (a *app) watch(c *cell, eng *engine.Engine) {
+	var lastRetryGen uint64
+	wasPlaying := false
 	for {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
+			if s.Phase == engine.Playing {
+				c.retries.Store(0)
+				if !wasPlaying {
+					mygo.RunOnMain(func() {
+						if strings.HasPrefix(a.status, "retrying ") {
+							a.status = ""
+						}
+					})
+				}
+				wasPlaying = true
+			} else {
+				wasPlaying = false
+			}
 			if c.pauseOnPlay.Load() && s.Phase == engine.Playing {
 				c.pauseOnPlay.Store(false)
 				eng.Pause()
+			}
+			if s.Phase == engine.Failed && s.Gen != lastRetryGen && retryable(c.path) {
+				lastRetryGen = s.Gen
+				attempt := c.retries.Add(1)
+				delay := retryDelay(attempt)
+				if attempt <= maxRetries {
+					mygo.RunOnMain(func() {
+						a.status = fmt.Sprintf("retrying %s in %s (%d/%d)",
+							filepath.Base(c.path), delay, attempt, maxRetries)
+					})
+					own := eng
+					time.AfterFunc(delay, func() {
+						if own.Snapshot().Phase == engine.Playing {
+							return
+						}
+						_ = own.Reload()
+					})
+				} else {
+					mygo.RunOnMain(func() {
+						a.status = "retry limit reached for " + filepath.Base(c.path)
+					})
+				}
 			}
 			if s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
 				mygo.RunOnMain(func() { a.advanceList(c) })
@@ -780,6 +818,7 @@ func (a *app) advanceList(c *cell) {
 	c.listIndex = next
 	c.path = c.list[next]
 	c.startAt = 0
+	c.retries.Store(0)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {
@@ -822,6 +861,7 @@ func (a *app) previousList(c *cell) {
 	c.listIndex = prev
 	c.path = c.list[prev]
 	c.startAt = 0
+	c.retries.Store(0)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {

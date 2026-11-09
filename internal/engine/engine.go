@@ -375,7 +375,7 @@ func (e *Engine) apply(gen uint64, be Backend, ev Event) {
 	case EventPaused:
 		e.snap.Phase = Paused
 	case EventStopped:
-		if e.snap.Phase != Ended {
+		if e.snap.Phase != Ended && e.snap.Phase != Failed {
 			e.snap.Phase = Idle
 		}
 	case EventEnded:
@@ -439,6 +439,10 @@ func (e *Engine) Pause() {
 
 // Toggle plays if paused, pauses if playing.
 func (e *Engine) Toggle() {
+	if e.Snapshot().Phase == Failed {
+		_ = e.Reload()
+		return
+	}
 	if e.Snapshot().Phase == Playing {
 		e.Pause()
 		return
