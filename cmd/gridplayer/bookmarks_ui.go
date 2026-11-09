@@ -39,10 +39,10 @@ func (a *app) bookmarkManagerView(c *ui.Context) {
 		}
 		ui.Text(c, filepath.Base(key)).FontSize(15).Bold()
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.Button(c, "Add Current Position").Clicked() {
+			if ui.Button(c, "Add Current").Clicked() {
 				a.addBookmark()
 			}
-			if ui.Button(c, "Clear All").Clicked() {
+			if ui.Button(c, "Clear").Clicked() {
 				a.clearBookmarks()
 			}
 			ui.Spacer(c)
