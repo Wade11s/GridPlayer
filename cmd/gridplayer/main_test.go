@@ -1050,11 +1050,18 @@ func TestPictureRectGeometry(t *testing.T) {
 	if clampZoom(0.1) != 0.25 || clampZoom(9) != 4 || clampZoom(1.5) != 1.5 {
 		t.Fatal("clampZoom")
 	}
-	if clampShift(999, 100, 200, 0.5) != 0 || clampShift(-999, 100, 200, 0.5) != -50 {
-		t.Fatalf("clampShift below pane: %g", clampShift(-999, 100, 200, 0.5))
+	// A picture larger than the pane may slide the overshoot either way up
+	// to half the overshoot, so black still does not show.
+	if clampShift(999, 100, 200) != 50 || clampShift(-999, 100, 200) != -50 {
+		t.Fatalf("clampShift bigger picture: %g %g", clampShift(999, 100, 200), clampShift(-999, 100, 200))
 	}
-	if clampShift(999, 100, 50, 0.5) != 25 {
-		t.Fatal("clampShift smaller picture")
+	// A picture smaller than the pane may move up to half the spare room.
+	if clampShift(999, 200, 100) != 50 || clampShift(-999, 200, 100) != -50 {
+		t.Fatalf("clampShift smaller picture: %g %g", clampShift(999, 200, 100), clampShift(-999, 200, 100))
+	}
+	// A picture at the pane size cannot move at all.
+	if clampShift(5, 100, 100) != 0 {
+		t.Fatal("clampShift equal picture")
 	}
 }
 

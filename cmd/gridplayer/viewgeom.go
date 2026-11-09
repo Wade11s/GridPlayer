@@ -84,7 +84,7 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 		}
 	}
 	ax, ay := v.AnchorX, v.AnchorY
-	if v.Scale == 0 {
+	if v.Scale <= 0 {
 		ax, ay = 0.5, 0.5
 	}
 	if ax != 0.5 || ay != 0.5 {
@@ -95,8 +95,8 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 			ay = clampUnit(ay)
 		}
 	}
-	x := (cellW-vw)*ax + clampShift(v.ShiftX*cellW, cellW, vw, ax)
-	y := (cellH-vh)*ay + clampShift(v.ShiftY*cellH, cellH, vh, ay)
+	x := (cellW-vw)*ax + clampShift(v.ShiftX*cellW, cellW, vw)
+	y := (cellH-vh)*ay + clampShift(v.ShiftY*cellH, cellH, vh)
 	return picturePlace{X: x, Y: y, W: vw, H: vh}
 }
 
@@ -111,14 +111,14 @@ func clampZoom(scale float64) float64 {
 	return scale
 }
 
-// clampShift limits a shift to the room the picture has inside its cell:
-// with no shift past the edges, the picture may never leave the pane.
-// room = cell - picture; the picture position is the anchor place plus
-// the shift, so the allowed shift is the room scaled by the anchor.
-func clampShift(shift, cell, picture, anchor float64) float64 {
+// clampShift limits a shift to the room the picture has inside its cell.
+// room = cell - picture. At the anchor place the picture sits between the
+// pane edges; moving it one way fills the room on that side, and the other
+// way the room on the other side. The shift is measured from the centre,
+// so the allowed range is [-room/2, room/2].
+func clampShift(shift, cell, picture float64) float64 {
 	room := cell - picture
-	lo := min(room, 0) * anchor
-	hi := max(room, 0) * anchor
+	lo, hi := -0.5*room, 0.5*room
 	if lo > hi {
 		lo, hi = hi, lo
 	}
