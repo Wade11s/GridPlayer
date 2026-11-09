@@ -208,6 +208,7 @@ func (a *app) loadSettings() {
 		a.scale = 0
 	}
 	a.crop = st.Get("video_defaults/crop_ratio", "")
+	a.loadNetworkSettings(st)
 	for i, c := range a.cells {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
@@ -222,6 +223,17 @@ func (a *app) loadSettings() {
 	} else {
 		log.Printf("bookmarks: %v", err)
 	}
+}
+
+func (a *app) loadNetworkSettings(st *settings.Store) {
+	if a.resolver == nil {
+		a.resolver = resolve.New()
+	}
+	a.resolver.Proxy = st.Get("network/proxy", "")
+	a.resolver.Cookies = st.Get("network/cookies", "")
+	a.resolver.Format = st.Get("network/format", "best")
+	a.resolver.Path = st.Get("network/ytdlp_path", a.resolver.Path)
+	a.resolver.Streamlink = st.Get("network/streamlink_path", a.resolver.Streamlink)
 }
 
 func atoi(s string, def int) int {
@@ -311,6 +323,13 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
 	a.settings.Set("video_defaults/rate", fmt.Sprintf("%g", a.defaultRate))
 	a.settings.Set("video_defaults/loop", fmt.Sprint(a.defaultLoop))
+	if a.resolver != nil {
+		a.settings.Set("network/proxy", a.resolver.Proxy)
+		a.settings.Set("network/cookies", a.resolver.Cookies)
+		a.settings.Set("network/format", a.resolver.Format)
+		a.settings.Set("network/ytdlp_path", a.resolver.Path)
+		a.settings.Set("network/streamlink_path", a.resolver.Streamlink)
+	}
 	if raw, err := json.Marshal(a.recent); err == nil {
 		a.settings.Set("app/recent", string(raw))
 	}
@@ -1148,9 +1167,10 @@ func (a *app) playURL(raw string) {
 	if a.resolver == nil {
 		a.resolver = resolve.New()
 	}
+	res := *a.resolver
 	a.status = "resolving " + raw
 	go func() {
-		direct, err := a.resolver.Resolve(context.Background(), raw)
+		direct, err := res.Resolve(context.Background(), raw)
 		mygo.RunOnMain(func() {
 			if err != nil {
 				if playableDirect(raw) {

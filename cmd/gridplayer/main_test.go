@@ -7,6 +7,8 @@ import (
 
 	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/resolve"
+	"gridplayer-go/internal/settings"
 )
 
 func TestSwapCells(t *testing.T) {
@@ -198,6 +200,11 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.scale = "1.5x"
 	d.crop = "16:9"
 	d.singleSide = "Left"
+	d.proxy = "http://proxy:8080"
+	d.cookies = "/tmp/cookies.txt"
+	d.ytdlp = "/usr/local/bin/yt-dlp"
+	d.streamlink = "/usr/local/bin/streamlink"
+	d.format = "720p"
 	a.applySettingsDraft(d)
 	if !a.mosaic || a.free || a.single {
 		t.Fatalf("layout free=%v mosaic=%v single=%v", a.free, a.mosaic, a.single)
@@ -213,6 +220,13 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if a.singleSide != grid.StripLeft {
 		t.Fatalf("side=%v", a.singleSide)
+	}
+	if a.resolver == nil || a.resolver.Proxy != "http://proxy:8080" ||
+		a.resolver.Cookies != "/tmp/cookies.txt" ||
+		a.resolver.Path != "/usr/local/bin/yt-dlp" ||
+		a.resolver.Streamlink != "/usr/local/bin/streamlink" ||
+		a.resolver.Format != "best[height<=720]" {
+		t.Fatalf("resolver: %+v", a.resolver)
 	}
 	if len(a.mosaicTiles) != 2 {
 		t.Fatalf("mosaic tiles=%d", len(a.mosaicTiles))
@@ -267,5 +281,30 @@ func TestBookmarkNameSkipsExisting(t *testing.T) {
 	s.Add("a.mp4", "Bookmark 3", 3000)
 	if got := a.bookmarkName("a.mp4"); got != "Bookmark 4" {
 		t.Fatalf("collision name %q", got)
+	}
+}
+
+func TestLoadNetworkSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	body := "[network]\nproxy=http://proxy:8080\ncookies=/tmp/cookies.txt\nformat=720p\nytdlp_path=\nstreamlink_path=/tmp/streamlink\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{resolver: resolve.New()}
+	a.loadNetworkSettings(st)
+	if a.resolver.Proxy != "http://proxy:8080" ||
+		a.resolver.Cookies != "/tmp/cookies.txt" ||
+		a.resolver.Format != "720p" {
+		t.Fatalf("resolver: %+v", a.resolver)
+	}
+	if a.resolver.Path != "" {
+		t.Fatalf("yt-dlp path should be cleared: %q", a.resolver.Path)
+	}
+	if a.resolver.Streamlink != "/tmp/streamlink" {
+		t.Fatalf("streamlink path %q", a.resolver.Streamlink)
 	}
 }
