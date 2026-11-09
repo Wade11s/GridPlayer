@@ -31,6 +31,8 @@ package vlcmac
 #include <vlc/libvlc_renderer_discoverer.h>
 #include <vlc/libvlc_media_player.h>
 
+extern float libvlc_media_player_get_fps(libvlc_media_player_t *p_mi);
+
 extern void GoVLCEvent(void *player, int ev_type, int64_t time_ms);
 
 static void call_event(const struct libvlc_event_t *ev, void *opaque) {
@@ -499,6 +501,34 @@ func (p *Player) Play() { p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_me
 func (p *Player) Pause() {
 	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_pause(mp) })
 }
+
+// SetPaused pauses or resumes without toggling.
+func (p *Player) SetPaused(paused bool) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		if paused {
+			C.libvlc_media_player_set_pause(mp, 1)
+		} else {
+			C.libvlc_media_player_set_pause(mp, 0)
+		}
+	})
+}
+
+// NextFrame pauses, then steps one decoded frame forward.
+func (p *Player) NextFrame() {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		C.libvlc_media_player_set_pause(mp, 1)
+		C.libvlc_media_player_next_frame(mp)
+	})
+}
+
+// FPS is the playing media rate, or 0 when libVLC does not know it.
+func (p *Player) FPS() float64 {
+	var fps float64
+	p.with(func(mp *C.libvlc_media_player_t) {
+		fps = float64(C.libvlc_media_player_get_fps(mp))
+	})
+	return fps
+}
 func (p *Player) Stop() { p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_stop(mp) }) }
 func (p *Player) SetTime(ms int64) {
 	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_media_player_set_time(mp, C.libvlc_time_t(ms)) })
@@ -509,6 +539,14 @@ func (p *Player) SetRate(r float32) {
 func (p *Player) SetVolume(v int) {
 	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_audio_set_volume(mp, C.int(v)) })
 }
+
+// SetAudioDelay offsets audio by milliseconds. libVLC takes microseconds.
+func (p *Player) SetAudioDelay(ms int64) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		C.libvlc_audio_set_delay(mp, C.int64_t(ms*1000))
+	})
+}
+
 func (p *Player) SetMute(m bool) {
 	p.with(func(mp *C.libvlc_media_player_t) {
 		if m {

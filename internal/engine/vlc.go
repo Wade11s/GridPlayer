@@ -91,15 +91,16 @@ func (b *vlcBackend) send(ev Event) {
 	}
 }
 
-func (b *vlcBackend) Play()                { b.pl.Play() }
-func (b *vlcBackend) Pause()               { b.pl.Pause() }
-func (b *vlcBackend) Stop()                { b.pl.Stop() }
-func (b *vlcBackend) SeekTo(ms int64)      { b.pl.SetTime(ms) }
-func (b *vlcBackend) SetRate(rate float64) { b.pl.SetRate(float32(rate)) }
-func (b *vlcBackend) SetVolume(volume int) { b.pl.SetVolume(volume) }
-func (b *vlcBackend) SetMute(muted bool)   { b.pl.SetMute(muted) }
-func (b *vlcBackend) Time() int64          { return b.pl.Time() }
-func (b *vlcBackend) Length() int64        { return b.pl.Length() }
+func (b *vlcBackend) Play()                  { b.pl.Play() }
+func (b *vlcBackend) Pause()                 { b.pl.Pause() }
+func (b *vlcBackend) Stop()                  { b.pl.Stop() }
+func (b *vlcBackend) SeekTo(ms int64)        { b.pl.SetTime(ms) }
+func (b *vlcBackend) SetRate(rate float64)   { b.pl.SetRate(float32(rate)) }
+func (b *vlcBackend) SetVolume(volume int)   { b.pl.SetVolume(volume) }
+func (b *vlcBackend) SetMute(muted bool)     { b.pl.SetMute(muted) }
+func (b *vlcBackend) SetAudioDelay(ms int64) { b.pl.SetAudioDelay(ms) }
+func (b *vlcBackend) Time() int64            { return b.pl.Time() }
+func (b *vlcBackend) Length() int64          { return b.pl.Length() }
 
 func (b *vlcBackend) SetLoop(bool) {
 	// Loop is fixed when the media is created (input-repeat); the engine
@@ -171,6 +172,13 @@ func (b *vlcBackend) SetAspectRatio(aspect string) bool {
 }
 func (b *vlcBackend) SetScale(scale float64) bool { return b.pl.SetScale(scale) }
 func (b *vlcBackend) SetCrop(crop string) bool    { return b.pl.SetCrop(crop) }
+func (b *vlcBackend) NextFrame()                  { b.pl.NextFrame() }
+func (b *vlcBackend) PreviousFrame() {
+	target := FrameStepBack(b.pl.Time(), b.pl.FPS())
+	b.pl.SetPaused(true)
+	b.pl.SetTime(target)
+}
+
 func (b *vlcBackend) Screenshot(path string) error {
 	return b.pl.Screenshot(path)
 }

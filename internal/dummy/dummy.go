@@ -27,6 +27,7 @@ type Backend struct {
 	events  chan engine.Event
 	start   atomic.Int64 // UnixNano of play start
 	offset  int64
+	delay   int64
 	paused  bool
 	stopped bool
 	closed  atomic.Bool
@@ -87,6 +88,29 @@ func (b *Backend) Stop() {
 	b.offset = 0
 	b.paused = false
 	b.stopped = true
+}
+
+func (b *Backend) NextFrame() {
+	b.Pause()
+	b.mu.Lock()
+	b.offset += FrameMs
+	if b.offset > LengthMs-FrameMs {
+		b.offset = LengthMs - FrameMs
+	}
+	b.mu.Unlock()
+}
+
+func (b *Backend) PreviousFrame() {
+	b.Pause()
+	b.mu.Lock()
+	b.offset = engine.FrameStepBack(b.offset, FPS)
+	b.mu.Unlock()
+}
+
+func (b *Backend) SetAudioDelay(ms int64) {
+	b.mu.Lock()
+	b.delay = ms
+	b.mu.Unlock()
 }
 
 func (b *Backend) SeekTo(ms int64) {

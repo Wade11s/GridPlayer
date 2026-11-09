@@ -115,6 +115,7 @@ type Backend interface {
 	SetRate(rate float64)
 	SetVolume(volume int)
 	SetMute(muted bool)
+	SetAudioDelay(ms int64)
 	SetLoop(loop bool)
 	Time() int64
 	Length() int64
@@ -138,6 +139,8 @@ type Backend interface {
 	AddSubtitle(path string) bool
 	AddAudio(path string) bool
 	Screenshot(path string) error
+	NextFrame()
+	PreviousFrame()
 	Events() <-chan Event
 	Close()
 }
@@ -171,6 +174,7 @@ type Engine struct {
 	rate       float64
 	volume     int
 	muted      bool
+	audioDelay int64
 	loop       bool
 	aspect     string
 	scale      float64
@@ -275,6 +279,7 @@ func (e *Engine) loadLocked(path string) error {
 	}
 	e.be = be
 	rate, volume, muted, loop := e.rate, e.volume, e.muted, e.loop
+	delay := e.audioDelay
 	aspect, scale, crop := e.aspect, e.scale, e.crop
 	subs := append([]string(nil), e.subtitles...)
 	audios := append([]string(nil), e.audioFiles...)
@@ -283,6 +288,7 @@ func (e *Engine) loadLocked(path string) error {
 	be.SetRate(rate)
 	be.SetVolume(volume)
 	be.SetMute(muted)
+	be.SetAudioDelay(delay)
 	be.SetLoop(loop)
 	be.SetAspectRatio(aspect)
 	be.SetScale(scale)
@@ -548,6 +554,51 @@ func (e *Engine) SetMute(muted bool) {
 	}
 }
 
+const (
+	MinAudioDelayMS  int64 = -60000
+	MaxAudioDelayMS  int64 = 60000
+	AudioDelayStepMS int64 = 50
+)
+
+// ClampAudioDelay limits a delay to the frozen -60s..60s range.
+func ClampAudioDelay(ms int64) int64 {
+	if ms < MinAudioDelayMS {
+		return MinAudioDelayMS
+	}
+	if ms > MaxAudioDelayMS {
+		return MaxAudioDelayMS
+	}
+	return ms
+}
+
+// SetAudioDelay sets the audio offset in milliseconds. Positive is later.
+func (e *Engine) SetAudioDelay(ms int64) {
+	ms = ClampAudioDelay(ms)
+	e.mu.Lock()
+	e.audioDelay = ms
+	be := e.be
+	e.mu.Unlock()
+	if be != nil {
+		be.SetAudioDelay(ms)
+	}
+}
+
+// AudioDelay returns the current offset in milliseconds.
+func (e *Engine) AudioDelay() int64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.audioDelay
+}
+
+// NudgeAudioDelay adds delta milliseconds and returns the clamped result.
+func (e *Engine) NudgeAudioDelay(delta int64) int64 {
+	e.mu.Lock()
+	next := ClampAudioDelay(e.audioDelay + delta)
+	e.mu.Unlock()
+	e.SetAudioDelay(next)
+	return next
+}
+
 // SetLoop loops the current media. libVLC fixes input-repeat when the
 // media opens, so a change takes effect at the next Load; the snapshot
 // records the requested value immediately.
@@ -738,6 +789,41 @@ func (e *Engine) RefreshTracks() {
 		e.publishLocked()
 	}
 	e.mu.Unlock()
+}
+
+// NextFrame pauses and advances one frame. libVLC only steps forward.
+func (e *Engine) NextFrame() {
+	be, gen, ok := e.backend()
+	if !ok {
+		return
+	}
+	be.NextFrame()
+	e.optimistic(gen, Paused)
+}
+
+// PreviousFrame pauses and seeks back one frame. fps <= 0 uses 25fps.
+func (e *Engine) PreviousFrame() {
+	be, gen, ok := e.backend()
+	if !ok {
+		return
+	}
+	be.PreviousFrame()
+	e.optimistic(gen, Paused)
+}
+
+// FrameStepBack is the seek target one frame before now.
+func FrameStepBack(nowMS int64, fps float64) int64 {
+	if fps < 1 {
+		fps = 25
+	}
+	step := int64(1000 / fps)
+	if step < 1 {
+		step = 1
+	}
+	if nowMS <= step {
+		return 0
+	}
+	return nowMS - step
 }
 
 // Screenshot saves the current video frame to path.
