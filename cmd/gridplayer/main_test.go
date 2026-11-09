@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gridplayer-go/internal/grid"
 )
 
 func TestSwapCells(t *testing.T) {
@@ -123,5 +125,48 @@ func TestMosaicLockToggleAndReset(t *testing.T) {
 	a.resetMosaic()
 	if len(a.mosaicLocked) != 0 || len(a.mosaicTiles) != 2 {
 		t.Fatalf("reset: locked=%v tiles=%d", a.mosaicLocked, len(a.mosaicTiles))
+	}
+}
+
+func TestMoveTileSnapAndOverlap(t *testing.T) {
+	a := &app{snap: true, overlap: true, freeArea: [2]float64{1000, 1000}}
+	tiles := []grid.Tile{
+		{Box: [4]float64{0.295, 0.1, 0.495, 0.3}},
+		{Box: [4]float64{0.5, 0, 0.75, 0.5}},
+	}
+	got := a.moveTile(tiles, 0, 0, 0, false)
+	if got[0].Box[2] != 0.5 {
+		t.Fatalf("snap not applied: %+v", got[0].Box)
+	}
+
+	a.overlap = false
+	tiles = []grid.Tile{
+		{Box: [4]float64{0, 0, 0.5, 0.5}},
+		{Box: [4]float64{0.5, 0, 1, 0.5}},
+	}
+	got = a.moveTile(tiles, 0, 10, 0, false)
+	if got[0].Box != tiles[0].Box {
+		t.Fatalf("overlap accepted: %+v", got[0].Box)
+	}
+	got = a.moveTile(tiles, 0, 10, 0, true)
+	if got[0].Box == tiles[0].Box {
+		t.Fatal("mosaic overlap should be allowed")
+	}
+}
+
+func TestResizeTileSnapAndOverlap(t *testing.T) {
+	a := &app{snap: true, overlap: false, freeArea: [2]float64{1000, 1000}}
+	tiles := []grid.Tile{
+		{Box: [4]float64{0.1, 0.1, 0.495, 0.3}},
+		{Box: [4]float64{0.5, 0, 0.75, 0.5}},
+	}
+	got := a.resizeTile(tiles, 0, 0, 0, false)
+	if got[0].Box[2] != 0.5 {
+		t.Fatalf("resize snap not applied: %+v", got[0].Box)
+	}
+	a.snap = false
+	got = a.resizeTile(tiles, 0, 200, 0, false)
+	if got[0].Box != tiles[0].Box {
+		t.Fatalf("overlap resize accepted: %+v", got[0].Box)
 	}
 }

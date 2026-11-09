@@ -73,6 +73,8 @@ type app struct {
 	mosaic        bool
 	mosaicTiles   []grid.Tile
 	mosaicLocked  map[int]bool
+	snap          bool
+	overlap       bool
 	freeArea      [2]float64
 	moveIdx       int
 	moveLast      [2]float32
@@ -98,7 +100,7 @@ type app struct {
 }
 
 func newApp(paths []string) *app {
-	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, defaultVolume: 80, resolver: resolve.New()}
+	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, snap: true, overlap: true, defaultVolume: 80, resolver: resolve.New()}
 	a.setPlaylist(paths)
 	return a
 }
@@ -122,10 +124,21 @@ func (a *app) loadSettings() {
 	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
 	a.free = st.Get("playlist/grid_free", "false") == "true"
 	a.mosaic = st.Get("playlist/grid_mosaic", "false") == "true"
+	a.snap = st.Get("playlist/grid_snap", "true") == "true"
+	a.overlap = st.Get("playlist/grid_overlap", "true") == "true"
 	if raw := st.Get("playlist/grid_mosaic_tiles", ""); raw != "" {
 		var tiles []grid.Tile
 		if err := json.Unmarshal([]byte(raw), &tiles); err == nil && len(tiles) == len(a.cells) {
-			a.mosaicTiles = tiles
+			valid := true
+			for _, t := range tiles {
+				if !t.Valid() {
+					valid = false
+					break
+				}
+			}
+			if valid {
+				a.mosaicTiles = tiles
+			}
 		}
 	}
 	if raw := st.Get("playlist/grid_mosaic_locked", ""); raw != "" {
@@ -220,6 +233,8 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
+	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snap))
+	a.settings.Set("playlist/grid_overlap", fmt.Sprint(a.overlap))
 	if a.mosaic {
 		a.ensureMosaic()
 		if raw, err := json.Marshal(a.mosaicTiles); err == nil {
@@ -703,6 +718,40 @@ func (a *app) resetMosaic() {
 	a.mosaicLocked = map[int]bool{}
 }
 
+func (a *app) moveTile(tiles []grid.Tile, i int, dx, dy float64, forceOverlap bool) []grid.Tile {
+	var next []grid.Tile
+	if !forceOverlap && !a.overlap {
+		next = grid.MoveTileNoOverlap(tiles, i, dx, dy, a.freeArea[0], a.freeArea[1])
+	} else {
+		next = grid.MoveTile(tiles, i, dx, dy, a.freeArea[0], a.freeArea[1])
+	}
+	if a.snap {
+		snapped := grid.SnapMove(next, i, a.freeArea[0], a.freeArea[1], 8)
+		if forceOverlap || a.overlap || !grid.Overlaps(snapped, i) ||
+			grid.OverlapArea(snapped, i) <= grid.OverlapArea(next, i) {
+			next = snapped
+		}
+	}
+	return next
+}
+
+func (a *app) resizeTile(tiles []grid.Tile, i int, dx, dy float64, forceOverlap bool) []grid.Tile {
+	var next []grid.Tile
+	if !forceOverlap && !a.overlap {
+		next = grid.ResizeTileNoOverlap(tiles, i, dx, dy, a.freeArea[0], a.freeArea[1])
+	} else {
+		next = grid.ResizeTile(tiles, i, dx, dy, a.freeArea[0], a.freeArea[1])
+	}
+	if a.snap {
+		snapped := grid.SnapResize(next, i, a.freeArea[0], a.freeArea[1], 8)
+		if forceOverlap || a.overlap || !grid.Overlaps(snapped, i) ||
+			grid.OverlapArea(snapped, i) <= grid.OverlapArea(next, i) {
+			next = snapped
+		}
+	}
+	return next
+}
+
 func (a *app) arrangeMosaic() {
 	if !a.mosaic {
 		return
@@ -818,9 +867,9 @@ func (a *app) view(c *ui.Context) {
 					Width(16).Height(16).Radius(3).Background(theme.Accent)
 				if dx, dy, ok := h.Dragged(); ok && (dx != 0 || dy != 0) {
 					if a.free {
-						a.freeTiles = grid.ResizeTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+						a.freeTiles = a.resizeTile(a.freeTiles, i, float64(dx), float64(dy), false)
 					} else {
-						a.mosaicTiles = grid.ResizeTile(a.mosaicTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+						a.mosaicTiles = a.resizeTile(a.mosaicTiles, i, float64(dx), float64(dy), true)
 					}
 					a.dirty = true
 				}
@@ -904,12 +953,12 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	}
 	if a.free && len(a.freeTiles) > i {
 		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
-			a.freeTiles = grid.MoveTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+			a.freeTiles = a.moveTile(a.freeTiles, i, float64(dx), float64(dy), false)
 			a.dirty = true
 		}
 	} else if a.mosaic && len(a.mosaicTiles) > i && !a.mosaicLocked[i] {
 		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
-			a.mosaicTiles = grid.MoveTile(a.mosaicTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+			a.mosaicTiles = a.moveTile(a.mosaicTiles, i, float64(dx), float64(dy), true)
 			a.dirty = true
 		}
 	}
@@ -1648,6 +1697,16 @@ func (a *app) menu() *mygo.Menu {
 				}},
 			{Label: "Unlock All Tiles", Disabled: !a.mosaic, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.unlockMosaic()
+			}},
+			{Label: "Snap to Edges", Type: mygo.MenuItemCheckbox, Checked: a.snap, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.snap = !a.snap
+				a.saveSettings()
+				a.refreshMenu()
+			}},
+			{Label: "Free: Allow Tile Overlap", Type: mygo.MenuItemCheckbox, Checked: a.overlap, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.overlap = !a.overlap
+				a.saveSettings()
+				a.refreshMenu()
 			}},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
