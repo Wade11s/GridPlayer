@@ -4,12 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gridplayer-go/internal/bookmarks"
+	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
+	"gridplayer-go/internal/snapshots"
 )
 
 func TestSwapCells(t *testing.T) {
@@ -387,5 +390,139 @@ func TestDocumentViewMode(t *testing.T) {
 	v := d.Videos[0]
 	if v.CellViewMode != "stretch" || v.ListIndex != 2 || v.ListEnd != "stop" {
 		t.Fatalf("video %+v", v)
+	}
+}
+
+func TestApplyDocumentRestoresSnapshot(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{
+			{
+				URI:             "a.mp4",
+				CurrentPosition: 1234,
+				IsMuted:         true,
+				Volume:          0.5,
+				Rate:            1.5,
+				CellViewMode:    "stretch",
+				PlaybackState:   "paused",
+				ListEnd:         "next",
+			},
+			{URI: "b.mp4", CellViewMode: "fit"},
+		},
+	}
+	d.SetGridState("fixed", 2, 3)
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.applyDocument(d, "")
+	if len(a.cells) != 2 {
+		t.Fatalf("cells=%d", len(a.cells))
+	}
+	c := a.cells[0]
+	if c.viewMode != "stretch" || !c.startPaused || c.startAt != 1234 ||
+		!c.muted || c.volume != 50 || c.rate != 1.5 {
+		t.Fatalf("cell %+v", c)
+	}
+	if a.cells[1].viewMode != "fit" {
+		t.Fatalf("second view %q", a.cells[1].viewMode)
+	}
+	if a.cfg.Mode != grid.Fixed || a.cfg.Rows != 2 || a.cfg.Cols != 3 {
+		t.Fatalf("grid %+v", a.cfg)
+	}
+	if a.playlistPath != "" || a.dirty {
+		t.Fatalf("path=%q dirty=%v", a.playlistPath, a.dirty)
+	}
+}
+
+func TestSnapshotNameAndRestore(t *testing.T) {
+	store := snapshots.New(filepath.Join(t.TempDir(), "snapshots.json"))
+	doc := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4", CellViewMode: "stretch"}},
+	}
+	if err := store.Save("Snapshot 1", doc); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save("Snapshot 2", doc); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{snapshots: store, defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	if got := a.snapshotName(); got != "Snapshot 3" {
+		t.Fatalf("name %q", got)
+	}
+	a.restoreSnapshot("Snapshot 1")
+	if len(a.cells) != 1 || a.cells[0].viewMode != "stretch" || !a.dirty {
+		t.Fatalf("restore cells=%d dirty=%v", len(a.cells), a.dirty)
+	}
+}
+
+func TestApplyDocumentRestoresListIndexOnMatchingCell(t *testing.T) {
+	dir := t.TempDir()
+	list := filepath.Join(dir, "list.m3u")
+	item0 := filepath.Join(dir, "a.mp4")
+	item1 := filepath.Join(dir, "b.mp4")
+	body := "#EXTM3U\n" + item0 + "\n" + item1 + "\n"
+	if err := os.WriteFile(list, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.setPlaylist([]string{list})
+	c := a.cells[0]
+	a.advanceList(c)
+	if c.listIndex != 1 || c.path != item1 {
+		t.Fatalf("advance %d %q", c.listIndex, c.path)
+	}
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: item1, ListIndex: 0, ListEnd: "loop"}},
+	}
+	a.applyDocument(d, "")
+	if c.listIndex != 0 || c.path != item0 {
+		t.Fatalf("restore %d %q", c.listIndex, c.path)
+	}
+}
+
+func TestApplyDocumentUpdatesLiveEngine(t *testing.T) {
+	fixture, err := filepath.Abs("../../testdata/fixtures/plane-a.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); err != nil {
+		t.Skip("fixture missing")
+	}
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.setPlaylist([]string{fixture})
+	e := engine.New(engine.NewVLCFactory(engine.VLCOptions{
+		Args: []string{"--vout=dummy", "--aout=dummy"},
+	}))
+	defer e.Close()
+	if err := e.Load(fixture); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	a.cells[0].eng = e
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{{
+			URI:             fixture,
+			CurrentPosition: 3000,
+			IsMuted:         true,
+			Volume:          0.5,
+			Rate:            1.5,
+			PlaybackState:   "paused",
+		}},
+	}
+	a.applyDocument(d, "")
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		s := e.Snapshot()
+		if s.Phase == engine.Paused && s.Time >= 2500 && s.Muted && s.Volume == 50 && s.Rate == 1.5 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("engine not restored: %+v", s)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

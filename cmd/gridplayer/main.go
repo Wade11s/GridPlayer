@@ -31,6 +31,7 @@ import (
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
+	"gridplayer-go/internal/snapshots"
 	"gridplayer-go/internal/vlcmac"
 )
 
@@ -102,6 +103,9 @@ type app struct {
 	bookmarkRenameKey   string
 	bookmarkRenameOld   string
 	bookmarkRenameInput string
+	snapshots           *snapshots.Store
+	snapshotSaveWin     *mygo.Window
+	snapshotSaveName    string
 	pending             []pendingDrop
 	settings            *settings.Store
 	recent              []string
@@ -226,6 +230,12 @@ func (a *app) loadSettings() {
 		a.bookmarks = b
 	} else {
 		log.Printf("bookmarks: %v", err)
+	}
+	if s, err := snapshots.Load(filepath.Join(dir, "snapshots.json")); err == nil {
+		a.snapshots = s
+	} else {
+		log.Printf("snapshots: %v", err)
+		a.snapshots = snapshots.New(filepath.Join(dir, "snapshots.json"))
 	}
 }
 
@@ -959,6 +969,10 @@ func (a *app) teardown() {
 		a.bookmarkWin.Close()
 		a.bookmarkWin = nil
 	}
+	if a.snapshotSaveWin != nil {
+		a.snapshotSaveWin.Close()
+		a.snapshotSaveWin = nil
+	}
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
 		if c == nil {
@@ -1333,6 +1347,13 @@ func (a *app) loadPlaylist(path string) error {
 		a.status = err.Error()
 		return err
 	}
+	a.applyDocument(d, path)
+	a.addRecent(path)
+	return nil
+}
+
+// applyDocument replaces the cells and grid from a playlist document.
+func (a *app) applyDocument(d *playlist.Document, path string) {
 	paths := make([]string, len(d.Videos))
 	for i := range d.Videos {
 		paths[i] = d.Videos[i].URI
@@ -1359,6 +1380,7 @@ func (a *app) loadPlaylist(path string) error {
 		}
 		c.startPaused = strings.EqualFold(v.PlaybackState, "paused") ||
 			strings.EqualFold(v.PlaybackState, "stopped")
+		oldPath := c.path
 		if len(c.list) > 0 {
 			if v.ListIndex >= 0 && v.ListIndex < len(c.list) {
 				c.listIndex = v.ListIndex
@@ -1369,17 +1391,38 @@ func (a *app) loadPlaylist(path string) error {
 				c.listEnd = v.ListEnd
 			}
 		}
+		if c.eng != nil {
+			reload := c.path != oldPath
+			if reload {
+				c.eng.SetStartPosition(int64(c.startAt))
+				if err := c.eng.Load(c.path); err != nil {
+					a.status = err.Error()
+				}
+			} else {
+				c.eng.SeekTo(int64(c.startAt))
+			}
+			c.eng.SetVolume(c.volume)
+			c.eng.SetMute(c.muted)
+			c.eng.SetRate(c.rate)
+			c.eng.SetLoop(c.loop)
+			if c.startPaused {
+				c.pauseOnPlay.Store(true)
+				c.eng.Pause()
+			} else {
+				c.pauseOnPlay.Store(false)
+				c.eng.Play()
+			}
+		}
 	}
 	if mode, rows, cols := d.GridState(); mode != "" {
 		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
 	}
 	a.playlistPath = path
 	a.dirty = false
-	a.addRecent(path)
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
-	return nil
 }
 
 func (a *app) document() *playlist.Document {
@@ -1795,6 +1838,16 @@ func (a *app) menu() *mygo.Menu {
 			listEnd = c.listEnd
 		}
 	}
+	snapshotRestore, snapshotRemove := a.snapshotMenuItems()
+	snapshotMenu := []*mygo.MenuItem{
+		{Label: "Save Current…", Click: func(*mygo.MenuItem, *mygo.Window) { a.openSnapshotSave() }},
+		{Type: mygo.MenuItemSeparator},
+	}
+	snapshotMenu = append(snapshotMenu, snapshotRestore...)
+	snapshotMenu = append(snapshotMenu,
+		&mygo.MenuItem{Type: mygo.MenuItemSeparator},
+		&mygo.MenuItem{Label: "Delete", Submenu: snapshotRemove},
+	)
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: []*mygo.MenuItem{
@@ -1990,6 +2043,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Clear This File's Bookmarks", Click: func(*mygo.MenuItem, *mygo.Window) { a.clearBookmarks() }},
 			{Type: mygo.MenuItemSeparator},
 		}, bookmarkItems...)},
+		{Label: "Snapshots", Submenu: snapshotMenu},
 		{Label: "Tracks", Submenu: []*mygo.MenuItem{
 			{Label: "Load Subtitle File…", Click: func(*mygo.MenuItem, *mygo.Window) { a.addTrack("subtitle") }},
 			{Label: "Load Audio File…", Click: func(*mygo.MenuItem, *mygo.Window) { a.addTrack("audio") }},
