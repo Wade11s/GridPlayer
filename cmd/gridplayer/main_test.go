@@ -866,3 +866,61 @@ func TestApplyDocumentUpdatesLiveEngine(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 }
+
+func TestDecideListFail(t *testing.T) {
+	skip, wait, status, failures, network := decideListFail("clip.mp4", 3, "", 2, 0, 0)
+	if !skip || wait != 2*time.Second || status != "Next file in 2s" || failures != 1 || network != 0 {
+		t.Fatalf("local skip=%v wait=%s status=%q failures=%d network=%d", skip, wait, status, failures, network)
+	}
+	skip, _, _, failures, network = decideListFail("http://example/a.mp4", 3, listFailPlayNext, 2, 0, 0)
+	if !skip || failures != 1 || network != 1 {
+		t.Fatalf("network skip=%v failures=%d network=%d", skip, failures, network)
+	}
+	skip, _, status, _, _ = decideListFail("clip.mp4", 3, listFailShowError, 2, 0, 0)
+	if skip || status != "" {
+		t.Fatalf("show error skip=%v status=%q", skip, status)
+	}
+	skip, wait, status, _, _ = decideListFail("clip.mp4", 3, listFailPlayNext, 0, 0, 0)
+	if !skip || wait != 0 || status != "" {
+		t.Fatalf("at once skip=%v wait=%s status=%q", skip, wait, status)
+	}
+	_, _, status, failures, network = decideListFail("http://example/a", 20, listFailPlayNext, 2, 10, 10)
+	if status != "Stopped: 11 failed in a row" || failures != 11 || network != 11 {
+		t.Fatalf("row stop status=%q failures=%d network=%d", status, failures, network)
+	}
+	skip, _, status, failures, _ = decideListFail("gone.mp4", 2, listFailPlayNext, 2, 2, 0)
+	if skip || status != "Stopped: nothing on the list plays" || failures != 3 {
+		t.Fatalf("list stop skip=%v status=%q failures=%d", skip, status, failures)
+	}
+}
+
+func TestNoteListFailureUsesCellOverride(t *testing.T) {
+	a := &app{}
+	a.setListFailPolicy(listFailPlayNext, 2)
+	wait := 0
+	c := &cell{list: []string{"a.mp4", "b.mp4"}, listFail: listFailShowError, listFailWait: &wait}
+	skip, _, status := a.noteListFailure(c, "a.mp4", 2)
+	if skip || status != "" || c.failStreak != 1 {
+		t.Fatalf("override skip=%v status=%q streak=%d", skip, status, c.failStreak)
+	}
+	c.listFail = listFailPlayNext
+	skip, got, status := a.noteListFailure(c, "a.mp4", 2)
+	if !skip || got != 0 || status != "" || c.failStreak != 2 {
+		t.Fatalf("cell wait skip=%v got=%s status=%q streak=%d", skip, got, status, c.failStreak)
+	}
+}
+
+func TestDocumentPersistsListFail(t *testing.T) {
+	wait := 0
+	a := &app{cells: []*cell{{
+		path:         "list.m3u",
+		listIndex:    1,
+		listEnd:      "loop",
+		listFail:     listFailShowError,
+		listFailWait: &wait,
+	}}}
+	v := a.document().Videos[0]
+	if v.ListFail != listFailShowError || v.ListFailWait == nil || *v.ListFailWait != 0 {
+		t.Fatalf("video %+v", v)
+	}
+}
