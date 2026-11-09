@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-keymap merge)
+# Migration Checkpoint — 2026-11-09 (post-subtitles merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -81,6 +81,9 @@
   full race/vet/build green, GUI set Play/Pause to P, P paused/resumed
   playback (snapshot phases paused/playing), duplicate binding kept Settings
   open; 4 VideoToolbox lines.
+- PR #38 merged at `bf6d6e4`: subtitle styling. Main `bf6d6e4`: CI green,
+  full race/vet/build green, GUI set 48px/yellow (live reload args confirmed)
+  and 96px/red/thick outline (large red subtitles) on feature.mkv.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -213,6 +216,11 @@
   (`space`, `left`, `m`, `cmd+shift+p`, `none`), duplicate detection,
   settings round-trip; Settings > Keymap edits bindings; shortcuts and menu
   accelerators share the map. Subtitle styling/translations still open.
+- #2 subtitles (merged bf6d6e4): `subtitleStyle` maps font/size/colors/
+  outline/bold/opacity/encoding/autodetect to libVLC `--freetype-*`/
+  `--subsdec-*`; Settings > Subtitles persists `subtitles/*` and reloads
+  live cells at their current position. Translations/per-track styling still
+  open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
