@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-mosaic-arrange merge)
+# Migration Checkpoint — 2026-11-09 (post-snap-overlap merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -46,6 +46,9 @@
 - PR #27 merged at `040b770`: mosaic lock + wall-aware Arrange. Main
   `040b770`: CI green, full race/vet/build green, GUI acceptance 4×
   VideoToolbox, one- and two-lock arrange verified with persisted boxes.
+- PR #28 merged at `9ec176d`: tile snapping and optional free-mode overlap.
+  Main `9ec176d`: CI green, full race/vet/build green, GUI acceptance 4×
+  VideoToolbox, Grid toggles persisted `grid_snap=false`/`grid_overlap=false`.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -79,8 +82,13 @@
   justified rows, and falls back to `Mosaic(n)` when no room remains; app
   drag/resize, lock/unlock, Arrange Mosaic, and
   `grid_mosaic_tiles`/`grid_mosaic_locked` persistence; exhaustive
-  single/double-lock tests. Snap targets, optimizer/reorder-to-fit, overlap
-  modes and z-order still open.
+  single/double-lock tests.
+- #3 snap/overlap (merged 9ec176d): `SnapMove`/`SnapResize` snap page and
+  neighbour edges/middles within 8 DIPs; `MoveTileNoOverlap`/
+  `ResizeTileNoOverlap` reject overlap-increasing free-mode steps and slide
+  on one axis; `Tile.Valid` rejects corrupt persisted boxes; Grid toggles
+  persist `grid_snap`/`grid_overlap`. Equal-gap/video-shape/old-place snap,
+  PUSH overlap, optimizer/reorder-to-fit and z-order still open.
 - #2 dummy backend (merged 96f027c): `internal/dummy` 100s/25fps deterministic
   clock (mutex-guarded, loop wrap, honest stop, PNG screenshot, Tick events);
   engine-load test under `-race`. Full dummy GUI driver and free drag/resize
