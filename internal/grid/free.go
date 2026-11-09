@@ -2,7 +2,7 @@ package grid
 
 // Tile is a video's box as shares of the page (left, top, right, bottom).
 type Tile struct {
-	Box [4]float64
+	Box [4]float64 `json:"box"`
 }
 
 // FreeLayout starts with an even auto-rows arrangement recorded as tiles.
