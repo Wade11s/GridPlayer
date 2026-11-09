@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-playlist-item-settings merge)
+# Migration Checkpoint — 2026-11-09 (post-rtsp-e2e merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -67,6 +67,9 @@
   and end-of-list actions. Main `6c277a1`: CI green, full race/vet/build
   green, GUI `.gpls` round-trip kept paused at 2000 ms, list index 1,
   `list_end=next`, `cell_view_mode=fit`; View menu Fit checked.
+- PR #34 merged at `3d52674`: RTSP end-to-end test with a local VLC RTSP
+  server. Main `3d52674`: CI green, full race/vet/build green, escalated
+  `TestRealVLCRTSP` PASS (3.38 s); in-sandbox it skips at port reservation.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -133,8 +136,7 @@
 - #8 streams (partial): deterministic local HLS fixture (3 renditions), URL MRL
   loading via `libvlc_media_new_location`, `file://` HLS GUI playback verified,
   Open URL dialog; scale default fixed to fit (0) after the 1x regression.
-  RTSP end-to-end, adaptive mid-playback quality and streamlink cookies still
-  open.
+  Adaptive mid-playback quality and streamlink cookies still open.
 - #8 URL resolver: `internal/resolve` yt-dlp (ignore-config, no cookies,
   skip-download, no-playlist) with direct fallback; Open URL dialog and
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
@@ -143,7 +145,10 @@
   proxy/cookies/format for yt-dlp, proxy for streamlink; Settings > Network
   for proxy/cookies/tool paths/quality; `playURL` snapshots options before the
   goroutine; fake-tool, file-skip, real-HLS and loopback HTTP→libVLC tests.
-  RTSP, adaptive mid-playback quality and streamlink cookies remain open.
+  Adaptive mid-playback quality and streamlink cookies remain open.
+- #8 RTSP e2e (merged 3d52674): `TestRealVLCRTSP` starts VLC's RTP/RTSP server
+  on a free loopback port and plays it in a second libVLC instance with dummy
+  output; skips when VLC.app is missing or the bind is denied.
 - #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
 - #12 bookmarks (merged a24fc43): `internal/bookmarks` positions in
   `bookmarks.json` (atomic, dedupe by name, sorted after replacement);
