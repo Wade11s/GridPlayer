@@ -63,3 +63,40 @@ func TestEmptyNameAndInvalidFile(t *testing.T) {
 		t.Fatal("invalid json accepted")
 	}
 }
+
+func TestSaveFailureKeepsMemory(t *testing.T) {
+	dir := t.TempDir()
+	blocker := filepath.Join(dir, "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := New(filepath.Join(blocker, "snapshots.json"))
+	if err := s.Save("one", &playlist.Document{Format: playlist.FormatID, Version: 1}); err == nil {
+		t.Fatal("want write error")
+	}
+	if got := s.List(); len(got) != 0 {
+		t.Fatalf("memory changed: %+v", got)
+	}
+}
+
+func TestRemoveFailureKeepsMemory(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "snapshots.json")
+	s, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Save("one", &playlist.Document{Format: playlist.FormatID, Version: 1}); err != nil {
+		t.Fatal(err)
+	}
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.path = filepath.Join(blocker, "snapshots.json")
+	if err := s.Remove("one"); err == nil {
+		t.Fatal("want write error")
+	}
+	if got := s.List(); len(got) != 1 || got[0].Name != "one" {
+		t.Fatalf("memory changed: %+v", got)
+	}
+}

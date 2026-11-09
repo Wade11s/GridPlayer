@@ -453,3 +453,30 @@ func TestSnapshotNameAndRestore(t *testing.T) {
 		t.Fatalf("restore cells=%d dirty=%v", len(a.cells), a.dirty)
 	}
 }
+
+func TestApplyDocumentRestoresListIndexOnMatchingCell(t *testing.T) {
+	dir := t.TempDir()
+	list := filepath.Join(dir, "list.m3u")
+	item0 := filepath.Join(dir, "a.mp4")
+	item1 := filepath.Join(dir, "b.mp4")
+	body := "#EXTM3U\n" + item0 + "\n" + item1 + "\n"
+	if err := os.WriteFile(list, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.setPlaylist([]string{list})
+	c := a.cells[0]
+	a.advanceList(c)
+	if c.listIndex != 1 || c.path != item1 {
+		t.Fatalf("advance %d %q", c.listIndex, c.path)
+	}
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: item1, ListIndex: 0, ListEnd: "loop"}},
+	}
+	a.applyDocument(d, "")
+	if c.listIndex != 0 || c.path != item0 {
+		t.Fatalf("restore %d %q", c.listIndex, c.path)
+	}
+}
