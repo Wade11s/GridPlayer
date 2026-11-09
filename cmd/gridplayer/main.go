@@ -1507,6 +1507,12 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		var share float64
 		if getRawSetting(d, "single_share", &share) && share > 0 {
+			if share < 0.05 {
+				share = 0.05
+			}
+			if share > 0.4 {
+				share = 0.4
+			}
 			a.singleShare = &share
 		}
 	}
@@ -2093,6 +2099,7 @@ func (a *app) menu() *mygo.Menu {
 				a.free = !a.free
 				if a.free {
 					a.mosaic = false
+					a.single = false
 				}
 				a.saveSettings()
 				a.refreshMenu()
@@ -2136,6 +2143,10 @@ func (a *app) menu() *mygo.Menu {
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.single = !a.single
+				if a.single {
+					a.free = false
+					a.mosaic = false
+				}
 				a.saveSettings()
 				a.refreshMenu()
 				if a.win != nil {
@@ -2258,6 +2269,8 @@ func main() {
 		a.loadSettings()
 		if *single {
 			a.single = true
+			a.free = false
+			a.mosaic = false
 		}
 		if *mosaic {
 			a.mosaic = true
@@ -2266,6 +2279,8 @@ func main() {
 		}
 		if *free {
 			a.free = true
+			a.mosaic = false
+			a.single = false
 		}
 		if *playlistPath != "" {
 			if err := a.loadPlaylist(*playlistPath); err != nil {
