@@ -57,3 +57,16 @@ func TestListAdvanceAndWrap(t *testing.T) {
 		t.Fatalf("previous %d %q", c.listIndex, c.path)
 	}
 }
+
+func TestShouldAdvanceOncePerGeneration(t *testing.T) {
+	c := &cell{}
+	if !c.shouldAdvance(1) {
+		t.Fatal("first end should advance")
+	}
+	if c.shouldAdvance(1) {
+		t.Fatal("Stopped after EndReached must not advance again")
+	}
+	if !c.shouldAdvance(2) {
+		t.Fatal("new generation should advance")
+	}
+}

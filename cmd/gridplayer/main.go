@@ -51,6 +51,7 @@ type cell struct {
 	listLoop  bool
 	loop      bool
 	advancing bool
+	endedGen  uint64
 }
 
 type app struct {
@@ -542,7 +543,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 	for {
 		select {
 		case <-eng.Updates():
-			if s := eng.Snapshot(); s.Phase == engine.Ended && len(c.list) > 0 {
+			if s := eng.Snapshot(); s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
 				mygo.RunOnMain(func() { a.advanceList(c) })
 			}
 			if a.win != nil && !a.closed.Load() {
@@ -554,6 +555,16 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 			}
 		}
 	}
+}
+
+// shouldAdvance reports once per generation that the list ended, so the
+// Stopped event VLC sends after EndReached does not advance twice.
+func (c *cell) shouldAdvance(gen uint64) bool {
+	if c.endedGen == gen {
+		return false
+	}
+	c.endedGen = gen
+	return true
 }
 
 func (a *app) advanceList(c *cell) {

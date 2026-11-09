@@ -76,4 +76,8 @@ func TestInvalid(t *testing.T) {
 	if _, err := Expand(pls, false, 10); err == nil {
 		t.Fatal("want pls error")
 	}
+	m3u := write(t, dir, "empty.m3u", "#EXTM3U\n")
+	if _, err := Expand(m3u, false, 10); err == nil {
+		t.Fatal("want empty m3u error")
+	}
 }

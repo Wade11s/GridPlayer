@@ -92,7 +92,11 @@ func parseList(path string, max int) ([]string, error) {
 	case ".xspf":
 		return parseXSPF(data, base, max)
 	default:
-		return parseM3U(text, base, max), nil
+		out := parseM3U(text, base, max)
+		if len(out) == 0 {
+			return nil, errors.New("medialist: m3u has no entries")
+		}
+		return out, nil
 	}
 }
 
