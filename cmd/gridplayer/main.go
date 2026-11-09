@@ -208,18 +208,7 @@ func (a *app) loadSettings() {
 		a.scale = 0
 	}
 	a.crop = st.Get("video_defaults/crop_ratio", "")
-	if a.resolver == nil {
-		a.resolver = resolve.New()
-	}
-	a.resolver.Proxy = st.Get("network/proxy", "")
-	a.resolver.Cookies = st.Get("network/cookies", "")
-	a.resolver.Format = st.Get("network/format", "best")
-	if p := st.Get("network/ytdlp_path", ""); p != "" {
-		a.resolver.Path = p
-	}
-	if p := st.Get("network/streamlink_path", ""); p != "" {
-		a.resolver.Streamlink = p
-	}
+	a.loadNetworkSettings(st)
 	for i, c := range a.cells {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
@@ -234,6 +223,17 @@ func (a *app) loadSettings() {
 	} else {
 		log.Printf("bookmarks: %v", err)
 	}
+}
+
+func (a *app) loadNetworkSettings(st *settings.Store) {
+	if a.resolver == nil {
+		a.resolver = resolve.New()
+	}
+	a.resolver.Proxy = st.Get("network/proxy", "")
+	a.resolver.Cookies = st.Get("network/cookies", "")
+	a.resolver.Format = st.Get("network/format", "best")
+	a.resolver.Path = st.Get("network/ytdlp_path", a.resolver.Path)
+	a.resolver.Streamlink = st.Get("network/streamlink_path", a.resolver.Streamlink)
 }
 
 func atoi(s string, def int) int {

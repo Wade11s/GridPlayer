@@ -7,6 +7,8 @@ import (
 
 	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/resolve"
+	"gridplayer-go/internal/settings"
 )
 
 func TestSwapCells(t *testing.T) {
@@ -279,5 +281,30 @@ func TestBookmarkNameSkipsExisting(t *testing.T) {
 	s.Add("a.mp4", "Bookmark 3", 3000)
 	if got := a.bookmarkName("a.mp4"); got != "Bookmark 4" {
 		t.Fatalf("collision name %q", got)
+	}
+}
+
+func TestLoadNetworkSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	body := "[network]\nproxy=http://proxy:8080\ncookies=/tmp/cookies.txt\nformat=720p\nytdlp_path=\nstreamlink_path=/tmp/streamlink\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{resolver: resolve.New()}
+	a.loadNetworkSettings(st)
+	if a.resolver.Proxy != "http://proxy:8080" ||
+		a.resolver.Cookies != "/tmp/cookies.txt" ||
+		a.resolver.Format != "720p" {
+		t.Fatalf("resolver: %+v", a.resolver)
+	}
+	if a.resolver.Path != "" {
+		t.Fatalf("yt-dlp path should be cleared: %q", a.resolver.Path)
+	}
+	if a.resolver.Streamlink != "/tmp/streamlink" {
+		t.Fatalf("streamlink path %q", a.resolver.Streamlink)
 	}
 }
