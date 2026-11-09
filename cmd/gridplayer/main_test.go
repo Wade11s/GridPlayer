@@ -1013,3 +1013,66 @@ func TestAutoReloadInterval(t *testing.T) {
 		t.Fatal("should clamp to 1000 minutes")
 	}
 }
+
+func TestPictureRectGeometry(t *testing.T) {
+	centre := viewZoom{Scale: 1, AnchorX: 0.5, AnchorY: 0.5}
+	// Square video in a wide cell, fit: the picture is the cell height.
+	r := placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, centre)
+	if r.W != 100 || r.H != 100 || r.X != 50 || r.Y != 0 {
+		t.Fatalf("fit: %+v", r)
+	}
+	// Same, fill: the picture covers the cell width.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, true, false, centre)
+	if r.W != 200 || r.H != 200 || r.X != 0 || r.Y != -50 {
+		t.Fatalf("fill: %+v", r)
+	}
+	// Stretch ignores the video shape.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, false, true, centre)
+	if r.W != 200 || r.H != 100 {
+		t.Fatalf("stretch: %+v", r)
+	}
+	// Zoom doubles the picture about the centre.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 2, AnchorX: 0.5, AnchorY: 0.5})
+	if r.W != 200 || r.H != 200 || r.X != 0 || r.Y != -50 {
+		t.Fatalf("zoom: %+v", r)
+	}
+	// Zoom about the top-left keeps that corner fixed.
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 2, AnchorX: 0, AnchorY: 0})
+	if r.X != 0 || r.Y != 0 {
+		t.Fatalf("top-left anchor: %+v", r)
+	}
+	// A shift moves the picture but cannot push it off the pane.
+	// A quarter-cell shift of a right-anchored fit moves by the room at
+	// the anchor: half the 100 spare pixels plus a quarter cell of shift.
+	if x := placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 1, AnchorX: 0.5, AnchorY: 0.5, ShiftX: 0.25}).X; x != 100 {
+		t.Fatalf("shift: %g", x)
+	}
+	if clampZoom(0.1) != 0.25 || clampZoom(9) != 4 || clampZoom(1.5) != 1.5 {
+		t.Fatal("clampZoom")
+	}
+	// A picture larger than the pane may slide the overshoot either way up
+	// to half the overshoot, so black still does not show.
+	if clampShift(999, 100, 200) != 50 || clampShift(-999, 100, 200) != -50 {
+		t.Fatalf("clampShift bigger picture: %g %g", clampShift(999, 100, 200), clampShift(-999, 100, 200))
+	}
+	// A picture smaller than the pane may move up to half the spare room.
+	if clampShift(999, 200, 100) != 50 || clampShift(-999, 200, 100) != -50 {
+		t.Fatalf("clampShift smaller picture: %g %g", clampShift(999, 200, 100), clampShift(-999, 200, 100))
+	}
+	// A picture at the pane size cannot move at all.
+	if clampShift(5, 100, 100) != 0 {
+		t.Fatal("clampShift equal picture")
+	}
+}
+
+func TestParseAnchor(t *testing.T) {
+	if x, y := parseAnchor("top-left"); x != 0 || y != 0 {
+		t.Fatalf("top-left %v %v", x, y)
+	}
+	if x, y := parseAnchor("wat"); x != 0.5 || y != 0.5 {
+		t.Fatalf("unknown %v %v", x, y)
+	}
+	if anchorName(0, 1) != "bottom-left" {
+		t.Fatal("name")
+	}
+}

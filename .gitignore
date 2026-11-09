@@ -8,3 +8,5 @@ testdata/poc-hw-vlc.log
 testdata/gridplayer-vlc.log
 __pycache__/
 *.pyc
+
+gridplayer
