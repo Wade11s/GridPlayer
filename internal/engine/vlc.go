@@ -171,6 +171,13 @@ func (b *vlcBackend) SetAspectRatio(aspect string) bool {
 }
 func (b *vlcBackend) SetScale(scale float64) bool { return b.pl.SetScale(scale) }
 func (b *vlcBackend) SetCrop(crop string) bool    { return b.pl.SetCrop(crop) }
+func (b *vlcBackend) NextFrame()                  { b.pl.NextFrame() }
+func (b *vlcBackend) PreviousFrame() {
+	target := FrameStepBack(b.pl.Time(), b.pl.FPS())
+	b.pl.SetPaused(true)
+	b.pl.SetTime(target)
+}
+
 func (b *vlcBackend) Screenshot(path string) error {
 	return b.pl.Screenshot(path)
 }

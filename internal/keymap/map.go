@@ -15,6 +15,8 @@ var Actions = []string{
 	"next_cell",
 	"rate_down",
 	"rate_up",
+	"frame_next",
+	"frame_prev",
 }
 
 // Labels are the user-facing action names.
@@ -30,6 +32,8 @@ var Labels = map[string]string{
 	"next_cell":    "Next cell",
 	"rate_down":    "Rate down",
 	"rate_up":      "Rate up",
+	"frame_next":   "Next frame",
+	"frame_prev":   "Previous frame",
 }
 
 // Map is a set of action bindings.
@@ -52,6 +56,8 @@ func Default() Map {
 		"next_cell":    "n",
 		"rate_down":    "[",
 		"rate_up":      "]",
+		"frame_next":   "s",
+		"frame_prev":   "d",
 	} {
 		b, err := Parse(value)
 		if err != nil {
