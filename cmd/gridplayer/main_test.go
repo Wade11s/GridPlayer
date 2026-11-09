@@ -87,3 +87,41 @@ func TestNewCellReportsEmptyList(t *testing.T) {
 		t.Fatal("empty m3u should record an error")
 	}
 }
+
+func TestMosaicArrangeKeepsLock(t *testing.T) {
+	a := &app{
+		cells:  []*cell{{label: "a"}, {label: "b"}, {label: "c"}, {label: "d"}},
+		mosaic: true,
+	}
+	a.ensureMosaic()
+	if len(a.mosaicTiles) != 4 {
+		t.Fatalf("tiles=%d", len(a.mosaicTiles))
+	}
+	a.mosaicLocked[0] = true
+	locked := a.mosaicTiles[0].Box
+	a.arrangeMosaic()
+	if a.mosaicTiles[0].Box != locked {
+		t.Fatalf("locked tile moved: %+v != %+v", a.mosaicTiles[0].Box, locked)
+	}
+	if len(a.mosaicTiles) != 4 || !a.dirty {
+		t.Fatalf("tiles=%d dirty=%v", len(a.mosaicTiles), a.dirty)
+	}
+}
+
+func TestMosaicLockToggleAndReset(t *testing.T) {
+	a := &app{cells: []*cell{{label: "a"}, {label: "b"}}, mosaic: true, active: 1}
+	a.ensureMosaic()
+	a.toggleMosaicLock()
+	if !a.mosaicLocked[1] {
+		t.Fatal("lock not set")
+	}
+	a.toggleMosaicLock()
+	if a.mosaicLocked[1] {
+		t.Fatal("lock not cleared")
+	}
+	a.mosaicLocked[0] = true
+	a.resetMosaic()
+	if len(a.mosaicLocked) != 0 || len(a.mosaicTiles) != 2 {
+		t.Fatalf("reset: locked=%v tiles=%d", a.mosaicLocked, len(a.mosaicTiles))
+	}
+}

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -70,6 +71,8 @@ type app struct {
 	free          bool
 	freeTiles     []grid.Tile
 	mosaic        bool
+	mosaicTiles   []grid.Tile
+	mosaicLocked  map[int]bool
 	freeArea      [2]float64
 	moveIdx       int
 	moveLast      [2]float32
@@ -119,6 +122,23 @@ func (a *app) loadSettings() {
 	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
 	a.free = st.Get("playlist/grid_free", "false") == "true"
 	a.mosaic = st.Get("playlist/grid_mosaic", "false") == "true"
+	if raw := st.Get("playlist/grid_mosaic_tiles", ""); raw != "" {
+		var tiles []grid.Tile
+		if err := json.Unmarshal([]byte(raw), &tiles); err == nil && len(tiles) == len(a.cells) {
+			a.mosaicTiles = tiles
+		}
+	}
+	if raw := st.Get("playlist/grid_mosaic_locked", ""); raw != "" {
+		var locked []int
+		if err := json.Unmarshal([]byte(raw), &locked); err == nil {
+			a.mosaicLocked = map[int]bool{}
+			for _, i := range locked {
+				if i >= 0 && i < len(a.cells) {
+					a.mosaicLocked[i] = true
+				}
+			}
+		}
+	}
 	switch st.Get("playlist/single_mode_strip_side", "auto") {
 	case "right":
 		a.singleSide = grid.StripRight
@@ -200,6 +220,23 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
+	if a.mosaic {
+		a.ensureMosaic()
+		if raw, err := json.Marshal(a.mosaicTiles); err == nil {
+			a.settings.Set("playlist/grid_mosaic_tiles", string(raw))
+		}
+		locked := make([]int, 0, len(a.mosaicLocked))
+		for i := range a.mosaicLocked {
+			locked = append(locked, i)
+		}
+		sort.Ints(locked)
+		if raw, err := json.Marshal(locked); err == nil {
+			a.settings.Set("playlist/grid_mosaic_locked", string(raw))
+		}
+	} else {
+		a.settings.Delete("playlist/grid_mosaic_tiles")
+		a.settings.Delete("playlist/grid_mosaic_locked")
+	}
 	strip := "off"
 	if a.single {
 		strip = "swap"
@@ -308,6 +345,8 @@ func (a *app) setPlaylist(paths []string) {
 		}
 		a.cells = nil
 		a.active = 0
+		a.mosaicTiles = nil
+		a.mosaicLocked = nil
 		a.dirty = true
 		a.refreshMenu()
 		if a.win != nil {
@@ -338,6 +377,7 @@ func (a *app) setPlaylist(paths []string) {
 	a.cells = next
 	// Free tiles are re-laid out for the new playlist.
 	a.freeTiles = grid.FreeLayout(len(a.cells))
+	a.resetMosaic()
 	a.dirty = true
 	if a.active >= len(a.cells) {
 		a.active = len(a.cells) - 1
@@ -408,6 +448,7 @@ func (a *app) insertCells(at int, files []string) {
 	next = append(next, a.cells[at:]...)
 	a.cells = next
 	a.freeTiles = grid.FreeLayout(len(a.cells))
+	a.resetMosaic()
 	a.active = at
 	a.dirty = true
 	a.refreshMenu()
@@ -647,10 +688,70 @@ func (a *app) setActive(i int) {
 	a.refreshMenu()
 }
 
+func (a *app) ensureMosaic() {
+	if len(a.mosaicTiles) != len(a.cells) {
+		a.mosaicTiles = grid.Mosaic(len(a.cells))
+		a.mosaicLocked = map[int]bool{}
+	}
+	if a.mosaicLocked == nil {
+		a.mosaicLocked = map[int]bool{}
+	}
+}
+
+func (a *app) resetMosaic() {
+	a.mosaicTiles = grid.Mosaic(len(a.cells))
+	a.mosaicLocked = map[int]bool{}
+}
+
+func (a *app) arrangeMosaic() {
+	if !a.mosaic {
+		return
+	}
+	a.ensureMosaic()
+	a.mosaicTiles = grid.Arrange(len(a.cells), a.mosaicTiles, a.mosaicLocked)
+	a.dirty = true
+	a.saveSettings()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) toggleMosaicLock() {
+	if !a.mosaic || a.active < 0 || a.active >= len(a.cells) {
+		return
+	}
+	a.ensureMosaic()
+	if a.mosaicLocked[a.active] {
+		delete(a.mosaicLocked, a.active)
+	} else {
+		a.mosaicLocked[a.active] = true
+	}
+	a.dirty = true
+	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) unlockMosaic() {
+	if !a.mosaic {
+		return
+	}
+	a.mosaicLocked = map[int]bool{}
+	a.dirty = true
+	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
 func (a *app) teardown() {
 	if !a.closed.CompareAndSwap(false, true) {
 		return
 	}
+	a.saveSettings()
 	a.saveWindowState()
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
@@ -674,7 +775,8 @@ func (a *app) view(c *ui.Context) {
 	a.freeArea = [2]float64{float64(w), float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
 	if a.mosaic {
-		tiles := grid.Mosaic(len(a.cells))
+		a.ensureMosaic()
+		tiles := a.mosaicTiles
 		rects = make([]grid.Rect, len(tiles))
 		for i, t := range tiles {
 			rects[i] = t.Rect(area, 4)
@@ -706,13 +808,20 @@ func (a *app) view(c *ui.Context) {
 		for i, r := range rects {
 			a.cellView(c, i, r, theme)
 		}
-		if a.free {
+		if a.free || a.mosaic {
 			for i, r := range rects {
+				if a.mosaic && a.mosaicLocked[i] {
+					continue
+				}
 				h := ui.Box(c.Key(fmt.Sprintf("resize-%d", i))).
 					Absolute().Left(float32(r.X + r.W - 16)).Top(float32(r.Y + r.H - 16)).
 					Width(16).Height(16).Radius(3).Background(theme.Accent)
 				if dx, dy, ok := h.Dragged(); ok && (dx != 0 || dy != 0) {
-					a.freeTiles = grid.ResizeTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+					if a.free {
+						a.freeTiles = grid.ResizeTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+					} else {
+						a.mosaicTiles = grid.ResizeTile(a.mosaicTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+					}
 					a.dirty = true
 				}
 			}
@@ -739,7 +848,7 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		Absolute().Left(float32(r.X)).Top(float32(r.Y)).
 		Width(float32(r.W)).Height(float32(r.H)).
 		Radius(6).Background(ui.RGB(20, 20, 24))
-	if !a.free {
+	if !a.free && !a.mosaic {
 		base = base.Drag(i)
 	}
 	if over, ok := ui.DragOver[int](base); ok && over != i {
@@ -754,6 +863,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 			badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)
 			if len(cell.list) > 0 {
 				badge = fmt.Sprintf(" %s %d/%d  %dms  %s ", cell.label, cell.listIndex+1, len(cell.list), s.Time, s.Phase)
+			}
+			if a.mosaic && a.mosaicLocked[i] {
+				badge = strings.TrimSuffix(badge, " ") + " locked "
 			}
 			ui.Text(c, badge).Absolute().Top(6).Left(6).FontSize(14).
 				Background(ui.RGBA(0, 0, 0, 190)).TextColor(ui.RGB(255, 255, 255))
@@ -795,9 +907,14 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 			a.freeTiles = grid.MoveTile(a.freeTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
 			a.dirty = true
 		}
+	} else if a.mosaic && len(a.mosaicTiles) > i && !a.mosaicLocked[i] {
+		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
+			a.mosaicTiles = grid.MoveTile(a.mosaicTiles, i, float64(dx), float64(dy), a.freeArea[0], a.freeArea[1])
+			a.dirty = true
+		}
 	}
-	// Free tiles keep saved positions; full drag-to-move/resize is a later
-	// increment (the cell is a drag-swap source in grid mode today).
+	// In grid modes the cell stays a drag-swap source; Free and Mosaic move
+	// their own tile instead.
 	_ = border
 	if el.FileDragOver() && border == ui.RGBA(0, 0, 0, 0) {
 		el = el.Border(2, theme.Accent)
@@ -1514,12 +1631,23 @@ func (a *app) menu() *mygo.Menu {
 				if a.mosaic {
 					a.free = false
 					a.single = false
+					a.ensureMosaic()
 				}
 				a.saveSettings()
 				a.refreshMenu()
 				if a.win != nil {
 					a.win.Invalidate()
 				}
+			}},
+			{Label: "Arrange Mosaic", Disabled: !a.mosaic, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.arrangeMosaic()
+			}},
+			{Label: "Lock Active Tile", Type: mygo.MenuItemCheckbox, Checked: a.mosaic && a.mosaicLocked[a.active],
+				Disabled: !a.mosaic || len(a.cells) == 0, Click: func(*mygo.MenuItem, *mygo.Window) {
+					a.toggleMosaicLock()
+				}},
+			{Label: "Unlock All Tiles", Disabled: !a.mosaic, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.unlockMosaic()
 			}},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
