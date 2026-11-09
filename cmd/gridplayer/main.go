@@ -117,6 +117,8 @@ type app struct {
 	defaultMuted        bool
 	defaultRate         float64
 	defaultLoop         bool
+	retryMode           atomic.Int32
+	retryTimes          atomic.Int32
 }
 
 func newApp(paths []string) *app {
@@ -132,6 +134,7 @@ func newApp(paths []string) *app {
 		keys:          keymap.Default(),
 		subtitle:      subtitleStyle{Opacity: 255},
 	}
+	a.setRetryPolicy("times", defaultRetryTimes)
 	a.setPlaylist(paths)
 	return a
 }
@@ -216,6 +219,10 @@ func (a *app) loadSettings() {
 		a.defaultRate = 4
 	}
 	a.defaultLoop = st.Get("video_defaults/loop", "true") == "true"
+	a.setRetryPolicy(
+		st.Get("video_defaults/network_retry_mode", "times"),
+		atoi(st.Get("video_defaults/network_retry_times", "3"), defaultRetryTimes),
+	)
 	a.aspect = st.Get("video_defaults/aspect_ratio", "")
 	a.scale = atof(st.Get("video_defaults/scale", "0"), 0)
 	if a.scale < 0 {
@@ -353,6 +360,19 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
 	a.settings.Set("video_defaults/rate", fmt.Sprintf("%g", a.defaultRate))
 	a.settings.Set("video_defaults/loop", fmt.Sprint(a.defaultLoop))
+	switch a.retryMode.Load() {
+	case retryOff:
+		a.settings.Set("video_defaults/network_retry_mode", "off")
+	case retryInfinite:
+		a.settings.Set("video_defaults/network_retry_mode", "infinite")
+	default:
+		a.settings.Set("video_defaults/network_retry_mode", "times")
+	}
+	times := a.retryTimes.Load()
+	if times < 1 {
+		times = defaultRetryTimes
+	}
+	a.settings.Set("video_defaults/network_retry_times", fmt.Sprint(times))
 	if a.resolver != nil {
 		a.settings.Set("network/proxy", a.resolver.Proxy)
 		a.settings.Set("network/cookies", a.resolver.Cookies)
@@ -738,7 +758,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				c.retries.Store(0)
 				if !wasPlaying {
 					mygo.RunOnMain(func() {
-						if strings.HasPrefix(a.status, "retrying ") {
+						if strings.HasPrefix(a.status, "retrying ") || strings.HasPrefix(a.status, "retry limit ") {
 							a.status = ""
 						}
 					})
@@ -753,24 +773,36 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 			}
 			if s.Phase == engine.Failed && s.Gen != lastRetryGen && retryable(c.path) {
 				lastRetryGen = s.Gen
-				attempt := c.retries.Add(1)
-				delay := retryDelay(attempt)
-				if attempt <= maxRetries {
-					mygo.RunOnMain(func() {
-						a.status = fmt.Sprintf("retrying %s in %s (%d/%d)",
-							filepath.Base(c.path), delay, attempt, maxRetries)
-					})
-					own := eng
-					time.AfterFunc(delay, func() {
-						if own.Snapshot().Phase == engine.Playing {
-							return
-						}
-						_ = own.Reload()
-					})
-				} else {
-					mygo.RunOnMain(func() {
-						a.status = "retry limit reached for " + filepath.Base(c.path)
-					})
+				limit := a.networkRetryLimit()
+				if limit != 0 {
+					attempt := c.retries.Add(1)
+					name := filepath.Base(c.path)
+					if limit > 0 && int(attempt) > limit {
+						mygo.RunOnMain(func() {
+							a.status = "retry limit reached for " + name
+						})
+					} else {
+						delay := retryDelay(attempt)
+						gen := s.Gen
+						mygo.RunOnMain(func() {
+							a.status = retryStatus(name, delay, attempt, limit)
+						})
+						own := eng
+						time.AfterFunc(delay, func() {
+							if a.closed.Load() {
+								return
+							}
+							now := a.networkRetryLimit()
+							if now == 0 || (now > 0 && int(attempt) > now) {
+								return
+							}
+							snap := own.Snapshot()
+							if snap.Gen != gen || snap.Phase != engine.Failed {
+								return
+							}
+							_ = own.Reload()
+						})
+					}
 				}
 			}
 			if s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {

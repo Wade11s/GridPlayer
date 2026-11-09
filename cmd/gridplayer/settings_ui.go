@@ -55,21 +55,25 @@ type settingsDraft struct {
 	streamlink string
 	format     string
 
+	retryMode  string
+	retryTimes string
+
 	keys        []keyBindingDraft
 	keymapError string
 }
 
 var (
-	layoutOptions   = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
-	sizeOptions     = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
-	sideOptions     = []string{"Auto", "Right", "Left", "Bottom", "Top"}
-	viewOptions     = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
-	aspectOptions   = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
-	scaleOptions    = []string{"Fit", "1x", "1.5x", "2x"}
-	cropOptions     = []string{"None", "16:9", "4:3", "2.35:1"}
-	formatOptions   = []string{"Best", "Worst", "720p", "480p"}
-	outlineOptions  = []string{"None", "Thin", "Normal", "Thick"}
-	encodingOptions = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
+	layoutOptions    = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
+	sizeOptions      = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
+	sideOptions      = []string{"Auto", "Right", "Left", "Bottom", "Top"}
+	viewOptions      = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
+	aspectOptions    = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
+	scaleOptions     = []string{"Fit", "1x", "1.5x", "2x"}
+	cropOptions      = []string{"None", "16:9", "4:3", "2.35:1"}
+	formatOptions    = []string{"Best", "Worst", "720p", "480p"}
+	outlineOptions   = []string{"None", "Thin", "Normal", "Thick"}
+	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
+	retryModeOptions = []string{"Off", "Fixed attempts", "Keep trying"}
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -92,6 +96,8 @@ func defaultSettingsDraft() settingsDraft {
 		subEncoding: "Auto",
 		subSize:     "0",
 		format:      "Best",
+		retryMode:   "Fixed attempts",
+		retryTimes:  "3",
 		keys:        defaultKeyBindingDrafts(),
 	}
 }
@@ -177,6 +183,14 @@ func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, "Default loop", func() {
 			ui.Checkbox(c, &d.loop, "Loop new cells")
 		})
+		ui.Field(c, "On network error", func() {
+			ui.Select(c, &d.retryMode, retryModeOptions)
+		}).Description("Reloads a failed network video. Local files stay failed.")
+		if d.retryMode == "Fixed attempts" {
+			ui.Field(c, "Attempts", func() {
+				ui.TextInput(c, &d.retryTimes)
+			}).Description("1–1000. Waits 1s, 2s, 5s, 15s, then 30s.")
+		}
 		ui.Field(c, "Decode", func() {
 			ui.Text(c, "VideoToolbox via libVLC")
 		})
@@ -406,6 +420,12 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.subOpacity = float64(a.subtitle.Opacity) * 100 / 255
 	d.subEncoding = subtitleEncodingName(a.subtitle.Encoding)
 	d.subAutodetect = a.subtitle.Autodetect
+	d.retryMode = retryModeName(a.retryMode.Load())
+	times := a.retryTimes.Load()
+	if times < 1 {
+		times = defaultRetryTimes
+	}
+	d.retryTimes = fmt.Sprint(times)
 	d.keys = keyBindingDrafts(a.keys)
 	return d
 }
@@ -415,6 +435,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultMuted = d.muted
 	a.defaultRate = clampFloat(d.rate, 0.25, 4)
 	a.defaultLoop = d.loop
+	a.setRetryPolicy(retryModeValue(d.retryMode), atoi(d.retryTimes, defaultRetryTimes))
 	a.snap = d.snap
 	a.overlap = d.overlap
 	a.singleSide = sideFromName(d.singleSide)

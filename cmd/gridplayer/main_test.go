@@ -676,15 +676,39 @@ func TestRetryable(t *testing.T) {
 }
 
 func TestRetryDelay(t *testing.T) {
-	for attempt, want := range map[int32]time.Duration{
-		0: time.Second,
-		1: time.Second,
-		2: 2 * time.Second,
-		3: 4 * time.Second,
-	} {
-		if got := retryDelay(attempt); got != want {
-			t.Fatalf("attempt %d -> %s, want %s", attempt, got, want)
+	want := []time.Duration{time.Second, 2 * time.Second, 5 * time.Second, 15 * time.Second, 30 * time.Second, 30 * time.Second}
+	for i, delay := range want {
+		attempt := int32(i + 1)
+		if got := retryDelay(attempt); got != delay {
+			t.Fatalf("attempt %d -> %s, want %s", attempt, got, delay)
 		}
+	}
+	if retryDelay(0) != time.Second {
+		t.Fatal("attempt 0 should clamp to the first delay")
+	}
+}
+
+func TestNetworkRetryLimit(t *testing.T) {
+	a := &app{}
+	a.setRetryPolicy("times", 3)
+	if a.networkRetryLimit() != 3 {
+		t.Fatalf("times limit=%d", a.networkRetryLimit())
+	}
+	a.setRetryPolicy("off", 3)
+	if a.networkRetryLimit() != 0 {
+		t.Fatal("off should not retry")
+	}
+	a.setRetryPolicy("infinite", 3)
+	if a.networkRetryLimit() != -1 {
+		t.Fatal("infinite should not cap")
+	}
+	a.setRetryPolicy("times", 0)
+	if got := a.networkRetryLimit(); got != 1 {
+		t.Fatalf("times clamped to %d", got)
+	}
+	a.setRetryPolicy("times", 5000)
+	if got := a.networkRetryLimit(); got != maxRetryTimes {
+		t.Fatalf("times capped to %d", got)
 	}
 }
 
