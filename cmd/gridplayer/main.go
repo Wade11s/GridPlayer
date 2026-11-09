@@ -756,6 +756,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 			s := eng.Snapshot()
 			if s.Phase == engine.Playing {
 				c.retries.Store(0)
+				lastRetryGen = 0
 				if !wasPlaying {
 					mygo.RunOnMain(func() {
 						if strings.HasPrefix(a.status, "retrying ") || strings.HasPrefix(a.status, "retry limit ") {
@@ -789,18 +790,16 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 						})
 						own := eng
 						time.AfterFunc(delay, func() {
-							if a.closed.Load() {
-								return
-							}
-							now := a.networkRetryLimit()
-							if now == 0 || (now > 0 && int(attempt) > now) {
-								return
-							}
-							snap := own.Snapshot()
-							if snap.Gen != gen || snap.Phase != engine.Failed {
-								return
-							}
-							_ = own.Reload()
+							mygo.RunOnMain(func() {
+								if a.closed.Load() {
+									return
+								}
+								now := a.networkRetryLimit()
+								if now == 0 || (now > 0 && int(attempt) > now) {
+									return
+								}
+								_ = own.ReloadIfFailed(gen)
+							})
 						})
 					}
 				}
