@@ -170,3 +170,69 @@ func TestResizeTileSnapAndOverlap(t *testing.T) {
 		t.Fatalf("overlap resize accepted: %+v", got[0].Box)
 	}
 }
+
+func TestSettingsDraftRoundTrip(t *testing.T) {
+	a := &app{
+		cfg:           grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 4},
+		fill:          true,
+		snap:          true,
+		overlap:       true,
+		defaultVolume: 80,
+		defaultRate:   1,
+		defaultLoop:   true,
+		cells:         []*cell{{}, {}},
+	}
+	d := a.currentSettingsDraft()
+	if d.layout != "Fixed" || d.rows != "2" || d.cols != "4" {
+		t.Fatalf("draft layout=%q rows=%q cols=%q", d.layout, d.rows, d.cols)
+	}
+	d.layout = "Mosaic"
+	d.volume = 55
+	d.rate = 1.5
+	d.loop = false
+	d.snap = false
+	d.overlap = false
+	d.view = "Fit (contain)"
+	d.aspect = "4:3"
+	d.scale = "1.5x"
+	d.crop = "16:9"
+	d.singleSide = "Left"
+	a.applySettingsDraft(d)
+	if !a.mosaic || a.free || a.single {
+		t.Fatalf("layout free=%v mosaic=%v single=%v", a.free, a.mosaic, a.single)
+	}
+	if a.defaultVolume != 55 || a.defaultRate != 1.5 || a.defaultLoop {
+		t.Fatalf("defaults volume=%d rate=%v loop=%v", a.defaultVolume, a.defaultRate, a.defaultLoop)
+	}
+	if a.fill || a.stretch {
+		t.Fatalf("view fill=%v stretch=%v", a.fill, a.stretch)
+	}
+	if a.aspect != "4:3" || a.scale != 1.5 || a.crop != "16:9" {
+		t.Fatalf("video aspect=%q scale=%v crop=%q", a.aspect, a.scale, a.crop)
+	}
+	if a.singleSide != grid.StripLeft {
+		t.Fatalf("side=%v", a.singleSide)
+	}
+	if len(a.mosaicTiles) != 2 {
+		t.Fatalf("mosaic tiles=%d", len(a.mosaicTiles))
+	}
+}
+
+func TestSettingsDraftLayouts(t *testing.T) {
+	cases := []struct {
+		name string
+		a    *app
+		want string
+	}{
+		{"auto rows", &app{cfg: grid.Config{Mode: grid.AutoRows}}, "Auto Rows"},
+		{"auto cols", &app{cfg: grid.Config{Mode: grid.AutoCols}}, "Auto Columns"},
+		{"free", &app{free: true}, "Free Tiles"},
+		{"mosaic", &app{mosaic: true}, "Mosaic"},
+		{"single", &app{single: true}, "Single Mode"},
+	}
+	for _, tc := range cases {
+		if got := tc.a.currentSettingsDraft().layout; got != tc.want {
+			t.Fatalf("%s: got %q want %q", tc.name, got, tc.want)
+		}
+	}
+}
