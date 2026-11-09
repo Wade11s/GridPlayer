@@ -84,6 +84,41 @@
 - PR #38 merged at `bf6d6e4`: subtitle styling. Main `bf6d6e4`: CI green,
   full race/vet/build green, GUI set 48px/yellow (live reload args confirmed)
   and 96px/red/thick outline (large red subtitles) on feature.mkv.
+- PR #39 merged at `9e47f07` (head `ce96484`): network retry. Failed
+  http/https/rtsp/rtmp/udp/mms/srt loads reload on the main thread after
+  1s, 2s, 5s, 15s, then 30s. Settings default
+  `video_defaults/network_retry_mode=times` and `network_retry_times=3`
+  (off / times / infinite). `ReloadIfFailed` will not load a newer
+  generation. Local files are not retried. CI `vet-build-test` green on
+  `ce96484`, `go test ./... -race` green, `.app` smoke 4× VideoToolbox.
+  Independent review of `97903dc` FAILed (off-main reload); re-review of
+  `ce96484` PASS. List-fail skip and per-item retry overrides remain open.
+- PR #41 merged at `f118f1d` (head `6e8a40a`): failed list items play the next
+  item after `video_defaults/list_fail_wait` (default 2s) when retry will not
+  run again. `show_error` stays put. Stop after more than 10 network failures
+  in a row, or after every item has failed. Per-cell override is
+  `list_fail` / `list_fail_wait` in `.gpls`. CI green, full race green on
+  main `f118f1d`, `.app` smoke 4× VideoToolbox. Independent review of
+  `6e8a40a` PASS. Per-item previous/shuffle and a ticking countdown remain open.
+- PR #44 merged at `ec97de1` (head `37a83c2`): audio delay. J/K nudge
+  ±50ms via libVLC, clamp ±60s, reapplied on load, persisted per video as
+  `audio_delay_ms`. CI green, `.app` smoke 4× VideoToolbox. Independent
+  review of `a2a22d3` and `c8654b7` FAILed (single-file restore, wrong
+  key); re-review of `37a83c2` PASS.
+- PR #42 merged at `3a39868` (head `34698dd`): video end actions. Loop,
+  next, previous, shuffle, pause, stop, per cell, persisted as
+  `end_action`. New lists still play the next item when the default is
+  Loop file. CI green, `.app` smoke 4× VideoToolbox. Independent
+  re-review of `34698dd` PASS after a merge with main.
+- PR #43 merged at `4350935` (head `33a0c70`): frame stepping. S pauses
+  then steps one frame via `libvlc_media_player_next_frame`; D pauses and
+  seeks back one frame at 25fps (or libVLC fps). Independent re-review of
+  `33a0c70` PASS.
+
+GitHub Actions was in a major outage from about 18:08Z to 18:43Z on
+2026-11-09. Workflow runs from that window completed with zero jobs.
+No merge used local results as a substitute; each PR was merged only after
+CI produced a real job for the reviewed head.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
