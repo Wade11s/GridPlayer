@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestSwapCells(t *testing.T) {
 	a := &app{cells: []*cell{{label: "a"}, {label: "b"}, {label: "c"}}, active: 0}
@@ -38,5 +42,48 @@ func TestInsertCells(t *testing.T) {
 	a.insertCells(99, []string{"z.mp4"})
 	if a.cells[len(a.cells)-1].path != "z.mp4" {
 		t.Fatal("append failed")
+	}
+}
+
+func TestListAdvanceAndWrap(t *testing.T) {
+	c := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 0, listLoop: true, path: "a.mp4"}
+	a := &app{cells: []*cell{c}}
+	a.advanceList(c)
+	if c.listIndex != 1 || c.path != "b.mp4" {
+		t.Fatalf("advance %d %q", c.listIndex, c.path)
+	}
+	a.advanceList(c)
+	if c.listIndex != 0 || c.path != "a.mp4" {
+		t.Fatalf("wrap %d %q", c.listIndex, c.path)
+	}
+	a.previousList(c)
+	if c.listIndex != 1 || c.path != "b.mp4" {
+		t.Fatalf("previous %d %q", c.listIndex, c.path)
+	}
+}
+
+func TestShouldAdvanceOncePerGeneration(t *testing.T) {
+	c := &cell{}
+	if !c.shouldAdvance(1) {
+		t.Fatal("first end should advance")
+	}
+	if c.shouldAdvance(1) {
+		t.Fatal("Stopped after EndReached must not advance again")
+	}
+	if !c.shouldAdvance(2) {
+		t.Fatal("new generation should advance")
+	}
+}
+
+func TestNewCellReportsEmptyList(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "empty.m3u")
+	if err := os.WriteFile(p, []byte("#EXTM3U\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{defaultVolume: 80}
+	c := a.newCell(0, p)
+	if c.listErr == "" {
+		t.Fatal("empty m3u should record an error")
 	}
 }

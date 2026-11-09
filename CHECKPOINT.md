@@ -95,6 +95,10 @@
   skip-download, no-playlist) with direct fallback; Open URL dialog and
   `--url` startup path; local HLS resolution test. Streamlink/cookies/proxy/
   adaptive quality still open.
+- #7 media lists: `internal/medialist` m3u/pls/xspf/folder expansion; one-cell
+  list advances on Ended (once per generation), wraps, Previous/Next menu,
+  badge i/n; list.m3u fixture and state test. Source path is persisted;
+  per-item settings and end/fail actions still open.
 - #2 frame screenshots (merged c7fa9a2): libVLC `video_take_snapshot` through
   engine, Save Frame dialog + Shot overlay + `--screenshot` automation;
   PNG verified from a playing fixture. Zoom/shift/transform, free tiles/

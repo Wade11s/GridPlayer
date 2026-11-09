@@ -24,6 +24,7 @@ import (
 
 	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/medialist"
 	"gridplayer-go/internal/nativehost"
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
@@ -32,17 +33,26 @@ import (
 )
 
 type cell struct {
-	label  string
-	path   string
-	eng    *engine.Engine
-	view   uintptr
-	clip   uintptr
-	failed bool
+	label   string
+	source  string
+	path    string
+	eng     *engine.Engine
+	view    uintptr
+	clip    uintptr
+	failed  bool
+	listErr string
 
 	volume  int
 	muted   bool
 	rate    float64
 	startAt int
+
+	list      []string
+	listIndex int
+	listLoop  bool
+	loop      bool
+	advancing bool
+	endedGen  uint64
 }
 
 type app struct {
@@ -335,12 +345,27 @@ func (a *app) setPlaylist(paths []string) {
 func (a *app) newCell(i int, p string) *cell {
 	c := &cell{
 		label:  labelFor(p),
+		source: p,
 		path:   p,
 		volume: a.defaultVolume,
 		rate:   1,
+		loop:   true,
 	}
 	if i > 0 || a.defaultMuted {
 		c.muted = true
+	}
+	if !strings.Contains(p, "://") {
+		if st, err := os.Stat(p); err == nil && (st.IsDir() || medialist.IsList(p)) {
+			if items, err := medialist.Expand(p, false, 500); err != nil {
+				c.listErr = err.Error()
+			} else if len(items) > 0 {
+				c.list = items
+				c.listIndex = 0
+				c.path = items[0]
+				c.loop = false
+				c.listLoop = true
+			}
+		}
 	}
 	return c
 }
@@ -455,6 +480,11 @@ func (a *app) ensure(i int, r grid.Rect) {
 	if c.failed {
 		return
 	}
+	if c.listErr != "" {
+		c.failed = true
+		a.status = c.listErr
+		return
+	}
 	if c.view == 0 {
 		clip := nativehost.NewClip()
 		view := nativehost.NewView()
@@ -469,7 +499,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		eng := engine.New(engine.NewVLCFactory(engine.VLCOptions{
 			View: func() uintptr { return view },
 		}))
-		eng.SetLoop(true)
+		eng.SetLoop(c.loop)
 		eng.SetVolume(c.volume)
 		eng.SetMute(c.muted)
 		eng.SetRate(c.rate)
@@ -485,7 +515,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 			return
 		}
 		c.eng, c.view, c.clip = eng, view, clip
-		go a.watch(eng)
+		go a.watch(c, eng)
 	}
 	nativehost.SetFrame(c.clip, nativehost.ToMac(nativehost.DIP(r), h))
 	s := engine.Snapshot{}
@@ -517,10 +547,13 @@ func (a *app) ensure(i int, r grid.Rect) {
 		nativehost.DIP{X: vx, Y: vy, W: vw, H: vh}, float64(r.H)))
 }
 
-func (a *app) watch(eng *engine.Engine) {
+func (a *app) watch(c *cell, eng *engine.Engine) {
 	for {
 		select {
 		case <-eng.Updates():
+			if s := eng.Snapshot(); s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
+				mygo.RunOnMain(func() { a.advanceList(c) })
+			}
 			if a.win != nil && !a.closed.Load() {
 				a.win.Invalidate()
 			}
@@ -528,6 +561,61 @@ func (a *app) watch(eng *engine.Engine) {
 			if a.closed.Load() {
 				return
 			}
+		}
+	}
+}
+
+// shouldAdvance reports once per generation that the list ended, so the
+// Stopped event VLC sends after EndReached does not advance twice.
+func (c *cell) shouldAdvance(gen uint64) bool {
+	if c.endedGen == gen {
+		return false
+	}
+	c.endedGen = gen
+	return true
+}
+
+func (a *app) advanceList(c *cell) {
+	if c == nil || c.advancing || len(c.list) == 0 {
+		return
+	}
+	next := c.listIndex + 1
+	if next >= len(c.list) {
+		if !c.listLoop {
+			return
+		}
+		next = 0
+	}
+	c.advancing = true
+	defer func() { c.advancing = false }()
+	c.listIndex = next
+	c.path = c.list[next]
+	c.startAt = 0
+	if c.eng != nil {
+		c.eng.SetStartPosition(0)
+		if err := c.eng.Load(c.path); err != nil {
+			a.status = err.Error()
+		}
+	}
+}
+
+func (a *app) previousList(c *cell) {
+	if c == nil || c.advancing || len(c.list) == 0 {
+		return
+	}
+	prev := c.listIndex - 1
+	if prev < 0 {
+		prev = len(c.list) - 1
+	}
+	c.advancing = true
+	defer func() { c.advancing = false }()
+	c.listIndex = prev
+	c.path = c.list[prev]
+	c.startAt = 0
+	if c.eng != nil {
+		c.eng.SetStartPosition(0)
+		if err := c.eng.Load(c.path); err != nil {
+			a.status = err.Error()
 		}
 	}
 }
@@ -631,6 +719,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		}).
 		Children(func() {
 			badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)
+			if len(cell.list) > 0 {
+				badge = fmt.Sprintf(" %s %d/%d  %dms  %s ", cell.label, cell.listIndex+1, len(cell.list), s.Time, s.Phase)
+			}
 			ui.Text(c, badge).Absolute().Top(6).Left(6).FontSize(14).
 				Background(ui.RGBA(0, 0, 0, 190)).TextColor(ui.RGB(255, 255, 255))
 			if s.Err != "" {
@@ -924,8 +1015,12 @@ func (a *app) document() *playlist.Document {
 		if c.eng != nil {
 			s = c.eng.Snapshot()
 		}
+		source := c.source
+		if source == "" {
+			source = c.path
+		}
 		v := playlist.Video{
-			URI:             c.path,
+			URI:             source,
 			CurrentPosition: int(s.Time),
 			IsMuted:         s.Muted,
 			Volume:          float64(s.Volume) / 100,
@@ -1238,6 +1333,16 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Stop", Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.Stop()
+				}
+			}},
+			{Label: "Previous in List", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if a.active >= 0 && a.active < len(a.cells) {
+					a.previousList(a.cells[a.active])
+				}
+			}},
+			{Label: "Next in List", Click: func(*mygo.MenuItem, *mygo.Window) {
+				if a.active >= 0 && a.active < len(a.cells) {
+					a.advanceList(a.cells[a.active])
 				}
 			}},
 			{Label: "Save Frame…", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
