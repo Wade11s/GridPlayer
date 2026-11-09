@@ -2182,6 +2182,9 @@ func (a *app) setZoom(scale float64) {
 	}
 	a.saveSettings()
 	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) setAnchor(name string) {
@@ -2192,14 +2195,21 @@ func (a *app) setAnchor(name string) {
 	}
 	a.saveSettings()
 	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) shiftPicture(dx, dy float64) {
 	for _, c := range a.cells {
-		c.shiftX = clampShift(c.shiftX+dx, 1, 1)
-		c.shiftY = clampShift(c.shiftY+dy, 1, 1)
+		c.shiftX = clampFloat(c.shiftX+dx, -1, 1)
+		c.shiftY = clampFloat(c.shiftY+dy, -1, 1)
 	}
 	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) setScale(scale float64) {
