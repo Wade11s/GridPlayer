@@ -90,6 +90,8 @@ type app struct {
 	playlistPath  string
 	urlWin        *mygo.Window
 	urlInput      string
+	settingsWin   *mygo.Window
+	settingsDraft settingsDraft
 	resolver      *resolve.Resolver
 	bookmarks     *bookmarks.Store
 	pending       []pendingDrop
@@ -97,10 +99,21 @@ type app struct {
 	recent        []string
 	defaultVolume int
 	defaultMuted  bool
+	defaultRate   float64
+	defaultLoop   bool
 }
 
 func newApp(paths []string) *app {
-	a := &app{cfg: grid.Config{Mode: grid.AutoRows}, fill: true, snap: true, overlap: true, defaultVolume: 80, resolver: resolve.New()}
+	a := &app{
+		cfg:           grid.Config{Mode: grid.AutoRows},
+		fill:          true,
+		snap:          true,
+		overlap:       true,
+		defaultVolume: 80,
+		defaultRate:   1,
+		defaultLoop:   true,
+		resolver:      resolve.New(),
+	}
 	a.setPlaylist(paths)
 	return a
 }
@@ -176,6 +189,14 @@ func (a *app) loadSettings() {
 		a.defaultVolume = int(v * 100)
 	}
 	a.defaultMuted = st.Get("video_defaults/muted", "false") == "true"
+	a.defaultRate = atof(st.Get("video_defaults/rate", "1"), 1)
+	if a.defaultRate < 0.25 {
+		a.defaultRate = 0.25
+	}
+	if a.defaultRate > 4 {
+		a.defaultRate = 4
+	}
+	a.defaultLoop = st.Get("video_defaults/loop", "true") == "true"
 	a.aspect = st.Get("video_defaults/aspect_ratio", "")
 	a.scale = atof(st.Get("video_defaults/scale", "0"), 0)
 	if a.scale < 0 {
@@ -185,6 +206,8 @@ func (a *app) loadSettings() {
 	for i, c := range a.cells {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
+		c.rate = a.defaultRate
+		c.loop = a.defaultLoop
 	}
 	if raw := st.Get("app/recent", ""); raw != "" {
 		_ = json.Unmarshal([]byte(raw), &a.recent)
@@ -281,6 +304,8 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/crop_ratio", a.crop)
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
+	a.settings.Set("video_defaults/rate", fmt.Sprintf("%g", a.defaultRate))
+	a.settings.Set("video_defaults/loop", fmt.Sprint(a.defaultLoop))
 	if raw, err := json.Marshal(a.recent); err == nil {
 		a.settings.Set("app/recent", string(raw))
 	}
@@ -412,8 +437,8 @@ func (a *app) newCell(i int, p string) *cell {
 		source: p,
 		path:   p,
 		volume: a.defaultVolume,
-		rate:   1,
-		loop:   true,
+		rate:   a.defaultRate,
+		loop:   a.defaultLoop,
 	}
 	if i > 0 || a.defaultMuted {
 		c.muted = true
@@ -802,6 +827,10 @@ func (a *app) teardown() {
 	}
 	a.saveSettings()
 	a.saveWindowState()
+	if a.settingsWin != nil {
+		a.settingsWin.Close()
+		a.settingsWin = nil
+	}
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
 		if c == nil {
@@ -1594,6 +1623,8 @@ func (a *app) menu() *mygo.Menu {
 				a.playlistPath = ""
 				a.saveDialog()
 			}},
+			{Type: mygo.MenuItemSeparator},
+			{Label: "Settings…", Accelerator: "CmdOrCtrl+,", Click: func(*mygo.MenuItem, *mygo.Window) { a.openSettings() }},
 			{Type: mygo.MenuItemSeparator},
 			{Role: mygo.RoleClose},
 		}},
