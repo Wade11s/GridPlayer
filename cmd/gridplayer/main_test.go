@@ -7,6 +7,7 @@ import (
 
 	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
 )
@@ -51,7 +52,7 @@ func TestInsertCells(t *testing.T) {
 }
 
 func TestListAdvanceAndWrap(t *testing.T) {
-	c := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 0, listLoop: true, path: "a.mp4"}
+	c := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 0, listEnd: "loop", path: "a.mp4"}
 	a := &app{cells: []*cell{c}}
 	a.advanceList(c)
 	if c.listIndex != 1 || c.path != "b.mp4" {
@@ -64,6 +65,29 @@ func TestListAdvanceAndWrap(t *testing.T) {
 	a.previousList(c)
 	if c.listIndex != 1 || c.path != "b.mp4" {
 		t.Fatalf("previous %d %q", c.listIndex, c.path)
+	}
+}
+
+func TestListEndStopAndNext(t *testing.T) {
+	stop := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 1, listEnd: "stop", path: "b.mp4"}
+	a := &app{cells: []*cell{stop}}
+	a.advanceList(stop)
+	if stop.listIndex != 1 || stop.path != "b.mp4" {
+		t.Fatalf("stop advanced: %d %q", stop.listIndex, stop.path)
+	}
+
+	next := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 1, listEnd: "next", path: "b.mp4"}
+	other := &cell{path: "other.mp4"}
+	a = &app{cells: []*cell{next, other}, active: 0}
+	a.advanceList(next)
+	if a.active != 1 {
+		t.Fatalf("next cell active=%d", a.active)
+	}
+	last := &cell{list: []string{"a.mp4"}, listIndex: 0, listEnd: "next", path: "a.mp4"}
+	a = &app{cells: []*cell{other, last}, active: 1}
+	a.advanceList(last)
+	if a.active != 1 {
+		t.Fatalf("last cell wrapped active=%d", a.active)
 	}
 }
 
@@ -306,5 +330,62 @@ func TestLoadNetworkSettings(t *testing.T) {
 	}
 	if a.resolver.Streamlink != "/tmp/streamlink" {
 		t.Fatalf("streamlink path %q", a.resolver.Streamlink)
+	}
+}
+
+func TestLoadPlaylistItemSettings(t *testing.T) {
+	dir := t.TempDir()
+	list := filepath.Join(dir, "list.m3u")
+	body := "#EXTM3U\n" + filepath.Join(dir, "a.mp4") + "\n" + filepath.Join(dir, "b.mp4") + "\n"
+	if err := os.WriteFile(list, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "p.gpls")
+	doc := playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{{
+			URI:             list,
+			CurrentPosition: 1234,
+			IsMuted:         true,
+			Volume:          0.5,
+			Rate:            1.5,
+			CellViewMode:    "stretch",
+			PlaybackState:   "paused",
+			ListIndex:       1,
+			ListEnd:         "next",
+		}},
+	}
+	if err := doc.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	if err := a.loadPlaylist(path); err != nil {
+		t.Fatal(err)
+	}
+	c := a.cells[0]
+	if c.viewMode != "stretch" || !c.startPaused || c.listEnd != "next" ||
+		c.listIndex != 1 || c.path != filepath.Join(dir, "b.mp4") {
+		t.Fatalf("cell state: %+v", c)
+	}
+	if c.startAt != 1234 || !c.muted || c.volume != 50 || c.rate != 1.5 {
+		t.Fatalf("playback state: %+v", c)
+	}
+}
+
+func TestDocumentViewMode(t *testing.T) {
+	a := &app{cells: []*cell{{
+		path:      "a.mp4",
+		viewMode:  "stretch",
+		listIndex: 2,
+		listEnd:   "stop",
+	}}}
+	d := a.document()
+	if len(d.Videos) != 1 {
+		t.Fatalf("videos=%d", len(d.Videos))
+	}
+	v := d.Videos[0]
+	if v.CellViewMode != "stretch" || v.ListIndex != 2 || v.ListEnd != "stop" {
+		t.Fatalf("video %+v", v)
 	}
 }

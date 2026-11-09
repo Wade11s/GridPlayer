@@ -44,14 +44,17 @@ type cell struct {
 	failed  bool
 	listErr string
 
-	volume  int
-	muted   bool
-	rate    float64
-	startAt int
+	volume      int
+	muted       bool
+	rate        float64
+	startAt     int
+	startPaused bool
+	pauseOnPlay atomic.Bool
+	viewMode    string
 
 	list      []string
 	listIndex int
-	listLoop  bool
+	listEnd   string
 	loop      bool
 	advancing bool
 	endedGen  uint64
@@ -214,6 +217,7 @@ func (a *app) loadSettings() {
 		c.muted = i > 0 || a.defaultMuted
 		c.rate = a.defaultRate
 		c.loop = a.defaultLoop
+		c.viewMode = viewModeName(a.fill, a.stretch)
 	}
 	if raw := st.Get("app/recent", ""); raw != "" {
 		_ = json.Unmarshal([]byte(raw), &a.recent)
@@ -457,12 +461,13 @@ func (a *app) setPlaylist(paths []string) {
 
 func (a *app) newCell(i int, p string) *cell {
 	c := &cell{
-		label:  labelFor(p),
-		source: p,
-		path:   p,
-		volume: a.defaultVolume,
-		rate:   a.defaultRate,
-		loop:   a.defaultLoop,
+		label:    labelFor(p),
+		source:   p,
+		path:     p,
+		volume:   a.defaultVolume,
+		rate:     a.defaultRate,
+		loop:     a.defaultLoop,
+		viewMode: viewModeName(a.fill, a.stretch),
 	}
 	if i > 0 || a.defaultMuted {
 		c.muted = true
@@ -476,7 +481,7 @@ func (a *app) newCell(i int, p string) *cell {
 				c.listIndex = 0
 				c.path = items[0]
 				c.loop = false
-				c.listLoop = true
+				c.listEnd = "loop"
 			}
 		}
 	}
@@ -629,14 +634,18 @@ func (a *app) ensure(i int, r grid.Rect) {
 			a.status = "vlc: " + err.Error()
 			return
 		}
+		if c.startPaused {
+			c.pauseOnPlay.Store(true)
+		}
 		c.eng, c.view, c.clip = eng, view, clip
 		go a.watch(c, eng)
 	}
 	nativehost.SetFrame(c.clip, nativehost.ToMac(nativehost.DIP(r), h))
+	fill, stretch := viewModeFlags(a.cellViewMode(c))
 	s := engine.Snapshot{}
 	if c.eng != nil {
 		s = c.eng.Snapshot()
-		if a.stretch {
+		if stretch {
 			c.eng.SetAspectRatio(fmt.Sprintf("%.0f:%.0f", r.W, r.H))
 		} else {
 			c.eng.SetAspectRatio(a.aspect)
@@ -645,7 +654,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		c.eng.SetCrop(a.crop)
 	}
 	vw, vh, vx, vy := float64(r.W), float64(r.H), 0.0, 0.0
-	if a.fill && !a.stretch && s.Width > 0 && s.Height > 0 {
+	if fill && !stretch && s.Width > 0 && s.Height > 0 {
 		videoAspect := float64(s.Width) / float64(s.Height)
 		cellAspect := r.W / r.H
 		if cellAspect > videoAspect {
@@ -666,7 +675,12 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 	for {
 		select {
 		case <-eng.Updates():
-			if s := eng.Snapshot(); s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
+			s := eng.Snapshot()
+			if c.pauseOnPlay.Load() && s.Phase == engine.Playing {
+				c.pauseOnPlay.Store(false)
+				eng.Pause()
+			}
+			if s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
 				mygo.RunOnMain(func() { a.advanceList(c) })
 			}
 			if a.win != nil && !a.closed.Load() {
@@ -696,10 +710,15 @@ func (a *app) advanceList(c *cell) {
 	}
 	next := c.listIndex + 1
 	if next >= len(c.list) {
-		if !c.listLoop {
+		switch c.listEnd {
+		case "stop":
 			return
+		case "next":
+			a.nextCellFrom(c)
+			return
+		default:
+			next = 0
 		}
-		next = 0
 	}
 	c.advancing = true
 	defer func() { c.advancing = false }()
@@ -715,6 +734,23 @@ func (a *app) advanceList(c *cell) {
 	a.refreshMenu()
 	if a.bookmarkWin != nil {
 		a.bookmarkWin.Invalidate()
+	}
+}
+
+func (a *app) nextCellFrom(c *cell) {
+	idx := -1
+	for i, x := range a.cells {
+		if x == c {
+			idx = i
+			break
+		}
+	}
+	if idx < 0 || idx+1 >= len(a.cells) {
+		return
+	}
+	a.setActive(idx + 1)
+	if eng := a.activeEngine(); eng != nil {
+		eng.Play()
 	}
 }
 
@@ -757,6 +793,58 @@ func (a *app) setActive(i int) {
 		return
 	}
 	a.active = i
+	a.refreshMenu()
+}
+
+func (a *app) activeCell() *cell {
+	if a.active < 0 || a.active >= len(a.cells) {
+		return nil
+	}
+	return a.cells[a.active]
+}
+
+func viewModeName(fill, stretch bool) string {
+	if stretch {
+		return "stretch"
+	}
+	if fill {
+		return "fill"
+	}
+	return "fit"
+}
+
+func viewModeFlags(mode string) (fill, stretch bool) {
+	switch mode {
+	case "stretch":
+		return false, true
+	case "fit":
+		return false, false
+	default:
+		return true, false
+	}
+}
+
+func (a *app) cellViewMode(c *cell) string {
+	if c != nil && c.viewMode != "" {
+		return c.viewMode
+	}
+	return viewModeName(a.fill, a.stretch)
+}
+
+func (a *app) activeViewFlags() (fill, stretch bool) {
+	if c := a.activeCell(); c != nil {
+		return viewModeFlags(a.cellViewMode(c))
+	}
+	return a.fill, a.stretch
+}
+
+func (a *app) setListEnd(mode string) {
+	c := a.activeCell()
+	if c == nil || len(c.list) == 0 {
+		return
+	}
+	c.listEnd = mode
+	a.dirty = true
 	a.refreshMenu()
 }
 
@@ -1265,6 +1353,22 @@ func (a *app) loadPlaylist(path string) error {
 		if v.Rate > 0 {
 			c.rate = v.Rate
 		}
+		switch v.CellViewMode {
+		case "fill", "fit", "stretch":
+			c.viewMode = v.CellViewMode
+		}
+		c.startPaused = strings.EqualFold(v.PlaybackState, "paused") ||
+			strings.EqualFold(v.PlaybackState, "stopped")
+		if len(c.list) > 0 {
+			if v.ListIndex >= 0 && v.ListIndex < len(c.list) {
+				c.listIndex = v.ListIndex
+				c.path = c.list[c.listIndex]
+			}
+			switch v.ListEnd {
+			case "loop", "stop", "next":
+				c.listEnd = v.ListEnd
+			}
+		}
 	}
 	if mode, rows, cols := d.GridState(); mode != "" {
 		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
@@ -1302,10 +1406,9 @@ func (a *app) document() *playlist.Document {
 			Volume:          float64(s.Volume) / 100,
 			Rate:            s.Rate,
 			PlaybackState:   s.Phase.String(),
-			CellViewMode:    "fit",
-		}
-		if a.fill {
-			v.CellViewMode = "fill"
+			CellViewMode:    a.cellViewMode(c),
+			ListIndex:       c.listIndex,
+			ListEnd:         c.listEnd,
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -1458,6 +1561,10 @@ func (a *app) setCrop(crop string) {
 func (a *app) setViewMode(fill bool, stretch bool) {
 	a.fill = fill
 	a.stretch = stretch
+	mode := viewModeName(fill, stretch)
+	for _, c := range a.cells {
+		c.viewMode = mode
+	}
 	a.saveSettings()
 	if a.win != nil {
 		a.win.Invalidate()
@@ -1679,6 +1786,15 @@ func (a *app) menu() *mygo.Menu {
 	if len(bookmarkItems) == 0 {
 		bookmarkItems = append(bookmarkItems, &mygo.MenuItem{Label: "No Bookmarks", Disabled: true})
 	}
+	fill, stretch := a.activeViewFlags()
+	listEnd := "loop"
+	hasList := false
+	if c := a.activeCell(); c != nil && len(c.list) > 0 {
+		hasList = true
+		if c.listEnd != "" {
+			listEnd = c.listEnd
+		}
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: "File", Submenu: []*mygo.MenuItem{
@@ -1718,6 +1834,14 @@ func (a *app) menu() *mygo.Menu {
 				if a.active >= 0 && a.active < len(a.cells) {
 					a.advanceList(a.cells[a.active])
 				}
+			}},
+			{Label: "End of List", Submenu: []*mygo.MenuItem{
+				{Label: "Loop", Type: mygo.MenuItemRadio, Checked: listEnd == "loop", Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("loop") }},
+				{Label: "Stop", Type: mygo.MenuItemRadio, Checked: listEnd == "stop", Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("stop") }},
+				{Label: "Next Cell", Type: mygo.MenuItemRadio, Checked: listEnd == "next", Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("next") }},
 			}},
 			{Label: "Save Frame…", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
 			{Type: mygo.MenuItemSeparator},
@@ -1827,15 +1951,15 @@ func (a *app) menu() *mygo.Menu {
 			}},
 		}},
 		{Label: "View", Submenu: []*mygo.MenuItem{
-			{Label: "Fill (cover)", Type: mygo.MenuItemCheckbox, Checked: a.fill, Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Fill (cover)", Type: mygo.MenuItemCheckbox, Checked: fill, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setViewMode(true, false)
 				a.refreshMenu()
 			}},
-			{Label: "Fit (contain)", Type: mygo.MenuItemCheckbox, Checked: !a.fill && !a.stretch, Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Fit (contain)", Type: mygo.MenuItemCheckbox, Checked: !fill && !stretch, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setViewMode(false, false)
 				a.refreshMenu()
 			}},
-			{Label: "Stretch (cell shape)", Type: mygo.MenuItemCheckbox, Checked: a.stretch, Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Stretch (cell shape)", Type: mygo.MenuItemCheckbox, Checked: stretch, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setViewMode(false, true)
 				a.refreshMenu()
 			}},

@@ -62,6 +62,36 @@ func TestRealVLCDummyOutput(t *testing.T) {
 	}
 }
 
+// TestRealVLCLoadPaused pauses immediately after Load, the path used when a
+// saved playlist restores a paused cell.
+func TestRealVLCLoadPaused(t *testing.T) {
+	fixture, err := filepath.Abs("../../testdata/fixtures/plane-a.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); err != nil {
+		t.Skip("fixture missing")
+	}
+	e := New(NewVLCFactory(VLCOptions{Args: []string{"--vout=dummy", "--aout=dummy"}}))
+	defer e.Close()
+	if err := e.Load(fixture); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	e.Pause()
+	deadline := time.Now().Add(10 * time.Second)
+	for e.Snapshot().Phase != Paused && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if s := e.Snapshot(); s.Phase != Paused {
+		t.Fatalf("never paused: %+v", s)
+	}
+	paused := e.Snapshot().Time
+	time.Sleep(300 * time.Millisecond)
+	if got := e.Snapshot().Time; got != paused {
+		t.Fatalf("time advanced while paused: %d -> %d", paused, got)
+	}
+}
+
 func TestRealVLCFeatureTracksAndChapters(t *testing.T) {
 	fixture, err := filepath.Abs("../../testdata/fixtures/feature.mkv")
 	if err != nil {

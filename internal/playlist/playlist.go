@@ -39,6 +39,8 @@ type Video struct {
 	Rate            float64                    `json:"rate,omitempty"`
 	CellViewMode    string                     `json:"cell_view_mode,omitempty"`
 	PlaybackState   string                     `json:"playback_state,omitempty"`
+	ListIndex       int                        `json:"list_index,omitempty"`
+	ListEnd         string                     `json:"list_end,omitempty"`
 	Extra           map[string]json.RawMessage `json:"-"`
 }
 
@@ -55,7 +57,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
-		"volume", "rate", "cell_view_mode", "playback_state"} {
+		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end"} {
 		delete(all, k)
 	}
 	if len(all) > 0 {
