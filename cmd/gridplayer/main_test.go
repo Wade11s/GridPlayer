@@ -393,6 +393,90 @@ func TestDocumentViewMode(t *testing.T) {
 	}
 }
 
+func TestDocumentPersistsFreeGrid(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+		free:  true,
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0, 0, 0.6, 1}},
+			{Box: [4]float64{0.6, 0, 1, 1}},
+		},
+	}
+	d := a.document()
+	var layout string
+	if !getRawSetting(d, "grid_layout", &layout) || layout != "free" {
+		t.Fatalf("layout %q", layout)
+	}
+	var tiles []grid.Tile
+	if !getRawSetting(d, "grid_free_tiles", &tiles) || len(tiles) != 2 ||
+		tiles[0].Box != a.freeTiles[0].Box {
+		t.Fatalf("tiles %+v", tiles)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if !b.free || len(b.freeTiles) != 2 || b.freeTiles[0].Box != a.freeTiles[0].Box {
+		t.Fatalf("restored free=%v tiles=%+v", b.free, b.freeTiles)
+	}
+}
+
+func TestDocumentPersistsMosaicGrid(t *testing.T) {
+	a := &app{
+		cells:  []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
+		mosaic: true,
+	}
+	a.ensureMosaic()
+	a.mosaicTiles[1].Box = [4]float64{0.4, 0.1, 0.8, 0.9}
+	a.mosaicLocked = map[int]bool{1: true}
+	d := a.document()
+	var layout string
+	if !getRawSetting(d, "grid_layout", &layout) || layout != "mosaic" {
+		t.Fatalf("layout %q", layout)
+	}
+	var locked []int
+	if !getRawSetting(d, "grid_mosaic_locked", &locked) || len(locked) != 1 || locked[0] != 1 {
+		t.Fatalf("locked %+v", locked)
+	}
+	var tiles []grid.Tile
+	if !getRawSetting(d, "grid_mosaic_tiles", &tiles) || len(tiles) != 3 ||
+		tiles[1].Box != a.mosaicTiles[1].Box {
+		t.Fatalf("tiles %+v", tiles)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if !b.mosaic || !b.mosaicLocked[1] || len(b.mosaicTiles) != 3 ||
+		b.mosaicTiles[1].Box != a.mosaicTiles[1].Box {
+		t.Fatalf("restored mosaic=%v locked=%v tiles=%+v", b.mosaic, b.mosaicLocked, b.mosaicTiles)
+	}
+}
+
+func TestDocumentPersistsSingleMode(t *testing.T) {
+	share := 0.25
+	a := &app{
+		cells:       []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+		single:      true,
+		singleSide:  grid.StripRight,
+		singleShare: &share,
+	}
+	d := a.document()
+	var layout, side string
+	var gotShare float64
+	if !getRawSetting(d, "grid_layout", &layout) || layout != "single" {
+		t.Fatalf("layout %q", layout)
+	}
+	if !getRawSetting(d, "single_side", &side) || side != "right" {
+		t.Fatalf("side %q", side)
+	}
+	if !getRawSetting(d, "single_share", &gotShare) || gotShare != 0.25 {
+		t.Fatalf("share %v", gotShare)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if !b.single || b.singleSide != grid.StripRight ||
+		b.singleShare == nil || *b.singleShare != 0.25 {
+		t.Fatalf("restored single=%v side=%v share=%v", b.single, b.singleSide, b.singleShare)
+	}
+}
+
 func TestApplyDocumentRestoresSnapshot(t *testing.T) {
 	d := &playlist.Document{
 		Format:  playlist.FormatID,
