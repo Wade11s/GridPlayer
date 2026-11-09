@@ -16,6 +16,23 @@ import (
 	"time"
 )
 
+const maxOutput = 64 << 10
+
+type limitedBuffer struct {
+	bytes.Buffer
+}
+
+func (b *limitedBuffer) Write(p []byte) (int, error) {
+	if room := maxOutput - b.Len(); room > 0 {
+		if len(p) > room {
+			b.Buffer.Write(p[:room])
+		} else {
+			b.Buffer.Write(p)
+		}
+	}
+	return len(p), nil
+}
+
 // ErrUnavailable means yt-dlp is not installed.
 var ErrUnavailable = errors.New("resolve: yt-dlp not found")
 
@@ -73,7 +90,7 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 	}
 	args = append(args, "--", raw)
 	cmd := exec.CommandContext(cctx, r.Path, args...)
-	var stdout, stderr bytes.Buffer
+	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
