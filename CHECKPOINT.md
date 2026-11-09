@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-vlc-bundle merge)
+# Migration Checkpoint — 2026-11-09 (post-playlist-item-settings merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -63,6 +63,10 @@
 - PR #32 merged at `6ad006e`: libVLC + plugins bundled into the .app. Main
   `6ad006e`: CI green, full race/vet/build green, bundled app smoke PASS
   (4× VideoToolbox), dyld log shows only bundled libvlc/libvlccore.
+- PR #33 merged at `6c277a1`: per-item view mode, paused restore, list index
+  and end-of-list actions. Main `6c277a1`: CI green, full race/vet/build
+  green, GUI `.gpls` round-trip kept paused at 2000 ms, list index 1,
+  `list_end=next`, `cell_view_mode=fit`; View menu Fit checked.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -166,8 +170,12 @@
 - #4 playlist persistence (partial): `internal/playlist` JSON v1 read/write with
   unknown-field preservation + atomic save; app load/save/save-as, startup
   `--playlist`, position/mute/volume/rate/view/grid restore, unsaved prompt.
-  Tests: round-trip, validation, relative URIs. Settings.ini/recent/bookmarks/
-  lists/legacy text format remain open.
+  Tests: round-trip, validation, relative URIs.
+- #4 playlist per-item settings (merged 6c277a1): per-cell view mode,
+  paused/stopped restore, `list_index` and `list_end` (loop/stop/next cell);
+  View menu follows the active cell, Playback > End of List persists per cell.
+  Per-item aspect/scale/crop, snapshots/lists and legacy text format remain
+  open.
 - #4 settings slice: `internal/settings` QSettings-compatible INI, unknown keys
   preserved, atomic save; app restores grid/Fill-Fit/default volume-mute/window
   bounds/recent list, `--user-data-dir` isolation. Full settings dialog/keymap/
