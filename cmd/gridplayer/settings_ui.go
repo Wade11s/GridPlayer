@@ -58,6 +58,9 @@ type settingsDraft struct {
 	retryMode  string
 	retryTimes string
 
+	listFail     string
+	listFailWait string
+
 	keys        []keyBindingDraft
 	keymapError string
 }
@@ -74,31 +77,34 @@ var (
 	outlineOptions   = []string{"None", "Thin", "Normal", "Thick"}
 	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
 	retryModeOptions = []string{"Off", "Fixed attempts", "Keep trying"}
+	listFailOptions  = []string{"Play next", "Show error"}
 )
 
 func defaultSettingsDraft() settingsDraft {
 	return settingsDraft{
-		volume:      80,
-		rate:        1,
-		loop:        true,
-		layout:      "Auto Rows",
-		rows:        "3",
-		cols:        "3",
-		snap:        true,
-		overlap:     true,
-		singleSide:  "Auto",
-		view:        "Fill (cover)",
-		aspect:      "Auto",
-		scale:       "Fit",
-		crop:        "None",
-		subOutline:  "None",
-		subOpacity:  100,
-		subEncoding: "Auto",
-		subSize:     "0",
-		format:      "Best",
-		retryMode:   "Fixed attempts",
-		retryTimes:  "3",
-		keys:        defaultKeyBindingDrafts(),
+		volume:       80,
+		rate:         1,
+		loop:         true,
+		layout:       "Auto Rows",
+		rows:         "3",
+		cols:         "3",
+		snap:         true,
+		overlap:      true,
+		singleSide:   "Auto",
+		view:         "Fill (cover)",
+		aspect:       "Auto",
+		scale:        "Fit",
+		crop:         "None",
+		subOutline:   "None",
+		subOpacity:   100,
+		subEncoding:  "Auto",
+		subSize:      "0",
+		format:       "Best",
+		retryMode:    "Fixed attempts",
+		retryTimes:   "3",
+		listFail:     "Play next",
+		listFailWait: "2",
+		keys:         defaultKeyBindingDrafts(),
 	}
 }
 
@@ -190,6 +196,14 @@ func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 			ui.Field(c, "Attempts", func() {
 				ui.TextInput(c, &d.retryTimes)
 			}).Description("1–1000. Waits 1s, 2s, 5s, 15s, then 30s.")
+		}
+		ui.Field(c, "When a list item fails", func() {
+			ui.Select(c, &d.listFail, listFailOptions)
+		})
+		if d.listFail == "Play next" {
+			ui.Field(c, "Next after", func() {
+				ui.TextInput(c, &d.listFailWait)
+			}).Description("Seconds before the next item. 0 moves on at once. Default 2.")
 		}
 		ui.Field(c, "Decode", func() {
 			ui.Text(c, "VideoToolbox via libVLC")
@@ -426,6 +440,12 @@ func (a *app) currentSettingsDraft() settingsDraft {
 		times = defaultRetryTimes
 	}
 	d.retryTimes = fmt.Sprint(times)
+	if a.listFailMode.Load() == listFailShow {
+		d.listFail = "Show error"
+	} else {
+		d.listFail = "Play next"
+	}
+	d.listFailWait = fmt.Sprint(a.listFailWait.Load())
 	d.keys = keyBindingDrafts(a.keys)
 	return d
 }
@@ -436,6 +456,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultRate = clampFloat(d.rate, 0.25, 4)
 	a.defaultLoop = d.loop
 	a.setRetryPolicy(retryModeValue(d.retryMode), atoi(d.retryTimes, defaultRetryTimes))
+	a.setListFailPolicy(listFailValue(d.listFail), atoi(d.listFailWait, defaultListFailWait))
 	a.snap = d.snap
 	a.overlap = d.overlap
 	a.singleSide = sideFromName(d.singleSide)

@@ -58,9 +58,16 @@ type cell struct {
 	list      []string
 	listIndex int
 	listEnd   string
-	loop      bool
-	advancing bool
-	endedGen  uint64
+	listFail  string
+	// listFailWait is set when this cell overrides the default wait.
+	// Zero means move on at once.
+	listFailWait  *int
+	failStreak    int
+	netFailStreak int
+	skipGen       uint64
+	loop          bool
+	advancing     bool
+	endedGen      uint64
 }
 
 type app struct {
@@ -119,6 +126,8 @@ type app struct {
 	defaultLoop         bool
 	retryMode           atomic.Int32
 	retryTimes          atomic.Int32
+	listFailMode        atomic.Int32
+	listFailWait        atomic.Int32
 }
 
 func newApp(paths []string) *app {
@@ -135,6 +144,7 @@ func newApp(paths []string) *app {
 		subtitle:      subtitleStyle{Opacity: 255},
 	}
 	a.setRetryPolicy("times", defaultRetryTimes)
+	a.setListFailPolicy(listFailPlayNext, defaultListFailWait)
 	a.setPlaylist(paths)
 	return a
 }
@@ -222,6 +232,10 @@ func (a *app) loadSettings() {
 	a.setRetryPolicy(
 		st.Get("video_defaults/network_retry_mode", "times"),
 		atoi(st.Get("video_defaults/network_retry_times", "3"), defaultRetryTimes),
+	)
+	a.setListFailPolicy(
+		st.Get("video_defaults/list_fail_action", listFailPlayNext),
+		atoi(st.Get("video_defaults/list_fail_wait", "2"), defaultListFailWait),
 	)
 	a.aspect = st.Get("video_defaults/aspect_ratio", "")
 	a.scale = atof(st.Get("video_defaults/scale", "0"), 0)
@@ -373,6 +387,12 @@ func (a *app) saveSettings() {
 		times = defaultRetryTimes
 	}
 	a.settings.Set("video_defaults/network_retry_times", fmt.Sprint(times))
+	if a.listFailMode.Load() == listFailShow {
+		a.settings.Set("video_defaults/list_fail_action", listFailShowError)
+	} else {
+		a.settings.Set("video_defaults/list_fail_action", listFailPlayNext)
+	}
+	a.settings.Set("video_defaults/list_fail_wait", fmt.Sprint(a.listFailWait.Load()))
 	if a.resolver != nil {
 		a.settings.Set("network/proxy", a.resolver.Proxy)
 		a.settings.Set("network/cookies", a.resolver.Cookies)
@@ -759,7 +779,11 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				lastRetryGen = 0
 				if !wasPlaying {
 					mygo.RunOnMain(func() {
-						if strings.HasPrefix(a.status, "retrying ") || strings.HasPrefix(a.status, "retry limit ") {
+						c.failStreak = 0
+						c.netFailStreak = 0
+						c.skipGen = 0
+						if strings.HasPrefix(a.status, "retrying ") || strings.HasPrefix(a.status, "retry limit ") ||
+							strings.HasPrefix(a.status, "Next file in ") || strings.HasPrefix(a.status, "Stopped: ") {
 							a.status = ""
 						}
 					})
@@ -772,36 +796,71 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				c.pauseOnPlay.Store(false)
 				eng.Pause()
 			}
-			if s.Phase == engine.Failed && s.Gen != lastRetryGen && retryable(c.path) {
+			if s.Phase == engine.Failed && s.Gen != lastRetryGen {
 				lastRetryGen = s.Gen
-				limit := a.networkRetryLimit()
-				if limit != 0 {
-					attempt := c.retries.Add(1)
-					name := filepath.Base(c.path)
-					if limit > 0 && int(attempt) > limit {
-						mygo.RunOnMain(func() {
-							a.status = "retry limit reached for " + name
-						})
-					} else {
-						delay := retryDelay(attempt)
-						gen := s.Gen
-						mygo.RunOnMain(func() {
-							a.status = retryStatus(name, delay, attempt, limit)
-						})
-						own := eng
-						time.AfterFunc(delay, func() {
+				armed := false
+				if retryable(c.path) {
+					limit := a.networkRetryLimit()
+					if limit != 0 {
+						attempt := c.retries.Add(1)
+						name := filepath.Base(c.path)
+						if limit > 0 && int(attempt) > limit {
 							mygo.RunOnMain(func() {
-								if a.closed.Load() {
+								a.status = "retry limit reached for " + name
+							})
+						} else {
+							armed = true
+							delay := retryDelay(attempt)
+							gen := s.Gen
+							mygo.RunOnMain(func() {
+								a.status = retryStatus(name, delay, attempt, limit)
+							})
+							own := eng
+							time.AfterFunc(delay, func() {
+								mygo.RunOnMain(func() {
+									if a.closed.Load() {
+										return
+									}
+									now := a.networkRetryLimit()
+									if now == 0 || (now > 0 && int(attempt) > now) {
+										return
+									}
+									_ = own.ReloadIfFailed(gen)
+								})
+							})
+						}
+					}
+				}
+				if !armed && len(c.list) > 0 {
+					gen := s.Gen
+					path := c.path
+					items := len(c.list)
+					own := eng
+					mygo.RunOnMain(func() {
+						if a.closed.Load() {
+							return
+						}
+						skip, wait, status := a.noteListFailure(c, path, items)
+						if status != "" {
+							a.status = status
+						}
+						if !skip {
+							return
+						}
+						c.skipGen = gen
+						time.AfterFunc(wait, func() {
+							mygo.RunOnMain(func() {
+								if a.closed.Load() || c.skipGen != gen {
 									return
 								}
-								now := a.networkRetryLimit()
-								if now == 0 || (now > 0 && int(attempt) > now) {
+								snap := own.Snapshot()
+								if snap.Gen != gen || snap.Phase != engine.Failed {
 									return
 								}
-								_ = own.ReloadIfFailed(gen)
+								a.advanceList(c)
 							})
 						})
-					}
+					})
 				}
 			}
 			if s.Phase == engine.Ended && len(c.list) > 0 && c.shouldAdvance(s.Gen) {
@@ -829,7 +888,11 @@ func (c *cell) shouldAdvance(gen uint64) bool {
 }
 
 func (a *app) advanceList(c *cell) {
-	if c == nil || c.advancing || len(c.list) == 0 {
+	if c == nil {
+		return
+	}
+	c.skipGen = 0
+	if c.advancing || len(c.list) == 0 {
 		return
 	}
 	next := c.listIndex + 1
@@ -880,7 +943,11 @@ func (a *app) nextCellFrom(c *cell) {
 }
 
 func (a *app) previousList(c *cell) {
-	if c == nil || c.advancing || len(c.list) == 0 {
+	if c == nil {
+		return
+	}
+	c.skipGen = 0
+	if c.advancing || len(c.list) == 0 {
 		return
 	}
 	prev := c.listIndex - 1
@@ -970,6 +1037,25 @@ func (a *app) setListEnd(mode string) {
 		return
 	}
 	c.listEnd = mode
+	a.dirty = true
+	a.refreshMenu()
+}
+
+func cloneWait(wait *int) *int {
+	if wait == nil {
+		return nil
+	}
+	copied := *wait
+	return &copied
+}
+
+func (a *app) setListFail(mode string) {
+	c := a.activeCell()
+	if c == nil || len(c.list) == 0 {
+		return
+	}
+	c.listFail = mode
+	c.skipGen = 0
 	a.dirty = true
 	a.refreshMenu()
 }
@@ -1577,6 +1663,14 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			case "loop", "stop", "next":
 				c.listEnd = v.ListEnd
 			}
+			switch v.ListFail {
+			case listFailPlayNext, listFailShowError:
+				c.listFail = v.ListFail
+			}
+			if v.ListFailWait != nil {
+				wait := *v.ListFailWait
+				c.listFailWait = &wait
+			}
 		}
 		if c.eng != nil {
 			reload := c.path != oldPath
@@ -1691,6 +1785,8 @@ func (a *app) document() *playlist.Document {
 			CellViewMode:    a.cellViewMode(c),
 			ListIndex:       c.listIndex,
 			ListEnd:         c.listEnd,
+			ListFail:        c.listFail,
+			ListFailWait:    cloneWait(c.listFailWait),
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -2100,12 +2196,14 @@ func (a *app) menu() *mygo.Menu {
 	}
 	fill, stretch := a.activeViewFlags()
 	listEnd := "loop"
+	listFail := listFailPlayNext
 	hasList := false
 	if c := a.activeCell(); c != nil && len(c.list) > 0 {
 		hasList = true
 		if c.listEnd != "" {
 			listEnd = c.listEnd
 		}
+		listFail = a.listFailAction(c)
 	}
 	snapshotRestore, snapshotRemove := a.snapshotMenuItems()
 	snapshotMenu := []*mygo.MenuItem{
@@ -2164,6 +2262,12 @@ func (a *app) menu() *mygo.Menu {
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("stop") }},
 				{Label: "Next Cell", Type: mygo.MenuItemRadio, Checked: listEnd == "next", Disabled: !hasList,
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("next") }},
+			}},
+			{Label: "When Video Fails", Submenu: []*mygo.MenuItem{
+				{Label: "Play Next", Type: mygo.MenuItemRadio, Checked: listFail == listFailPlayNext, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListFail(listFailPlayNext) }},
+				{Label: "Show Error", Type: mygo.MenuItemRadio, Checked: listFail == listFailShowError, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListFail(listFailShowError) }},
 			}},
 			{Label: "Save Frame…", Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
 			{Type: mygo.MenuItemSeparator},
