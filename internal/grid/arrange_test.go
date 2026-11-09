@@ -1,9 +1,6 @@
 package grid
 
-import (
-	"math"
-	"testing"
-)
+import "testing"
 
 func TestArrangeNoLocks(t *testing.T) {
 	if Arrange(0, nil, nil) != nil {
@@ -178,10 +175,4 @@ func checkArrange(t *testing.T, n int, before, got []Tile, lock map[int]bool) {
 			t.Fatalf("n=%d lock=%v tile %d not deterministic", n, lock, i)
 		}
 	}
-}
-
-func boxesOverlap(a, b [4]float64) bool {
-	ox := math.Max(0, math.Min(a[2], b[2])-math.Max(a[0], b[0]))
-	oy := math.Max(0, math.Min(a[3], b[3])-math.Max(a[1], b[1]))
-	return ox > 1e-9 && oy > 1e-9
 }
