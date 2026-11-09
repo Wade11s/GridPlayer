@@ -88,7 +88,7 @@ func TestValidationAndRelativePaths(t *testing.T) {
 func TestListItemFieldsRoundTrip(t *testing.T) {
 	src := `{"format":"gridplayer-playlist","videos":[{` +
 		`"uri":"list.m3u","list_index":2,"list_end":"next",` +
-		`"list_fail":"show_error","list_fail_wait":0,` +
+		`"list_fail":"show_error","list_fail_wait":0,"audio_delay_ms":-450,` +
 		`"cell_view_mode":"stretch","playback_state":"paused"}]}`
 	d, err := Parse([]byte(src), "")
 	if err != nil {
@@ -97,7 +97,7 @@ func TestListItemFieldsRoundTrip(t *testing.T) {
 	v := d.Videos[0]
 	if v.ListIndex != 2 || v.ListEnd != "next" ||
 		v.CellViewMode != "stretch" || v.PlaybackState != "paused" ||
-		v.ListFail != "show_error" || v.ListFailWait == nil || *v.ListFailWait != 0 {
+		v.ListFail != "show_error" || v.ListFailWait == nil || *v.ListFailWait != 0 || v.AudioDelay != -450 {
 		t.Fatalf("video %+v", v)
 	}
 	if len(v.Extra) != 0 {
@@ -107,7 +107,7 @@ func TestListItemFieldsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"list_index":2`, `"list_end":"next"`, `"list_fail":"show_error"`, `"list_fail_wait":0`} {
+	for _, want := range []string{`"list_index":2`, `"list_end":"next"`, `"list_fail":"show_error"`, `"list_fail_wait":0`, `"audio_delay_ms":-450`} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("missing %s in %s", want, raw)
 		}
