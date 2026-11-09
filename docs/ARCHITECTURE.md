@@ -59,8 +59,8 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   so `file://` HLS and `http(s)://` URLs open through libVLC directly.
   `testdata/fixtures/hls/` is a deterministic local VOD HLS (3 renditions);
   `internal/resolve` tries yt-dlp then streamlink, with proxy/cookies/format
-  settings from the Network tab. RTSP end-to-end, adaptive mid-playback
-  quality and streamlink cookies remain later.
+  settings from the Network tab. RTSP is covered by a local VLC RTSP server
+  test; adaptive mid-playback quality and streamlink cookies remain later.
 - Frames: `Screenshot(path)` maps to `libvlc_video_take_snapshot` at the
   video's own size. The UI saves via a native dialog; `--screenshot PATH`
   saves the active cell after 3s for automation and tests.

@@ -3,13 +3,17 @@
 package engine
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"gridplayer-go/internal/vlcmac"
 )
 
 // TestRealVLCDummyOutput is the real-libVLC integration test that needs no
@@ -242,5 +246,81 @@ func TestRealVLCHTTPMedia(t *testing.T) {
 	}
 	if s := e.Snapshot(); s.Phase != Playing {
 		t.Fatalf("never played over HTTP: %+v", s)
+	}
+}
+
+// TestRealVLCRTSP serves the fixture from VLC's own RTSP server and lets a
+// second libVLC instance open it. It skips when VLC.app is unavailable or the
+// sandbox denies the listener.
+func TestRealVLCRTSP(t *testing.T) {
+	layout, err := vlcmac.Discover()
+	if err != nil {
+		t.Skipf("VLC.app not found: %v", err)
+	}
+	vlcBin := filepath.Join(layout.AppDir, "Contents", "MacOS", "VLC")
+	if _, err := os.Stat(vlcBin); err != nil {
+		t.Skipf("VLC binary missing: %v", err)
+	}
+	fixture, err := filepath.Abs("../../testdata/fixtures/plane-a.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); err != nil {
+		t.Skip("fixture missing")
+	}
+
+	const port = 18554
+	url := fmt.Sprintf("rtsp://127.0.0.1:%d/live", port)
+	logFile, err := os.CreateTemp("", "gridplayer-rtsp-*.log")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(logFile.Name())
+	defer logFile.Close()
+
+	cmd := exec.Command(vlcBin,
+		"-I", "dummy", "--repeat", "--loop", "--no-video-title-show",
+		fixture, "--sout", "#rtp{sdp="+url+"}", "--sout-keep",
+	)
+	cmd.Stderr = logFile
+	cmd.Stdout = logFile
+	if err := cmd.Start(); err != nil {
+		t.Skipf("VLC server start: %v", err)
+	}
+	defer func() {
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+		_ = cmd.Wait()
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 100*time.Millisecond)
+		if err == nil {
+			conn.Close()
+			break
+		}
+		if time.Now().After(deadline) {
+			data, _ := os.ReadFile(logFile.Name())
+			t.Skipf("RTSP listener did not start: %s", data)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	e := New(NewVLCFactory(VLCOptions{Args: []string{
+		"--vout=dummy", "--aout=dummy", "--network-caching=100",
+	}}))
+	defer e.Close()
+	if err := e.Load(url); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	deadline = time.Now().Add(15 * time.Second)
+	for e.Snapshot().Phase != Playing && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if s := e.Snapshot(); s.Phase != Playing {
+		data, _ := os.ReadFile(logFile.Name())
+		t.Fatalf("never played RTSP: %+v (%s)", s, data)
 	}
 }
