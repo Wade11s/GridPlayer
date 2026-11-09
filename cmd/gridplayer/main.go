@@ -810,7 +810,7 @@ func (a *app) autoReloadLoop(c *cell, eng *engine.Engine) {
 			continue
 		}
 		time.Sleep(autoReloadInterval(minutes))
-		if a.closed.Load() {
+		if a.closed.Load() || c.eng != eng {
 			return
 		}
 		mygo.RunOnMain(func() {

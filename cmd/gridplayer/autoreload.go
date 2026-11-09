@@ -23,7 +23,8 @@ func autoReloadInterval(minutes int) time.Duration {
 	return time.Duration(minutes) * time.Minute
 }
 
-// autoReloadReloadsCell reloads the current media at its position.
+// autoReloadReloadsCell reloads the current media at its position,
+// keeping the paused state across the reload.
 func (a *app) autoReloadReloadsCell(c *cell) {
 	if c == nil || c.eng == nil {
 		return
@@ -32,6 +33,9 @@ func (a *app) autoReloadReloadsCell(c *cell) {
 	if s.Phase != engine.Loading {
 		c.startAt = int(s.Time)
 		c.startPaused = s.Phase != engine.Playing
+	}
+	if c.startPaused {
+		c.pauseOnPlay.Store(true)
 	}
 	c.eng.SetStartPosition(int64(c.startAt))
 	_ = c.eng.Reload()
