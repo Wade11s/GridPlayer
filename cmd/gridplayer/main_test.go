@@ -4,8 +4,10 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"gridplayer-go/internal/bookmarks"
+	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
@@ -478,5 +480,49 @@ func TestApplyDocumentRestoresListIndexOnMatchingCell(t *testing.T) {
 	a.applyDocument(d, "")
 	if c.listIndex != 0 || c.path != item0 {
 		t.Fatalf("restore %d %q", c.listIndex, c.path)
+	}
+}
+
+func TestApplyDocumentUpdatesLiveEngine(t *testing.T) {
+	fixture, err := filepath.Abs("../../testdata/fixtures/plane-a.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); err != nil {
+		t.Skip("fixture missing")
+	}
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.setPlaylist([]string{fixture})
+	e := engine.New(engine.NewVLCFactory(engine.VLCOptions{
+		Args: []string{"--vout=dummy", "--aout=dummy"},
+	}))
+	defer e.Close()
+	if err := e.Load(fixture); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	a.cells[0].eng = e
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{{
+			URI:             fixture,
+			CurrentPosition: 3000,
+			IsMuted:         true,
+			Volume:          0.5,
+			Rate:            1.5,
+			PlaybackState:   "paused",
+		}},
+	}
+	a.applyDocument(d, "")
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		s := e.Snapshot()
+		if s.Phase == engine.Paused && s.Time >= 2500 && s.Muted && s.Volume == 50 && s.Rate == 1.5 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("engine not restored: %+v", s)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

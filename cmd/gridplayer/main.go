@@ -1380,6 +1380,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c.startPaused = strings.EqualFold(v.PlaybackState, "paused") ||
 			strings.EqualFold(v.PlaybackState, "stopped")
+		oldPath := c.path
 		if len(c.list) > 0 {
 			if v.ListIndex >= 0 && v.ListIndex < len(c.list) {
 				c.listIndex = v.ListIndex
@@ -1388,6 +1389,28 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			switch v.ListEnd {
 			case "loop", "stop", "next":
 				c.listEnd = v.ListEnd
+			}
+		}
+		if c.eng != nil {
+			reload := c.path != oldPath
+			if reload {
+				c.eng.SetStartPosition(int64(c.startAt))
+				if err := c.eng.Load(c.path); err != nil {
+					a.status = err.Error()
+				}
+			} else {
+				c.eng.SeekTo(int64(c.startAt))
+			}
+			c.eng.SetVolume(c.volume)
+			c.eng.SetMute(c.muted)
+			c.eng.SetRate(c.rate)
+			c.eng.SetLoop(c.loop)
+			if c.startPaused {
+				c.pauseOnPlay.Store(true)
+				c.eng.Pause()
+			} else {
+				c.pauseOnPlay.Store(false)
+				c.eng.Play()
 			}
 		}
 	}
