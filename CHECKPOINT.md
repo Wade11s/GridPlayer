@@ -1,4 +1,4 @@
-# Migration Checkpoint — 2026-11-09 (post-grid-state-persist merge)
+# Migration Checkpoint — 2026-11-09 (post-keymap merge)
 
 ## Pinned inputs (frozen, spec §2.2)
 - Upstream vzhd1701/gridplayer HEAD: `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
@@ -77,6 +77,10 @@
   Main `b460d1a`: CI green, full race/vet/build green, GUI free playlist kept
   4 tiles and Free Tiles checked; mosaic snapshot kept 4 tiles + lock 0 and
   restored Mosaic/Lock Active Tile after switching to Auto Rows.
+- PR #37 merged at `134b3e6`: editable keymap. Main `134b3e6`: CI green,
+  full race/vet/build green, GUI set Play/Pause to P, P paused/resumed
+  playback (snapshot phases paused/playing), duplicate binding kept Settings
+  open; 4 VideoToolbox lines.
 
 ## In flight
 - Issue #2 (engine core): `internal/engine` session boundary, generation fencing,
@@ -205,6 +209,10 @@
   free/mosaic tiles, mosaic locks, single side/share; restore validates tiles
   and lock bounds and clamps single share; older documents fall back to
   `grid_state`. Mosaic optimizer/PUSH/z-order still open.
+- #4 keymap (merged 134b3e6): `internal/keymap` parse/format/validate
+  (`space`, `left`, `m`, `cmd+shift+p`, `none`), duplicate detection,
+  settings round-trip; Settings > Keymap edits bindings; shortcuts and menu
+  accelerators share the map. Subtitle styling/translations still open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
