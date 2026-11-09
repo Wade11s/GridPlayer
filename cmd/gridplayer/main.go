@@ -49,6 +49,7 @@ type cell struct {
 	volume      int
 	muted       bool
 	rate        float64
+	audioDelay  int64
 	startAt     int
 	startPaused bool
 	pauseOnPlay atomic.Bool
@@ -719,6 +720,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		eng.SetVolume(c.volume)
 		eng.SetMute(c.muted)
 		eng.SetRate(c.rate)
+		eng.SetAudioDelay(c.audioDelay)
 		eng.SetStartPosition(int64(c.startAt))
 		if err := eng.Load(c.path); err != nil {
 			eng.Close()
@@ -981,6 +983,29 @@ func (a *app) activeEngine() *engine.Engine {
 
 // setActive changes the active cell and refreshes the menu so the
 // Bookmarks submenu follows the newly active source.
+func (a *app) nudgeAudioDelay(delta int64) {
+	c := a.activeCell()
+	eng := a.activeEngine()
+	if c == nil || eng == nil {
+		return
+	}
+	c.audioDelay = eng.NudgeAudioDelay(delta)
+	a.status = fmt.Sprintf("audio delay %+dms", c.audioDelay)
+	a.dirty = true
+}
+
+func (a *app) resetAudioDelay() {
+	c := a.activeCell()
+	eng := a.activeEngine()
+	if c == nil || eng == nil {
+		return
+	}
+	c.audioDelay = 0
+	eng.SetAudioDelay(0)
+	a.status = "audio delay +0ms"
+	a.dirty = true
+}
+
 func (a *app) setActive(i int) {
 	if i < 0 || i >= len(a.cells) || a.active == i {
 		return
@@ -1401,6 +1426,12 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.shortcut(c, "rate_up") && eng != nil {
 		eng.SetRate(min(eng.Snapshot().Rate+0.25, 4))
 	}
+	if a.shortcut(c, "audio_later") {
+		a.nudgeAudioDelay(engine.AudioDelayStepMS)
+	}
+	if a.shortcut(c, "audio_earlier") {
+		a.nudgeAudioDelay(-engine.AudioDelayStepMS)
+	}
 }
 
 func (a *app) openDialog(add bool) {
@@ -1672,6 +1703,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				c.listFailWait = &wait
 			}
 		}
+		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		if c.eng != nil {
 			reload := c.path != oldPath
 			if reload {
@@ -1685,6 +1717,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			c.eng.SetVolume(c.volume)
 			c.eng.SetMute(c.muted)
 			c.eng.SetRate(c.rate)
+			c.eng.SetAudioDelay(c.audioDelay)
 			c.eng.SetLoop(c.loop)
 			if c.startPaused {
 				c.pauseOnPlay.Store(true)
@@ -1787,6 +1820,7 @@ func (a *app) document() *playlist.Document {
 			ListEnd:         c.listEnd,
 			ListFail:        c.listFail,
 			ListFailWait:    cloneWait(c.listFailWait),
+			AudioDelay:      c.audioDelay,
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -2282,6 +2316,13 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Type: mygo.MenuItemSeparator},
+			{Label: "Audio Later", Accelerator: a.keys.Get("audio_later").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.nudgeAudioDelay(engine.AudioDelayStepMS)
+			}},
+			{Label: "Audio Earlier", Accelerator: a.keys.Get("audio_earlier").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.nudgeAudioDelay(-engine.AudioDelayStepMS)
+			}},
+			{Label: "Reset Audio Delay", Click: func(*mygo.MenuItem, *mygo.Window) { a.resetAudioDelay() }},
 			{Label: "Mute", Accelerator: a.keys.Get("mute").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.SetMute(!eng.Snapshot().Muted)

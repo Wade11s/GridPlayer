@@ -17,6 +17,7 @@ type fakeBackend struct {
 	rate          float64
 	volume        int
 	muted, loop   bool
+	delay         int64
 	time, length  int64
 	state         BackendState
 	w, h          int
@@ -73,6 +74,11 @@ func (f *fakeBackend) SetRate(r float64) {
 func (f *fakeBackend) SetVolume(v int) {
 	f.mu.Lock()
 	f.volume = v
+	f.mu.Unlock()
+}
+func (f *fakeBackend) SetAudioDelay(ms int64) {
+	f.mu.Lock()
+	f.delay = ms
 	f.mu.Unlock()
 }
 func (f *fakeBackend) SetMute(m bool) {
@@ -457,5 +463,30 @@ func TestViewSettingsAndExternalTracks(t *testing.T) {
 	}
 	if len(f.shots) != 1 || f.shots[0] != "/tmp/shot.png" {
 		t.Fatalf("shots=%v", f.shots)
+	}
+}
+
+func TestAudioDelayClampAndNudge(t *testing.T) {
+	if ClampAudioDelay(-70000) != MinAudioDelayMS || ClampAudioDelay(70000) != MaxAudioDelayMS {
+		t.Fatal("clamp")
+	}
+	f := newFake()
+	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	defer e.Close()
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if got := e.NudgeAudioDelay(AudioDelayStepMS); got != 50 {
+		t.Fatalf("nudge %d", got)
+	}
+	e.SetAudioDelay(-100)
+	if err := e.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	delay := f.delay
+	f.mu.Unlock()
+	if delay != -100 || e.AudioDelay() != -100 {
+		t.Fatalf("reload delay backend=%d engine=%d", delay, e.AudioDelay())
 	}
 }

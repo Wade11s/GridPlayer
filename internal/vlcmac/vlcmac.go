@@ -509,6 +509,14 @@ func (p *Player) SetRate(r float32) {
 func (p *Player) SetVolume(v int) {
 	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_audio_set_volume(mp, C.int(v)) })
 }
+
+// SetAudioDelay offsets audio by milliseconds. libVLC takes microseconds.
+func (p *Player) SetAudioDelay(ms int64) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		C.libvlc_audio_set_delay(mp, C.int64_t(ms*1000))
+	})
+}
+
 func (p *Player) SetMute(m bool) {
 	p.with(func(mp *C.libvlc_media_player_t) {
 		if m {
