@@ -1,13 +1,26 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestLimitedBufferCaps(t *testing.T) {
+	var b limitedBuffer
+	n, err := io.Copy(&b, bytes.NewReader(make([]byte, 200000)))
+	if err != nil || n != 200000 {
+		t.Fatalf("copy n=%d err=%v", n, err)
+	}
+	if b.Len() != maxOutput {
+		t.Fatalf("buffer len=%d, want %d", b.Len(), maxOutput)
+	}
+}
 
 func TestDirectSchemesPassThrough(t *testing.T) {
 	r := &Resolver{}

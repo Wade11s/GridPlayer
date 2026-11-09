@@ -19,19 +19,22 @@ import (
 const maxOutput = 64 << 10
 
 type limitedBuffer struct {
-	bytes.Buffer
+	buf bytes.Buffer
 }
 
 func (b *limitedBuffer) Write(p []byte) (int, error) {
-	if room := maxOutput - b.Len(); room > 0 {
+	if room := maxOutput - b.buf.Len(); room > 0 {
 		if len(p) > room {
-			b.Buffer.Write(p[:room])
+			b.buf.Write(p[:room])
 		} else {
-			b.Buffer.Write(p)
+			b.buf.Write(p)
 		}
 	}
 	return len(p), nil
 }
+
+func (b *limitedBuffer) String() string { return b.buf.String() }
+func (b *limitedBuffer) Len() int       { return b.buf.Len() }
 
 // ErrUnavailable means yt-dlp is not installed.
 var ErrUnavailable = errors.New("resolve: yt-dlp not found")
