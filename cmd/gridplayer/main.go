@@ -33,13 +33,14 @@ import (
 )
 
 type cell struct {
-	label  string
-	source string
-	path   string
-	eng    *engine.Engine
-	view   uintptr
-	clip   uintptr
-	failed bool
+	label   string
+	source  string
+	path    string
+	eng     *engine.Engine
+	view    uintptr
+	clip    uintptr
+	failed  bool
+	listErr string
 
 	volume  int
 	muted   bool
@@ -355,7 +356,9 @@ func (a *app) newCell(i int, p string) *cell {
 	}
 	if !strings.Contains(p, "://") {
 		if st, err := os.Stat(p); err == nil && (st.IsDir() || medialist.IsList(p)) {
-			if items, err := medialist.Expand(p, false, 500); err == nil && len(items) > 0 {
+			if items, err := medialist.Expand(p, false, 500); err != nil {
+				c.listErr = err.Error()
+			} else if len(items) > 0 {
 				c.list = items
 				c.listIndex = 0
 				c.path = items[0]
@@ -475,6 +478,11 @@ func (a *app) ensure(i int, r grid.Rect) {
 	}
 	c := a.cells[i]
 	if c.failed {
+		return
+	}
+	if c.listErr != "" {
+		c.failed = true
+		a.status = c.listErr
 		return
 	}
 	if c.view == 0 {

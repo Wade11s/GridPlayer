@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestSwapCells(t *testing.T) {
 	a := &app{cells: []*cell{{label: "a"}, {label: "b"}, {label: "c"}}, active: 0}
@@ -68,5 +72,18 @@ func TestShouldAdvanceOncePerGeneration(t *testing.T) {
 	}
 	if !c.shouldAdvance(2) {
 		t.Fatal("new generation should advance")
+	}
+}
+
+func TestNewCellReportsEmptyList(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "empty.m3u")
+	if err := os.WriteFile(p, []byte("#EXTM3U\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{defaultVolume: 80}
+	c := a.newCell(0, p)
+	if c.listErr == "" {
+		t.Fatal("empty m3u should record an error")
 	}
 }
