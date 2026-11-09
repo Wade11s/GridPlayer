@@ -91,6 +91,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   Playback edit defaults for new cells, Grid maps the layout modes plus
   snap/overlap, and Video applies fill/fit/stretch, aspect, scale and crop to
   live engines. Apply persists settings.ini; Cancel discards the draft.
+- Keymap: `internal/keymap` parses and validates bindings such as `space`,
+  `left`, `m`, `cmd+shift+p` or `none`; Settings > Keymap edits the
+  `keymap/*` settings, and both the shortcuts and menu accelerators use the
+  same map.
 - Bookmarks are keyed by the current file (`cell.path`), so playlist items have
   their own positions rather than sharing the list source. A second window
   lists the active file's bookmarks with jump/rename/delete/clear; the menu and
