@@ -76,14 +76,15 @@ type cell struct {
 	listFail  string
 	// listFailWait is set when this cell overrides the default wait.
 	// Zero means move on at once.
-	listFailWait   *int
-	failStreak     int
-	netFailStreak  int
-	skipGen        uint64
-	sponsorSkipEnd atomic.Int64
-	loop           bool
-	advancing      bool
-	endedGen       uint64
+	listFailWait    *int
+	failStreak      int
+	netFailStreak   int
+	skipGen         uint64
+	sponsorSkipEnd  atomic.Int64
+	sponsorFetchGen atomic.Uint64
+	loop            bool
+	advancing       bool
+	endedGen        uint64
 }
 
 type app struct {
@@ -779,6 +780,7 @@ func (a *app) closeCell(c *cell) {
 		nativehost.Release(c.clip)
 		c.clip = 0
 	}
+	c.sponsorFetchGen.Add(1)
 	a.sponsorMu.Lock()
 	delete(a.sponsorSpans, c)
 	delete(a.sponsorLoading, c)
@@ -822,6 +824,7 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 	}
 	a.sponsorLoading[c] = true
 	a.sponsorMu.Unlock()
+	gen := c.sponsorFetchGen.Add(1)
 	categories := a.sponsorCategories()
 	if len(categories) == 0 {
 		a.sponsorMu.Lock()
@@ -835,9 +838,11 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 		defer cancel()
 		segments, err := a.sponsorClient.Fetch(ctx, videoID, categories)
 		a.sponsorMu.Lock()
-		delete(a.sponsorLoading, c)
-		if err == nil {
-			a.sponsorSpans[c] = sponsorblock.SkipSpans(segments, modes)
+		if c.sponsorFetchGen.Load() == gen {
+			delete(a.sponsorLoading, c)
+			if err == nil {
+				a.sponsorSpans[c] = sponsorblock.SkipSpans(segments, modes)
+			}
 		}
 		a.sponsorMu.Unlock()
 		if err == nil {
