@@ -535,7 +535,6 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		if c.eng != nil {
 			c.eng.SetAspectRatio(a.aspect)
 			c.eng.SetScale(a.scale)
-			c.eng.SetCrop(a.crop)
 		}
 	}
 	if a.subtitle != oldSub {

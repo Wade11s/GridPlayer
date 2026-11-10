@@ -1076,3 +1076,69 @@ func TestParseAnchor(t *testing.T) {
 		t.Fatal("name")
 	}
 }
+
+func TestCropMargins(t *testing.T) {
+	// Square frame, cut to 16:9: the crop comes off the top and bottom.
+	m := parseCropRatio("16:9", videoShape{W: 1920, H: 1920})
+	if m.Left != 0 || m.Right != 0 {
+		t.Fatalf("16:9 sides %+v", m)
+	}
+	if m.Top != 420 || m.Bottom != 420 {
+		t.Fatalf("16:9 top/bottom %+v", m)
+	}
+	// Wide frame, cut to 4:3: the crop comes off the left and right.
+	m = parseCropRatio("4:3", videoShape{W: 1920, H: 1080})
+	if m.Left != 240 || m.Right != 240 {
+		t.Fatalf("4:3 sides %+v", m)
+	}
+	if m.Top != 0 || m.Bottom != 0 {
+		t.Fatalf("4:3 top/bottom %+v", m)
+	}
+	if !parseCropRatio("", videoShape{W: 10, H: 10}).empty() {
+		t.Fatal("empty ratio should crop nothing")
+	}
+	if !parseCropRatio("wat", videoShape{W: 10, H: 10}).empty() {
+		t.Fatal("bad ratio should crop nothing")
+	}
+	// Decimal ratios must parse: 2.35:1 on 1920x1080 keeps 817 px, so the
+	// margins are 131/132, not a 1 px sliver.
+	m = parseCropRatio("2.35:1", videoShape{W: 1920, H: 1080})
+	if m.Top != 131 || m.Bottom != 132 {
+		t.Fatalf("2.35:1 top/bottom %+v", m)
+	}
+	m = parseCropRatio("1.5:1", videoShape{W: 1920, H: 1080})
+	if m.Left != 150 || m.Right != 150 {
+		t.Fatalf("1.5:1 sides %+v", m)
+	}
+	x, y, w, h := cropRegion(videoShape{W: 1920, H: 1080}, cropMargins{Left: 240, Right: 240})
+	if x != 240 || y != 0 || w != 1440 || h != 1080 {
+		t.Fatalf("region %v %v %v %v", x, y, w, h)
+	}
+	x, y, w, h = cropRegion(videoShape{W: 10, H: 10}, cropMargins{Left: 9, Right: 9, Top: 9, Bottom: 9})
+	if w != 1 || h != 1 {
+		t.Fatalf("clamped region %v %v", w, h)
+	}
+}
+
+func TestCropIsFoldedIntoPlacement(t *testing.T) {
+	video := videoShape{W: 1920, H: 1080}
+	crop := parseCropRatio("4:3", video)
+	// The kept 1440x1080 region fits a 200x100 cell as 133.3x100, and the
+	// whole frame is scaled by the same factor and moved left.
+	r := placePicture(video, 200, 100, false, false, viewZoom{Scale: 1, Crop: crop, AnchorX: 0.5, AnchorY: 0.5})
+	if !near(r.W, 177.78) || !near(r.H, 100) {
+		t.Fatalf("frame size %v %v", r.W, r.H)
+	}
+	if !near(r.X, 11.11) || !near(r.Y, 0) {
+		t.Fatalf("frame position %v %v", r.X, r.Y)
+	}
+	// The kept region lands centred in the cell: 133.3 wide at x=33.3.
+	if !near(r.X+240*(r.W/1920), 33.33) {
+		t.Fatalf("kept region not centred: %+v", r)
+	}
+}
+
+func near(a, b float64) bool {
+	d := a - b
+	return d < 0.05 && d > -0.05
+}
