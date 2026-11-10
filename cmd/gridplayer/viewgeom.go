@@ -71,6 +71,13 @@ func (m cropMargins) empty() bool {
 	return m.Left <= 0 && m.Top <= 0 && m.Right <= 0 && m.Bottom <= 0
 }
 
+func (m cropMargins) combined(other cropMargins) cropMargins {
+	if !m.empty() {
+		return m
+	}
+	return other
+}
+
 // parseCropRatio turns a crop shape such as "2.35:1" into margins in
 // frame pixels, taken evenly off the two sides it is too long between.
 func parseCropRatio(ratio string, video videoShape) cropMargins {
@@ -191,13 +198,7 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 
 // clampZoom clamps a zoom to the range the app offers: 0.25x to 4x.
 func clampZoom(scale float64) float64 {
-	if scale < 0.25 {
-		return 0.25
-	}
-	if scale > 4 {
-		return 4
-	}
-	return scale
+	return clampFrozenZoom(scale)
 }
 
 // clampShift limits a shift to the room the picture has inside its cell.

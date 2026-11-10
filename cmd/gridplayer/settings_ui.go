@@ -188,7 +188,7 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
 		ui.Field(c, "Default rate", func() {
-			ui.Slider(c, &d.rate, 0.25, 4)
+			ui.Slider(c, &d.rate, minPlaybackRate, maxPlaybackRate)
 		}).Description(fmt.Sprintf("%.2fx — applies to newly opened cells", d.rate))
 		ui.Field(c, "Default loop", func() {
 			ui.Checkbox(c, &d.loop, "Loop new cells")
@@ -468,7 +468,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultVolume = clampInt(int(math.Round(d.volume)), 0, 100)
 	a.defaultMuted = d.muted
-	a.defaultRate = clampFloat(d.rate, 0.25, 4)
+	a.defaultRate = clampPlaybackRate(d.rate)
 	a.defaultEnd = endActionValue(d.endAction)
 	if a.defaultEnd == endLoop && !d.loop {
 		a.defaultEnd = endStop

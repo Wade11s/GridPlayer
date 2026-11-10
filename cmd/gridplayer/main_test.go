@@ -1047,7 +1047,7 @@ func TestPictureRectGeometry(t *testing.T) {
 	if x := placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, viewZoom{Scale: 1, AnchorX: 0.5, AnchorY: 0.5, ShiftX: 0.25}).X; x != 100 {
 		t.Fatalf("shift: %g", x)
 	}
-	if clampZoom(0.1) != 0.25 || clampZoom(9) != 4 || clampZoom(1.5) != 1.5 {
+	if clampZoom(0.1) != 1 || clampZoom(20) != 10 || clampZoom(1.5) != 1.5 {
 		t.Fatal("clampZoom")
 	}
 	// A picture larger than the pane may slide the overshoot either way up
@@ -1141,4 +1141,57 @@ func TestCropIsFoldedIntoPlacement(t *testing.T) {
 func near(a, b float64) bool {
 	d := a - b
 	return d < 0.05 && d > -0.05
+}
+
+func TestFrozenStepConstants(t *testing.T) {
+	if clampPlaybackRate(0.1) != 0.2 || clampPlaybackRate(20) != 12 || clampPlaybackRate(1.5) != 1.5 {
+		t.Fatal("rate clamp")
+	}
+	if got := zoomRung(1, 1, 0.1, false); got != 1.1 {
+		t.Fatalf("zoom in %v", got)
+	}
+	if got := zoomRung(1.1, -1, 0.1, false); got != 1 {
+		t.Fatalf("zoom out %v", got)
+	}
+	if got := zoomRung(10, -1, 0.1, false); got != 9.9 {
+		t.Fatalf("zoom down from cap %v", got)
+	}
+	if got := zoomRung(10, 1, 0.1, false); got != 10 {
+		t.Fatalf("zoom at cap %v", got)
+	}
+	if clampSubtitleDelay(-400000) != -300000 || clampSubtitleDelay(400000) != 300000 {
+		t.Fatal("subtitle delay clamp")
+	}
+	if subtitleDelayNudge(299950, engine.SubtitleDelayStepMS) != 300000 {
+		t.Fatal("subtitle delay nudge")
+	}
+	if seekPercentTarget(10000, 0.5) != 5000 {
+		t.Fatal("percent")
+	}
+	if randomSeekTarget(1000, 2000, func(n int64) int64 { return 0 }) != 1000 {
+		t.Fatal("random lower")
+	}
+	if randomSeekTarget(1000, 2000, func(n int64) int64 { return 1000 }) != 2000 {
+		t.Fatal("random upper")
+	}
+	var start, end int64
+	if !setLoopPoint(&start, &end, 3000, true) || start != 3000 {
+		t.Fatal("loop start")
+	}
+	if !setLoopPoint(&start, &end, 5000, false) || end != 5000 {
+		t.Fatal("loop end")
+	}
+	if setLoopPoint(&start, &end, 6000, true) {
+		t.Fatal("start after end should fail")
+	}
+	if seekableTime(7000, start, end) != start {
+		t.Fatal("outside loop seeks to start")
+	}
+	if ms, ok := parseTimecode("1:02.5"); !ok || ms != 62500 {
+		t.Fatalf("timecode %d %v", ms, ok)
+	}
+	m := cropStep(cropMargins{}, "left", 10)
+	if m.Left != 10 {
+		t.Fatal("crop step")
+	}
 }

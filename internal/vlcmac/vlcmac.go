@@ -540,6 +540,13 @@ func (p *Player) SetVolume(v int) {
 	p.with(func(mp *C.libvlc_media_player_t) { C.libvlc_audio_set_volume(mp, C.int(v)) })
 }
 
+// SetSubtitleDelay offsets subtitles by milliseconds. libVLC takes microseconds.
+func (p *Player) SetSubtitleDelay(ms int64) {
+	p.with(func(mp *C.libvlc_media_player_t) {
+		C.libvlc_video_set_spu_delay(mp, C.int64_t(ms*1000))
+	})
+}
+
 // SetAudioDelay offsets audio by milliseconds. libVLC takes microseconds.
 func (p *Player) SetAudioDelay(ms int64) {
 	p.with(func(mp *C.libvlc_media_player_t) {
