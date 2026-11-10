@@ -627,14 +627,17 @@ func (a *app) setPlaylist(paths []string) {
 
 func (a *app) newCell(i int, p string) *cell {
 	c := &cell{
-		label:    labelFor(p),
-		source:   p,
-		path:     p,
-		volume:   a.defaultVolume,
-		rate:     a.defaultRate,
-		loop:     a.defaultLoop,
-		viewMode: viewModeName(a.fill, a.stretch),
+		label:     labelFor(p),
+		source:    p,
+		path:      p,
+		volume:    a.defaultVolume,
+		rate:      a.defaultRate,
+		loop:      a.defaultLoop,
+		viewMode:  viewModeName(a.fill, a.stretch),
+		zoom:      a.defaultZoom,
+		transform: a.defaultTransform,
 	}
+	c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 	if i > 0 || a.defaultMuted {
 		c.muted = true
 	}
