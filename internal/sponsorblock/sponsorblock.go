@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	SkipJoinMS      int64 = 1000
-	SkipMinMS       int64 = 1000
-	SkipEndMargin   int64 = 1000
-	DefaultCacheTTL       = time.Hour
-	maxCacheEntries       = 256
+	SkipJoinMS            int64 = 1000
+	SkipMinMS             int64 = 1000
+	SkipEndMargin         int64 = 1000
+	DefaultCacheTTL             = time.Hour
+	maxCacheEntries             = 256
+	DefaultRequestTimeout       = 30 * time.Second
 )
 
 // Category is one SponsorBlock category and its default mode.
@@ -71,6 +72,9 @@ type Client struct {
 	BaseURL   string
 	UserAgent string
 	CacheTTL  time.Duration
+	// RequestTimeout bounds one shared lookup. It is independent of any single
+	// caller's context so one canceled caller cannot fail the others.
+	RequestTimeout time.Duration
 
 	mu       sync.Mutex
 	cache    map[string]cacheEntry
@@ -91,12 +95,13 @@ type fetchCall struct {
 // New returns a client for the public SponsorBlock API.
 func New() *Client {
 	return &Client{
-		HTTP:      http.DefaultClient,
-		BaseURL:   "https://sponsor.ajay.app/api/skipSegments",
-		UserAgent: "GridPlayer-Go",
-		CacheTTL:  DefaultCacheTTL,
-		cache:     map[string]cacheEntry{},
-		inflight:  map[string]*fetchCall{},
+		HTTP:           http.DefaultClient,
+		BaseURL:        "https://sponsor.ajay.app/api/skipSegments",
+		UserAgent:      "GridPlayer-Go",
+		CacheTTL:       DefaultCacheTTL,
+		RequestTimeout: DefaultRequestTimeout,
+		cache:          map[string]cacheEntry{},
+		inflight:       map[string]*fetchCall{},
 	}
 }
 
@@ -135,18 +140,47 @@ func (c *Client) Fetch(ctx context.Context, videoID string, categories []string)
 	c.inflight[key] = call
 	c.mu.Unlock()
 
-	segments, err := c.fetchHTTP(ctx, videoID, categories)
-	c.mu.Lock()
-	call.segments = cloneSegments(segments)
-	call.err = err
-	if err == nil {
-		c.cache[key] = cacheEntry{segments: cloneSegments(segments), at: time.Now()}
-		c.evictLocked()
+	go c.runFetch(ctx, key, videoID, categories, call)
+
+	select {
+	case <-call.done:
+		return cloneSegments(call.segments), call.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
-	delete(c.inflight, key)
-	close(call.done)
-	c.mu.Unlock()
-	return segments, err
+}
+
+// runFetch performs the shared lookup. It runs on a context detached from the
+// caller that happened to start it, so a canceled caller cannot fail the
+// callers waiting on the same key.
+func (c *Client) runFetch(ctx context.Context, key, videoID string, categories []string, call *fetchCall) {
+	timeout := c.RequestTimeout
+	if timeout <= 0 {
+		timeout = DefaultRequestTimeout
+	}
+	shared, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+
+	var segments []Segment
+	var err error
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			segments = nil
+			err = fmt.Errorf("sponsorblock: panic: %v", recovered)
+		}
+		c.mu.Lock()
+		call.segments = cloneSegments(segments)
+		call.err = err
+		if err == nil {
+			c.cache[key] = cacheEntry{segments: cloneSegments(segments), at: time.Now()}
+			c.evictLocked()
+		}
+		delete(c.inflight, key)
+		close(call.done)
+		c.mu.Unlock()
+	}()
+
+	segments, err = c.fetchHTTP(shared, videoID, categories)
 }
 
 // evictLocked drops the oldest entry once the cache exceeds its bound.
@@ -196,6 +230,7 @@ func (c *Client) fetchHTTP(ctx context.Context, videoID string, categories []str
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
 		return nil, nil
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
