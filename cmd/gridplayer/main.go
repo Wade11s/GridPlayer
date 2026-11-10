@@ -107,6 +107,8 @@ type app struct {
 	aspect              string
 	scale               float64
 	crop                string
+	pauseBackground     bool
+	backgroundPaused    map[*cell]bool
 	closed              atomic.Bool
 	status              string
 	doc                 *playlist.Document
@@ -152,19 +154,20 @@ type app struct {
 
 func newApp(paths []string) *app {
 	a := &app{
-		cfg:           grid.Config{Mode: grid.AutoRows},
-		fill:          true,
-		snap:          true,
-		overlap:       true,
-		defaultVolume: 80,
-		defaultRate:   1,
-		defaultLoop:   true,
-		defaultZoom:   1,
-		defaultAnchor: "center",
-		resolver:      resolve.New(),
-		keys:          keymap.Default(),
-		language:      "en_US",
-		subtitle:      subtitleStyle{Opacity: 255},
+		cfg:             grid.Config{Mode: grid.AutoRows},
+		fill:            true,
+		snap:            true,
+		overlap:         true,
+		defaultVolume:   80,
+		defaultRate:     1,
+		defaultLoop:     true,
+		defaultZoom:     1,
+		defaultAnchor:   "center",
+		pauseBackground: true,
+		resolver:        resolve.New(),
+		keys:            keymap.Default(),
+		language:        "en_US",
+		subtitle:        subtitleStyle{Opacity: 255},
 	}
 	a.setRetryPolicy("times", defaultRetryTimes)
 	a.setListFailPolicy(listFailPlayNext, defaultListFailWait)
@@ -185,6 +188,7 @@ func (a *app) loadSettings() {
 	a.settings = st
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
+	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
 	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
 		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
@@ -424,6 +428,7 @@ func (a *app) saveSettings() {
 	}
 	a.settings.Set("video_defaults/cell_view_mode", view)
 	a.settings.Set("player/language", a.language)
+	a.settings.Set("playlist/pause_background_videos", fmt.Sprint(a.pauseBackground))
 	a.settings.Set("video_defaults/aspect_ratio", a.aspect)
 	a.settings.Set("video_defaults/scale", fmt.Sprintf("%g", a.scale))
 	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))
@@ -2441,6 +2446,29 @@ func (a *app) closeRequested(e *mygo.CloseEvent) {
 	}
 }
 
+func (a *app) pauseForBackground() {
+	if !a.pauseBackground || a.closed.Load() {
+		return
+	}
+	a.backgroundPaused = map[*cell]bool{}
+	for _, c := range a.cells {
+		if c.eng == nil || c.eng.Snapshot().Phase != engine.Playing {
+			continue
+		}
+		c.eng.Pause()
+		a.backgroundPaused[c] = true
+	}
+}
+
+func (a *app) resumeFromBackground() {
+	for c := range a.backgroundPaused {
+		if c.eng != nil {
+			c.eng.Play()
+		}
+	}
+	a.backgroundPaused = nil
+}
+
 func (a *app) toggleLoop() {
 	if eng := a.activeEngine(); eng != nil {
 		eng.SetLoop(!eng.Snapshot().Loop)
@@ -3166,6 +3194,8 @@ func main() {
 			return nativehost.Resolve(w.NativeHandle())
 		}
 		w.OnClose(func(e *mygo.CloseEvent) { a.closeRequested(e) })
+		w.OnBlur(func() { a.pauseForBackground() })
+		w.OnFocus(func() { a.resumeFromBackground() })
 		w.OnFileDrop(func(e *mygo.FileDropEvent) {
 			if len(e.Paths) > 0 {
 				a.dropFiles(len(a.cells), e.Paths)
