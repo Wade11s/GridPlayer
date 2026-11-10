@@ -43,7 +43,6 @@ var Languages = []Language{
 type Translator struct {
 	Language string
 	messages map[string]map[string]string
-	bySource map[string]string
 }
 
 type tsDocument struct {
@@ -68,7 +67,6 @@ func Load(dir, code string) (*Translator, error) {
 	translator := &Translator{
 		Language: code,
 		messages: map[string]map[string]string{},
-		bySource: map[string]string{},
 	}
 	if code == "en_US" {
 		return translator, nil
@@ -78,16 +76,29 @@ func Load(dir, code string) (*Translator, error) {
 	if err != nil {
 		return nil, fmt.Errorf("i18n: %w", err)
 	}
+	if err := translator.merge(data, path); err != nil {
+		return nil, err
+	}
+	overlay := filepath.Join(dir, "go_"+code+".ts")
+	if data, err := os.ReadFile(overlay); err == nil {
+		if err := translator.merge(data, overlay); err != nil {
+			return nil, err
+		}
+	}
+	return translator, nil
+}
+
+func (t *Translator) merge(data []byte, path string) error {
 	var document tsDocument
 	if err := xml.Unmarshal(data, &document); err != nil {
-		return nil, fmt.Errorf("i18n: %s: %w", path, err)
+		return fmt.Errorf("i18n: %s: %w", path, err)
 	}
 	for _, context := range document.Contexts {
 		if context.Name == "" {
 			continue
 		}
-		if translator.messages[context.Name] == nil {
-			translator.messages[context.Name] = map[string]string{}
+		if t.messages[context.Name] == nil {
+			t.messages[context.Name] = map[string]string{}
 		}
 		for _, message := range context.Messages {
 			source := strings.TrimSpace(message.Source)
@@ -95,13 +106,10 @@ func Load(dir, code string) (*Translator, error) {
 			if source == "" || translation == "" {
 				continue
 			}
-			translator.messages[context.Name][source] = translation
-			if _, exists := translator.bySource[source]; !exists {
-				translator.bySource[source] = translation
-			}
+			t.messages[context.Name][source] = translation
 		}
 	}
-	return translator, nil
+	return nil
 }
 
 // Tr translates source in context, falling back to the source string.
@@ -113,9 +121,6 @@ func (t *Translator) Tr(context, source string) string {
 		if translation := messages[source]; translation != "" {
 			return translation
 		}
-	}
-	if translation := t.bySource[source]; translation != "" {
-		return translation
 	}
 	return source
 }

@@ -122,7 +122,7 @@ func (a *app) openSettings() {
 	}
 	a.settingsDraft = a.currentSettingsDraft()
 	w := mygo.NewWindow(mygo.WindowOptions{
-		Title:          "Settings",
+		Title:          a.tr("SettingsDialog", "Settings"),
 		Width:          560,
 		Height:         560,
 		UseContentSize: true,
@@ -163,7 +163,7 @@ func (a *app) settingsView(c *ui.Context) {
 		})
 		ui.Divider(c)
 		ui.Row(c).Gap(8).Children(func() {
-			if ui.PrimaryButton(c, "Apply").Clicked() {
+			if ui.PrimaryButton(c, a.tr("SettingsDialog", "Apply")).Clicked() {
 				if err := d.validateKeymap(); err != nil {
 					d.keymapError = err.Error()
 				} else {
@@ -174,11 +174,11 @@ func (a *app) settingsView(c *ui.Context) {
 					}
 				}
 			}
-			if ui.Button(c, "Cancel").Clicked() && a.settingsWin != nil {
+			if ui.Button(c, a.tr("SettingsDialog", "Cancel")).Clicked() && a.settingsWin != nil {
 				a.settingsWin.Close()
 			}
 			ui.Spacer(c)
-			if ui.Button(c, "Reset Defaults").Clicked() {
+			if ui.Button(c, a.tr("SettingsDialog", "Reset Defaults")).Clicked() {
 				*d = defaultSettingsDraft()
 			}
 		})
@@ -190,10 +190,10 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, a.tr("SettingsDialog", "Language"), func() {
 			ui.Select(c, &d.language, languageOptions)
 		})
-		ui.Field(c, "Default volume", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Default volume"), func() {
 			ui.Slider(c, &d.volume, 0, 100)
 		}).Description(fmt.Sprintf("%.0f%% — applies to newly opened cells", d.volume))
-		ui.Field(c, "Default muted", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Default muted"), func() {
 			ui.Checkbox(c, &d.muted, "Start new cells muted")
 		})
 	})
@@ -201,38 +201,38 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 
 func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
-		ui.Field(c, "Default rate", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Default rate"), func() {
 			ui.Slider(c, &d.rate, minPlaybackRate, maxPlaybackRate)
 		}).Description(fmt.Sprintf("%.2fx — applies to newly opened cells", d.rate))
-		ui.Field(c, "Default loop", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Default loop"), func() {
 			ui.Checkbox(c, &d.loop, "Loop new cells")
 		})
-		ui.Field(c, "When finished", func() {
+		ui.Field(c, a.tr("SettingsDialog", "When finished"), func() {
 			ui.Select(c, &d.endAction, endActionOptions)
 		}).Description("New lists still play the next item when this stays Loop file.")
-		ui.Field(c, "Auto reload time", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Auto reload time"), func() {
 			ui.TextInput(c, &d.autoReload)
 		}).Description("Minutes between live reloads. 0 disables. Streams only.")
-		ui.Field(c, "On network error", func() {
+		ui.Field(c, a.tr("SettingsDialog", "On network error"), func() {
 			ui.Select(c, &d.retryMode, retryModeOptions)
 		}).Description("Reloads a failed network video. Local files stay failed.")
 		if d.retryMode == "Fixed attempts" {
-			ui.Field(c, "Attempts", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Attempts"), func() {
 				ui.TextInput(c, &d.retryTimes)
 			}).Description("1–1000. Waits 1s, 2s, 5s, 15s, then 30s.")
 		}
-		ui.Field(c, "When a list item fails", func() {
+		ui.Field(c, a.tr("SettingsDialog", "When a list item fails"), func() {
 			ui.Select(c, &d.listFail, listFailOptions)
 		})
 		if d.listFail == "Play next" {
-			ui.Field(c, "Next after", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Next after"), func() {
 				ui.TextInput(c, &d.listFailWait)
 			}).Description("Seconds before the next item. 0 moves on at once. Default 2.")
 		}
-		ui.Field(c, "Decode", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Video Decoder"), func() {
 			ui.Text(c, "VideoToolbox via libVLC")
 		})
-		ui.Field(c, "Resolver", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Resolver"), func() {
 			ui.Text(c, "yt-dlp with direct fallback")
 		})
 	})
@@ -240,26 +240,26 @@ func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 
 func (a *app) settingsGrid(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
-		ui.Field(c, "Layout", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Grid mode"), func() {
 			ui.Select(c, &d.layout, layoutOptions)
 		})
 		if d.layout == "Fixed" {
-			ui.Field(c, "Rows", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Rows"), func() {
 				ui.Select(c, &d.rows, sizeOptions)
 			})
-			ui.Field(c, "Columns", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Columns"), func() {
 				ui.Select(c, &d.cols, sizeOptions)
 			})
 		}
 		if d.layout == "Single Mode" {
-			ui.Field(c, "Strip side", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Strip side"), func() {
 				ui.Select(c, &d.singleSide, sideOptions)
 			})
 		}
-		ui.Field(c, "Snap", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Snap"), func() {
 			ui.Checkbox(c, &d.snap, "Snap edges and middles within 8 DIPs")
 		})
-		ui.Field(c, "Free overlap", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Free overlap"), func() {
 			ui.Checkbox(c, &d.overlap, "Allow free tiles to overlap")
 		})
 	})
@@ -267,16 +267,16 @@ func (a *app) settingsGrid(c *ui.Context, d *settingsDraft) {
 
 func (a *app) settingsVideo(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
-		ui.Field(c, "View mode", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Aspect mode"), func() {
 			ui.Select(c, &d.view, viewOptions)
 		})
-		ui.Field(c, "Aspect ratio", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Aspect ratio"), func() {
 			ui.Select(c, &d.aspect, aspectOptions)
 		})
-		ui.Field(c, "Scale", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Scale"), func() {
 			ui.Select(c, &d.scale, scaleOptions)
 		})
-		ui.Field(c, "Crop", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Crop"), func() {
 			ui.Select(c, &d.crop, cropOptions)
 		})
 	})
@@ -286,31 +286,31 @@ func (a *app) settingsSubtitles(c *ui.Context, d *settingsDraft) {
 	ui.Column(c).Gap(8).Children(func() {
 		ui.Text(c, "Changing the style reloads live cells at their current position.").FontSize(12)
 		ui.Form(c, func() {
-			ui.Field(c, "Font", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Font"), func() {
 				ui.TextInput(c, &d.subFont)
 			}).Description("Blank = VLC default")
-			ui.Field(c, "Font size", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Font size"), func() {
 				ui.TextInput(c, &d.subSize)
 			}).Description("0 = VLC default; 1-96 pixels")
-			ui.Field(c, "Text color", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Text color"), func() {
 				ui.TextInput(c, &d.subColor)
 			}).Description("#RRGGBB; blank = default")
-			ui.Field(c, "Outline color", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Outline color"), func() {
 				ui.TextInput(c, &d.subOutlineColor)
 			}).Description("#RRGGBB; blank = default")
-			ui.Field(c, "Outline", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Outline"), func() {
 				ui.Select(c, &d.subOutline, outlineOptions)
 			})
-			ui.Field(c, "Bold", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Bold"), func() {
 				ui.Checkbox(c, &d.subBold, "Bold subtitles")
 			})
-			ui.Field(c, "Opacity", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Opacity"), func() {
 				ui.Slider(c, &d.subOpacity, 0, 100)
 			}).Description(fmt.Sprintf("%.0f%%", d.subOpacity))
-			ui.Field(c, "Encoding", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Encoding"), func() {
 				ui.Select(c, &d.subEncoding, encodingOptions)
 			})
-			ui.Field(c, "Autodetect", func() {
+			ui.Field(c, a.tr("SettingsDialog", "Autodetect"), func() {
 				ui.Checkbox(c, &d.subAutodetect, "Find sidecar subtitle files")
 			})
 		})
@@ -319,10 +319,10 @@ func (a *app) settingsSubtitles(c *ui.Context, d *settingsDraft) {
 
 func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
-		ui.Field(c, "Proxy", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Proxy"), func() {
 			ui.TextInput(c, &d.proxy)
 		}).Description("http://host:port — passed to yt-dlp and streamlink")
-		ui.Field(c, "Cookies file", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Cookies file"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &d.cookies)
 				if ui.Button(c, "Browse…").Clicked() {
@@ -335,7 +335,7 @@ func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 				}
 			})
 		})
-		ui.Field(c, "yt-dlp path", func() {
+		ui.Field(c, a.tr("SettingsDialog", "yt-dlp path"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &d.ytdlp)
 				if ui.Button(c, "Browse…").Clicked() {
@@ -348,7 +348,7 @@ func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 				}
 			})
 		})
-		ui.Field(c, "Streamlink path", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Streamlink path"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &d.streamlink)
 				if ui.Button(c, "Browse…").Clicked() {
@@ -361,7 +361,7 @@ func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 				}
 			})
 		})
-		ui.Field(c, "Quality", func() {
+		ui.Field(c, a.tr("SettingsDialog", "Quality"), func() {
 			ui.Select(c, &d.format, formatOptions)
 		}).Description("yt-dlp format; streamlink uses best")
 	})
@@ -373,7 +373,7 @@ func (a *app) settingsKeymap(c *ui.Context, d *settingsDraft) {
 		ui.Form(c, func() {
 			for i := range d.keys {
 				k := &d.keys[i]
-				ui.Field(c, k.Label, func() {
+				ui.Field(c, a.tr("Actions", k.Label), func() {
 					ui.TextInput(c, &k.Value)
 				})
 			}

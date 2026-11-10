@@ -29,8 +29,8 @@ func TestLoadTranslatesContextAndFallsBack(t *testing.T) {
 	if got := translator.Tr("Main Window", "Recent"); got != "Recent" {
 		t.Fatalf("unfinished fallback %q", got)
 	}
-	if got := translator.Tr("Missing", "Settings"); got != "Ustawienia" {
-		t.Fatalf("source fallback %q", got)
+	if got := translator.Tr("Missing", "Settings"); got != "Settings" {
+		t.Fatalf("context isolation %q", got)
 	}
 }
 
@@ -47,5 +47,24 @@ func TestEnglishNeedsNoFile(t *testing.T) {
 func TestLanguageNames(t *testing.T) {
 	if Name("pl_PL") != "Polski" || Name("unknown") != "English" {
 		t.Fatal("language names")
+	}
+	if Code("Polski") != "pl_PL" || Code("Unknown") != "en_US" {
+		t.Fatal("language codes")
+	}
+}
+
+func TestBundledPolishCatalog(t *testing.T) {
+	translator, err := Load("../../resources/translations", "pl_PL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := translator.Tr("SettingsDialog", "Language"); got != "Język" {
+		t.Fatalf("bundled Polish %q", got)
+	}
+	if got := translator.Tr("SettingsDialog", "Default volume"); got != "Domyślna głośność" {
+		t.Fatalf("Go overlay %q", got)
+	}
+	if got := translator.Tr("Actions", "Language"); got != "Language" {
+		t.Fatalf("context isolation %q", got)
 	}
 }
