@@ -37,12 +37,13 @@ type settingsDraft struct {
 	startMaximized     bool
 	startFullscreen    bool
 
-	layout     string
-	rows       string
-	cols       string
-	snap       bool
-	overlap    bool
-	singleSide string
+	layout        string
+	rows          string
+	cols          string
+	snap          bool
+	overlap       bool
+	showGridLines bool
+	singleSide    string
 
 	view      string
 	aspect    string
@@ -116,6 +117,7 @@ func defaultSettingsDraft() settingsDraft {
 		cols:               "3",
 		snap:               true,
 		overlap:            true,
+		showGridLines:      true,
 		singleSide:         "Auto",
 		view:               "Fill (cover)",
 		aspect:             "Auto",
@@ -301,6 +303,9 @@ func (a *app) settingsGrid(c *ui.Context, d *settingsDraft) {
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Free overlap"), func() {
 			ui.Checkbox(c, &d.overlap, "Allow free tiles to overlap")
+		})
+		ui.Field(c, a.tr("SettingsDialog", "Show grid lines"), func() {
+			ui.Checkbox(c, &d.showGridLines, "Show cell boundaries")
 		})
 	})
 }
@@ -490,6 +495,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	a.sponsorMu.Unlock()
 	d.snap = a.snap
 	d.overlap = a.overlap
+	d.showGridLines = a.showGridLines
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
 	d.cols = fmt.Sprint(clampInt(a.cfg.Cols, 1, 8))
 	switch {
@@ -596,6 +602,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	d.autoReload = fmt.Sprint(a.autoReloadMin.Load())
 	a.snap = d.snap
 	a.overlap = d.overlap
+	a.showGridLines = d.showGridLines
 	a.singleSide = sideFromName(d.singleSide)
 	a.fill, a.stretch = viewFromName(d.view)
 	a.aspect = aspectFromName(d.aspect)

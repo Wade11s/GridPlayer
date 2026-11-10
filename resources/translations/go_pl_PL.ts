@@ -67,6 +67,7 @@
     <message><source>Start full screen</source><translation>Uruchamiaj na pełnym ekranie</translation></message>
     <message><source>Disable screensaver while playing</source><translation>Wyłącz wygaszacz ekranu podczas odtwarzania</translation></message>
     <message><source>Keep the display awake</source><translation>Utrzymuj ekran wybudzony</translation></message>
+    <message><source>Show grid lines</source><translation>Pokaż linie siatki</translation></message>
   </context>
   <context>
     <name>Actions</name>
