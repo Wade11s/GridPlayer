@@ -224,6 +224,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.volume = 55
 	d.rate = 1.5
 	d.loop = false
+	d.pauseBackground = false
 	d.snap = false
 	d.overlap = false
 	d.view = "Fit (contain)"
@@ -242,6 +243,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if a.defaultVolume != 55 || a.defaultRate != 1.5 || a.defaultLoop {
 		t.Fatalf("defaults volume=%d rate=%v loop=%v", a.defaultVolume, a.defaultRate, a.defaultLoop)
+	}
+	if a.pauseBackground {
+		t.Fatal("pause background not applied")
 	}
 	if a.fill || a.stretch {
 		t.Fatalf("view fill=%v stretch=%v", a.fill, a.stretch)

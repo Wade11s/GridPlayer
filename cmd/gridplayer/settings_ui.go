@@ -23,11 +23,12 @@ type keyBindingDraft struct {
 type settingsDraft struct {
 	tab int
 
-	volume   float64
-	muted    bool
-	rate     float64
-	loop     bool
-	language string
+	volume          float64
+	muted           bool
+	rate            float64
+	loop            bool
+	language        string
+	pauseBackground bool
 
 	layout     string
 	rows       string
@@ -88,31 +89,32 @@ var (
 
 func defaultSettingsDraft() settingsDraft {
 	return settingsDraft{
-		volume:       80,
-		rate:         1,
-		loop:         true,
-		language:     "English",
-		layout:       "Auto Rows",
-		rows:         "3",
-		cols:         "3",
-		snap:         true,
-		overlap:      true,
-		singleSide:   "Auto",
-		view:         "Fill (cover)",
-		aspect:       "Auto",
-		scale:        "Fit",
-		crop:         "None",
-		subOutline:   "None",
-		subOpacity:   100,
-		subEncoding:  "Auto",
-		subSize:      "0",
-		format:       "Best",
-		retryMode:    "Fixed attempts",
-		retryTimes:   "3",
-		listFail:     "Play next",
-		listFailWait: "2",
-		endAction:    "Loop file",
-		keys:         defaultKeyBindingDrafts(),
+		volume:          80,
+		rate:            1,
+		loop:            true,
+		language:        "English",
+		pauseBackground: true,
+		layout:          "Auto Rows",
+		rows:            "3",
+		cols:            "3",
+		snap:            true,
+		overlap:         true,
+		singleSide:      "Auto",
+		view:            "Fill (cover)",
+		aspect:          "Auto",
+		scale:           "Fit",
+		crop:            "None",
+		subOutline:      "None",
+		subOpacity:      100,
+		subEncoding:     "Auto",
+		subSize:         "0",
+		format:          "Best",
+		retryMode:       "Fixed attempts",
+		retryTimes:      "3",
+		listFail:        "Play next",
+		listFailWait:    "2",
+		endAction:       "Loop file",
+		keys:            defaultKeyBindingDrafts(),
 	}
 }
 
@@ -196,6 +198,9 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, a.tr("SettingsDialog", "Default muted"), func() {
 			ui.Checkbox(c, &d.muted, "Start new cells muted")
 		})
+		ui.Field(c, a.tr("SettingsDialog", "Pause videos when minimized"), func() {
+			ui.Checkbox(c, &d.pauseBackground, "Pause when the window loses focus")
+		})
 	})
 }
 
@@ -230,7 +235,10 @@ func (a *app) settingsPlayback(c *ui.Context, d *settingsDraft) {
 			}).Description("Seconds before the next item. 0 moves on at once. Default 2.")
 		}
 		ui.Field(c, a.tr("SettingsDialog", "Video Decoder"), func() {
-			ui.Text(c, "VideoToolbox via libVLC")
+			ui.Text(c, a.tr("SettingsDialog", "Hardware SP")+" — VideoToolbox")
+		})
+		ui.Field(c, a.tr("SettingsDialog", "Videos per process"), func() {
+			ui.Text(c, "1 per pane (same process)")
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Resolver"), func() {
 			ui.Text(c, "yt-dlp with direct fallback")
@@ -417,6 +425,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.rate = a.defaultRate
 	d.loop = a.defaultLoop
 	d.language = i18n.Name(a.language)
+	d.pauseBackground = a.pauseBackground
 	d.snap = a.snap
 	d.overlap = a.overlap
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
@@ -486,6 +495,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultRate = clampPlaybackRate(d.rate)
 	a.language = i18n.Code(d.language)
 	a.loadTranslator()
+	a.pauseBackground = d.pauseBackground
 	a.defaultEnd = endActionValue(d.endAction)
 	if a.defaultEnd == endLoop && !d.loop {
 		a.defaultEnd = endStop

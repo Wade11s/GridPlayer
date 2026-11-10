@@ -54,6 +54,9 @@
     <message><source>Subtitles</source><translation>Napisy</translation></message>
     <message><source>Network</source><translation>Sieć</translation></message>
     <message><source>Keymap</source><translation>Skróty</translation></message>
+    <message><source>Pause videos when minimized</source><translation>Wstrzymaj filmy po zminimalizowaniu</translation></message>
+    <message><source>Hardware SP</source><translation>Sprzętowy SP</translation></message>
+    <message><source>Videos per process</source><translation>Liczba wideo na proces</translation></message>
   </context>
   <context>
     <name>Actions</name>
