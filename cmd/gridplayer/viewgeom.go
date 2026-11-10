@@ -19,6 +19,9 @@ type picturePlace struct {
 type viewZoom struct {
 	Scale float64
 	Crop  cropMargins
+	// FillLimit is the most of the picture Fill may cut, in percent.
+	// 100 means no limit.
+	FillLimit int
 	// AnchorX and AnchorY locate the anchor in the cell: 0..1 fraction.
 	AnchorX, AnchorY float64
 	// ShiftX and ShiftY move the picture in cell fractions.
@@ -152,6 +155,14 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 	if !stretch {
 		picAspect := rw / rh
 		cellAspect := cellW / cellH
+		if fill && v.FillLimit > 0 && v.FillLimit < 100 {
+			fitX := cellW / rw
+			fitY := cellH / rh
+			cut := 1 - math.Min(fitX, fitY)/math.Max(fitX, fitY)
+			if cut*100 > float64(v.FillLimit)+1e-9 {
+				fill = false
+			}
+		}
 		if fill {
 			if cellAspect > picAspect {
 				vw, vh = cellW, cellW/picAspect

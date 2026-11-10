@@ -1161,6 +1161,21 @@ func TestCropIsFoldedIntoPlacement(t *testing.T) {
 	}
 }
 
+func TestFillLimitFallsBackToFit(t *testing.T) {
+	video := videoShape{W: 100, H: 100}
+	fill := placePicture(video, 200, 100, true, false, viewZoom{Scale: 1, FillLimit: 100, AnchorX: 0.5, AnchorY: 0.5})
+	if fill.W != 200 || fill.H != 200 {
+		t.Fatalf("unlimited fill %+v", fill)
+	}
+	limited := placePicture(video, 200, 100, true, false, viewZoom{Scale: 1, FillLimit: 30, AnchorX: 0.5, AnchorY: 0.5})
+	if limited.W != 100 || limited.H != 100 || limited.X != 50 {
+		t.Fatalf("limited fill %+v", limited)
+	}
+	if fillLimitName(100) != "Off" || fillLimitName(30) != "30%" || fillLimitValue("20%") != 20 || fillLimitValue("Off") != 100 {
+		t.Fatal("fill limit names")
+	}
+}
+
 func near(a, b float64) bool {
 	d := a - b
 	return d < 0.05 && d > -0.05
