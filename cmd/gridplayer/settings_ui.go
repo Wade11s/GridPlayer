@@ -12,6 +12,7 @@ import (
 	"gridplayer-go/internal/i18n"
 	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/resolve"
+	"gridplayer-go/internal/sponsorblock"
 )
 
 type keyBindingDraft struct {
@@ -29,6 +30,8 @@ type settingsDraft struct {
 	loop            bool
 	language        string
 	pauseBackground bool
+	sponsorEnabled  bool
+	sponsorModes    []string
 
 	layout     string
 	rows       string
@@ -73,22 +76,23 @@ type settingsDraft struct {
 }
 
 var (
-	layoutOptions    = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
-	sizeOptions      = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
-	sideOptions      = []string{"Auto", "Right", "Left", "Bottom", "Top"}
-	viewOptions      = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
-	aspectOptions    = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
-	scaleOptions     = []string{"Fit", "1x", "1.5x", "2x"}
-	cropOptions      = []string{"None", "16:9", "4:3", "2.35:1"}
-	fillLimitOptions = []string{"Off", "50%", "30%", "20%", "10%", "0%"}
-	transformOptions = []string{"None", "Rotate 90", "Rotate 180", "Rotate 270", "Flip horizontal", "Flip vertical", "Transpose", "Anti-transpose"}
-	formatOptions    = []string{"Best", "Worst", "720p", "480p"}
-	outlineOptions   = []string{"None", "Thin", "Normal", "Thick"}
-	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
-	retryModeOptions = []string{"Off", "Fixed attempts", "Keep trying"}
-	listFailOptions  = []string{"Play next", "Show error"}
-	endActionOptions = []string{"Loop file", "Next file", "Previous file", "Shuffle", "Pause", "Stop"}
-	languageOptions  = languageNames()
+	layoutOptions      = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
+	sizeOptions        = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
+	sideOptions        = []string{"Auto", "Right", "Left", "Bottom", "Top"}
+	viewOptions        = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
+	aspectOptions      = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
+	scaleOptions       = []string{"Fit", "1x", "1.5x", "2x"}
+	cropOptions        = []string{"None", "16:9", "4:3", "2.35:1"}
+	fillLimitOptions   = []string{"Off", "50%", "30%", "20%", "10%", "0%"}
+	transformOptions   = []string{"None", "Rotate 90", "Rotate 180", "Rotate 270", "Flip horizontal", "Flip vertical", "Transpose", "Anti-transpose"}
+	sponsorModeOptions = []string{"Skip", "Show", "Off"}
+	formatOptions      = []string{"Best", "Worst", "720p", "480p"}
+	outlineOptions     = []string{"None", "Thin", "Normal", "Thick"}
+	encodingOptions    = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
+	retryModeOptions   = []string{"Off", "Fixed attempts", "Keep trying"}
+	listFailOptions    = []string{"Play next", "Show error"}
+	endActionOptions   = []string{"Loop file", "Next file", "Previous file", "Shuffle", "Pause", "Stop"}
+	languageOptions    = languageNames()
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -98,6 +102,7 @@ func defaultSettingsDraft() settingsDraft {
 		loop:            true,
 		language:        "English",
 		pauseBackground: true,
+		sponsorModes:    defaultSponsorModes(),
 		layout:          "Auto Rows",
 		rows:            "3",
 		cols:            "3",
@@ -150,7 +155,8 @@ func (a *app) settingsView(c *ui.Context) {
 			a.tr("SettingsDialog", "Video"),
 			a.tr("SettingsDialog", "Subtitles"),
 			a.tr("SettingsDialog", "Network"),
-			a.tr("SettingsDialog", "Keymap"))
+			a.tr("SettingsDialog", "Keymap"),
+			a.tr("SettingsDialog", "SponsorBlock"))
 		ui.Scroll(c).Fill().Children(func() {
 			switch d.tab {
 			case 0:
@@ -165,8 +171,10 @@ func (a *app) settingsView(c *ui.Context) {
 				a.settingsSubtitles(c, d)
 			case 5:
 				a.settingsNetwork(c, d)
-			default:
+			case 6:
 				a.settingsKeymap(c, d)
+			default:
+				a.settingsSponsorBlock(c, d)
 			}
 		})
 		ui.Divider(c)
@@ -404,6 +412,20 @@ func (a *app) settingsKeymap(c *ui.Context, d *settingsDraft) {
 	})
 }
 
+func (a *app) settingsSponsorBlock(c *ui.Context, d *settingsDraft) {
+	ui.Form(c, func() {
+		ui.Field(c, a.tr("SettingsDialog", "Enabled"), func() {
+			ui.Checkbox(c, &d.sponsorEnabled, "Fetch SponsorBlock segments for YouTube URLs")
+		})
+		for i, category := range sponsorblock.Categories {
+			index := i
+			ui.Field(c, category.Name, func() {
+				ui.Select(c, &d.sponsorModes[index], sponsorModeOptions)
+			})
+		}
+	})
+}
+
 func defaultKeyBindingDrafts() []keyBindingDraft {
 	return keyBindingDrafts(keymap.Default())
 }
@@ -438,6 +460,12 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.loop = a.defaultLoop
 	d.language = i18n.Name(a.language)
 	d.pauseBackground = a.pauseBackground
+	d.sponsorEnabled = a.sponsorEnabled.Load()
+	a.sponsorMu.Lock()
+	for i, category := range sponsorblock.Categories {
+		d.sponsorModes[i] = sponsorModeName(a.sponsorModes[category.Name])
+	}
+	a.sponsorMu.Unlock()
 	d.snap = a.snap
 	d.overlap = a.overlap
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
@@ -510,6 +538,23 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.language = i18n.Code(d.language)
 	a.loadTranslator()
 	a.pauseBackground = d.pauseBackground
+	a.sponsorEnabled.Store(d.sponsorEnabled)
+	if a.sponsorModes == nil {
+		a.sponsorModes = sponsorblock.DefaultModes()
+	}
+	a.sponsorMu.Lock()
+	for i, category := range sponsorblock.Categories {
+		a.sponsorModes[category.Name] = sponsorModeValue(d.sponsorModes[i])
+	}
+	a.sponsorSpans = map[*cell][]sponsorblock.Span{}
+	a.sponsorLoading = map[*cell]bool{}
+	a.sponsorMu.Unlock()
+	for _, cell := range a.cells {
+		cell.sponsorSkipEnd.Store(0)
+	}
+	for _, cell := range a.cells {
+		a.fetchSponsor(cell, cell.source)
+	}
 	a.defaultEnd = endActionValue(d.endAction)
 	if a.defaultEnd == endLoop && !d.loop {
 		a.defaultEnd = endStop
@@ -826,6 +871,36 @@ func languageNames() []string {
 		names = append(names, language.Name)
 	}
 	return names
+}
+
+func defaultSponsorModes() []string {
+	modes := make([]string, 0, len(sponsorblock.Categories))
+	for _, category := range sponsorblock.Categories {
+		modes = append(modes, sponsorModeName(category.Mode))
+	}
+	return modes
+}
+
+func sponsorModeName(mode string) string {
+	switch mode {
+	case "skip":
+		return "Skip"
+	case "show":
+		return "Show"
+	default:
+		return "Off"
+	}
+}
+
+func sponsorModeValue(name string) string {
+	switch name {
+	case "Skip":
+		return "skip"
+	case "Show":
+		return "show"
+	default:
+		return "off"
+	}
 }
 
 func clampFloat(v, lo, hi float64) float64 {

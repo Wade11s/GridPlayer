@@ -19,6 +19,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -36,6 +37,7 @@ import (
 	"gridplayer-go/internal/resolve"
 	"gridplayer-go/internal/settings"
 	"gridplayer-go/internal/snapshots"
+	"gridplayer-go/internal/sponsorblock"
 	"gridplayer-go/internal/vlcmac"
 )
 
@@ -74,13 +76,15 @@ type cell struct {
 	listFail  string
 	// listFailWait is set when this cell overrides the default wait.
 	// Zero means move on at once.
-	listFailWait  *int
-	failStreak    int
-	netFailStreak int
-	skipGen       uint64
-	loop          bool
-	advancing     bool
-	endedGen      uint64
+	listFailWait    *int
+	failStreak      int
+	netFailStreak   int
+	skipGen         uint64
+	sponsorSkipEnd  atomic.Int64
+	sponsorFetchGen atomic.Uint64
+	loop            bool
+	advancing       bool
+	endedGen        uint64
 }
 
 type app struct {
@@ -126,6 +130,12 @@ type app struct {
 	keys                keymap.Map
 	language            string
 	translator          *i18n.Translator
+	sponsorEnabled      atomic.Bool
+	sponsorModes        map[string]string
+	sponsorClient       *sponsorblock.Client
+	sponsorMu           sync.Mutex
+	sponsorSpans        map[*cell][]sponsorblock.Span
+	sponsorLoading      map[*cell]bool
 	subtitle            subtitleStyle
 	bookmarks           *bookmarks.Store
 	bookmarkWin         *mygo.Window
@@ -173,6 +183,10 @@ func newApp(paths []string) *app {
 		resolver:         resolve.New(),
 		keys:             keymap.Default(),
 		language:         "en_US",
+		sponsorModes:     sponsorblock.DefaultModes(),
+		sponsorClient:    sponsorblock.New(),
+		sponsorSpans:     map[*cell][]sponsorblock.Span{},
+		sponsorLoading:   map[*cell]bool{},
 		subtitle:         subtitleStyle{Opacity: 255},
 	}
 	a.setRetryPolicy("times", defaultRetryTimes)
@@ -291,6 +305,10 @@ func (a *app) loadSettings() {
 	}
 	a.defaultAnchor = st.Get("video_defaults/anchor", "center")
 	a.defaultTransform = st.Get("video_defaults/transform", "none")
+	a.sponsorEnabled.Store(st.Get("sponsorblock/enabled", "false") == "true")
+	for _, category := range sponsorblock.Categories {
+		a.sponsorModes[category.Name] = st.Get("sponsorblock/"+category.Name, category.Mode)
+	}
 	a.crop = st.Get("video_defaults/crop_ratio", "")
 	a.fillLimit = clampInt(atoi(st.Get("video_defaults/fill_limit", "100"), 100), 0, 100)
 	a.loadNetworkSettings(st)
@@ -312,6 +330,7 @@ func (a *app) loadSettings() {
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 		c.transform = a.defaultTransform
 		c.viewMode = viewModeName(a.fill, a.stretch)
+		a.fetchSponsor(c, c.source)
 	}
 	if raw := st.Get("app/recent", ""); raw != "" {
 		_ = json.Unmarshal([]byte(raw), &a.recent)
@@ -448,6 +467,10 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))
 	a.settings.Set("video_defaults/anchor", a.defaultAnchor)
 	a.settings.Set("video_defaults/transform", a.defaultTransform)
+	a.settings.Set("sponsorblock/enabled", fmt.Sprint(a.sponsorEnabled.Load()))
+	for _, category := range sponsorblock.Categories {
+		a.settings.Set("sponsorblock/"+category.Name, a.sponsorModes[category.Name])
+	}
 	a.settings.Set("video_defaults/crop_ratio", a.crop)
 	a.settings.Set("video_defaults/fill_limit", fmt.Sprint(a.fillLimit))
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
@@ -658,6 +681,7 @@ func (a *app) newCell(i int, p string) *cell {
 			}
 		}
 	}
+	a.fetchSponsor(c, p)
 	return c
 }
 
@@ -756,6 +780,118 @@ func (a *app) closeCell(c *cell) {
 		nativehost.Release(c.clip)
 		c.clip = 0
 	}
+	c.sponsorFetchGen.Add(1)
+	a.sponsorMu.Lock()
+	delete(a.sponsorSpans, c)
+	delete(a.sponsorLoading, c)
+	a.sponsorMu.Unlock()
+}
+
+func (a *app) sponsorCategories() []string {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	var categories []string
+	for _, category := range sponsorblock.Categories {
+		if a.sponsorModes[category.Name] == "skip" {
+			categories = append(categories, category.Name)
+		}
+	}
+	return categories
+}
+
+func (a *app) sponsorModesCopy() map[string]string {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	modes := map[string]string{}
+	for name, mode := range a.sponsorModes {
+		modes[name] = mode
+	}
+	return modes
+}
+
+func (a *app) fetchSponsor(c *cell, raw string) {
+	if c == nil || !a.sponsorEnabled.Load() || a.sponsorClient == nil {
+		return
+	}
+	videoID, ok := sponsorblock.YouTubeID(raw)
+	if !ok {
+		return
+	}
+	a.sponsorMu.Lock()
+	if a.sponsorLoading[c] || a.sponsorSpans[c] != nil {
+		a.sponsorMu.Unlock()
+		return
+	}
+	a.sponsorLoading[c] = true
+	a.sponsorMu.Unlock()
+	gen := c.sponsorFetchGen.Add(1)
+	categories := a.sponsorCategories()
+	if len(categories) == 0 {
+		a.sponsorMu.Lock()
+		delete(a.sponsorLoading, c)
+		a.sponsorMu.Unlock()
+		return
+	}
+	modes := a.sponsorModesCopy()
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+		defer cancel()
+		segments, err := a.sponsorClient.Fetch(ctx, videoID, categories)
+		a.sponsorMu.Lock()
+		if c.sponsorFetchGen.Load() == gen {
+			delete(a.sponsorLoading, c)
+			if err == nil {
+				a.sponsorSpans[c] = sponsorblock.SkipSpans(segments, modes)
+			}
+		}
+		a.sponsorMu.Unlock()
+		if err == nil {
+			mygo.RunOnMain(func() {
+				if a.win != nil {
+					a.win.Invalidate()
+				}
+			})
+		}
+	}()
+}
+
+func (a *app) resetSponsor(c *cell, raw string) {
+	if c == nil {
+		return
+	}
+	c.sponsorFetchGen.Add(1)
+	a.sponsorMu.Lock()
+	delete(a.sponsorSpans, c)
+	delete(a.sponsorLoading, c)
+	a.sponsorMu.Unlock()
+	c.sponsorSkipEnd.Store(0)
+	a.fetchSponsor(c, raw)
+}
+
+func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
+	if c == nil || eng == nil || !a.sponsorEnabled.Load() || s.Phase != engine.Playing || s.Length <= 0 {
+		return
+	}
+	a.sponsorMu.Lock()
+	spans := append([]sponsorblock.Span(nil), a.sponsorSpans[c]...)
+	a.sponsorMu.Unlock()
+	span, ok := sponsorblock.SpanAt(spans, s.Time)
+	if !ok {
+		c.sponsorSkipEnd.Store(0)
+		return
+	}
+	if span.End-s.Time < sponsorblock.SkipMinMS {
+		return
+	}
+	target := span.End
+	if s.Length > 0 && span.End >= s.Length-sponsorblock.SkipEndMargin {
+		target = s.Length
+	}
+	if target == c.sponsorSkipEnd.Load() {
+		return
+	}
+	c.sponsorSkipEnd.Store(target)
+	eng.SeekTo(target)
 }
 
 // reloadCells recreates every live engine so instance-level options such as
@@ -835,6 +971,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		}
 		c.eng, c.view, c.clip = eng, view, clip
 		go a.watch(c, eng)
+		a.fetchSponsor(c, c.path)
 		go a.autoReloadLoop(c, eng)
 	}
 	nativehost.SetFrame(c.clip, nativehost.ToMac(nativehost.DIP(r), h))
@@ -915,6 +1052,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				c.pauseOnPlay.Store(false)
 				eng.Pause()
 			}
+			a.maybeSkipSponsor(c, eng, s)
 			if s.Phase == engine.Failed && s.Gen != lastRetryGen {
 				lastRetryGen = s.Gen
 				armed := false
@@ -1032,6 +1170,7 @@ func (a *app) advanceList(c *cell) {
 	c.path = c.list[next]
 	c.startAt = 0
 	c.retries.Store(0)
+	a.resetSponsor(c, c.path)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {
@@ -1079,6 +1218,7 @@ func (a *app) previousList(c *cell) {
 	c.path = c.list[prev]
 	c.startAt = 0
 	c.retries.Store(0)
+	a.resetSponsor(c, c.path)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {
@@ -1287,6 +1427,7 @@ func (a *app) loadListIndex(c *cell, index int) {
 	c.path = c.list[index]
 	c.startAt = 0
 	c.retries.Store(0)
+	a.resetSponsor(c, c.path)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {
@@ -2035,6 +2176,7 @@ func (a *app) playURL(raw string) {
 				if playableDirect(raw) {
 					a.status = "resolver: " + err.Error() + " (direct)"
 					a.setPlaylist([]string{raw})
+					a.fetchSponsorFirst(raw)
 				} else {
 					a.status = err.Error()
 				}
@@ -2042,8 +2184,15 @@ func (a *app) playURL(raw string) {
 			}
 			a.status = ""
 			a.setPlaylist([]string{direct})
+			a.fetchSponsorFirst(raw)
 		})
 	}()
+}
+
+func (a *app) fetchSponsorFirst(raw string) {
+	if len(a.cells) > 0 {
+		a.fetchSponsor(a.cells[0], raw)
+	}
 }
 
 func playableDirect(raw string) bool {

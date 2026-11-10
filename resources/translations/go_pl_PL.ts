@@ -59,6 +59,8 @@
     <message><source>Videos per process</source><translation>Liczba wideo na proces</translation></message>
     <message><source>Fill limit</source><translation>Limit wypełnienia</translation></message>
     <message><source>Transform</source><translation>Transformacja</translation></message>
+    <message><source>SponsorBlock</source><translation>SponsorBlock</translation></message>
+    <message><source>Enabled</source><translation>Włączone</translation></message>
   </context>
   <context>
     <name>Actions</name>
