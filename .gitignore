@@ -9,4 +9,4 @@ testdata/gridplayer-vlc.log
 __pycache__/
 *.pyc
 
-gridplayer
+/gridplayer
