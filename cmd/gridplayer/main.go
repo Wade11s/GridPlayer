@@ -106,6 +106,7 @@ type app struct {
 	mosaicLocked        map[int]bool
 	snap                bool
 	overlap             bool
+	showGridLines       bool
 	freeArea            [2]float64
 	moveIdx             int
 	moveLast            [2]float32
@@ -177,6 +178,7 @@ func newApp(paths []string) *app {
 		fill:               true,
 		snap:               true,
 		overlap:            true,
+		showGridLines:      true,
 		defaultVolume:      80,
 		defaultRate:        1,
 		defaultLoop:        true,
@@ -235,6 +237,7 @@ func (a *app) loadSettings() {
 	a.mosaic = st.Get("playlist/grid_mosaic", "false") == "true"
 	a.snap = st.Get("playlist/grid_snap", "true") == "true"
 	a.overlap = st.Get("playlist/grid_overlap", "true") == "true"
+	a.showGridLines = st.Get("playlist/show_grid_lines", "true") == "true"
 	if raw := st.Get("playlist/grid_mosaic_tiles", ""); raw != "" {
 		var tiles []grid.Tile
 		if err := json.Unmarshal([]byte(raw), &tiles); err == nil && len(tiles) == len(a.cells) {
@@ -430,6 +433,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
 	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snap))
 	a.settings.Set("playlist/grid_overlap", fmt.Sprint(a.overlap))
+	a.settings.Set("playlist/show_grid_lines", fmt.Sprint(a.showGridLines))
 	if a.mosaic {
 		a.ensureMosaic()
 		if raw, err := json.Marshal(a.mosaicTiles); err == nil {
@@ -1697,6 +1701,8 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	border := ui.RGBA(0, 0, 0, 0)
 	if active {
 		border = ui.RGB(90, 150, 255)
+	} else if a.showGridLines {
+		border = ui.RGBA(1, 1, 1, 0.16)
 	}
 	s := engine.Snapshot{Phase: engine.Idle}
 	if cell.eng != nil {
@@ -1709,13 +1715,19 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	if !a.free && !a.mosaic {
 		base = base.Drag(i)
 	}
+	if a.showGridLines && !active && base.Hovered() {
+		border = theme.Accent
+	}
 	if over, ok := ui.DragOver[int](base); ok && over != i {
 		border = theme.Accent
 	}
 	el := base.Border(2, border).
 		Draw(func(p *ui.Painter, box ui.Rect) {
 			a.ensure(i, r)
-			p.Hole(box, [4]float32{0, 0, 0, 0})
+			if box.W > 4 && box.H > 4 {
+				inner := ui.Rect{X: box.X + 2, Y: box.Y + 2, W: box.W - 4, H: box.H - 4}
+				p.Hole(inner, [4]float32{4, 4, 4, 4})
+			}
 		}).
 		Children(func() {
 			badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)

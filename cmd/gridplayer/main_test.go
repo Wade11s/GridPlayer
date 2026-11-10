@@ -234,6 +234,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.startFullscreen = true
 	d.snap = false
 	d.overlap = false
+	d.showGridLines = false
 	d.view = "Fit (contain)"
 	d.aspect = "4:3"
 	d.scale = "1.5x"
@@ -253,6 +254,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if a.pauseBackground {
 		t.Fatal("pause background not applied")
+	}
+	if a.showGridLines {
+		t.Fatal("grid lines not applied")
 	}
 	if a.inhibitScreensaver {
 		t.Fatal("screensaver setting not applied")
