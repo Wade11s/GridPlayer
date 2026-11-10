@@ -18,6 +18,7 @@ type fakeBackend struct {
 	volume        int
 	muted, loop   bool
 	delay         int64
+	subDelay      int64
 	time, length  int64
 	state         BackendState
 	w, h          int
@@ -81,6 +82,11 @@ func (f *fakeBackend) SetVolume(v int) {
 func (f *fakeBackend) SetAudioDelay(ms int64) {
 	f.mu.Lock()
 	f.delay = ms
+	f.mu.Unlock()
+}
+func (f *fakeBackend) SetSubtitleDelay(ms int64) {
+	f.mu.Lock()
+	f.subDelay = ms
 	f.mu.Unlock()
 }
 func (f *fakeBackend) SetMute(m bool) {

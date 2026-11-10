@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -51,6 +52,10 @@ type cell struct {
 	muted            bool
 	rate             float64
 	audioDelay       int64
+	subDelay         int64
+	loopStart        int64
+	loopEnd          int64
+	cropMargins      cropMargins
 	startAt          int
 	startPaused      bool
 	pauseOnPlay      atomic.Bool
@@ -765,6 +770,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		eng.SetMute(c.muted)
 		eng.SetRate(c.rate)
 		eng.SetAudioDelay(c.audioDelay)
+		eng.SetSubtitleDelay(c.subDelay)
 		eng.SetStartPosition(int64(c.startAt))
 		if err := eng.Load(c.path); err != nil {
 			eng.Close()
@@ -796,7 +802,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		c.eng.SetScale(a.scale)
 	}
 	place := placePicture(videoShape{W: float64(s.Width), H: float64(s.Height)},
-		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: parseCropRatio(a.crop, videoShape{W: float64(s.Width), H: float64(s.Height)}), AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
+		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: c.cropMargins.combined(parseCropRatio(a.crop, videoShape{W: float64(s.Width), H: float64(s.Height)})), AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
 	nativehost.SetFrame(c.view, nativehost.ToMac(
 		nativehost.DIP{X: place.X, Y: place.Y, W: place.W, H: place.H}, float64(r.H)))
 }
@@ -1604,10 +1610,10 @@ func (a *app) shortcuts(c *ui.Context) {
 		a.setActive((a.active + 1) % len(a.cells))
 	}
 	if a.shortcut(c, "rate_down") && eng != nil {
-		eng.SetRate(max(eng.Snapshot().Rate-0.25, 0.25))
+		a.nudgeRate(-0.25)
 	}
 	if a.shortcut(c, "rate_up") && eng != nil {
-		eng.SetRate(min(eng.Snapshot().Rate+0.25, 4))
+		a.nudgeRate(0.25)
 	}
 	if a.shortcut(c, "frame_next") && eng != nil {
 		eng.NextFrame()
@@ -1620,6 +1626,204 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "audio_earlier") {
 		a.nudgeAudioDelay(-engine.AudioDelayStepMS)
+	}
+	for digit := 0; digit <= 9; digit++ {
+		if a.shortcut(c, "seek_percent_"+strconv.Itoa(digit)) {
+			a.seekPercentActive(float64(digit) / 10)
+		}
+	}
+	if a.shortcut(c, "seek_random") {
+		if eng != nil {
+			c := a.activeCell()
+			lo, hi := int64(0), eng.Snapshot().Length
+			if c != nil {
+				lo, hi = c.loopStart, c.loopEnd
+			}
+			a.seekActive(randomSeekTarget(lo, hi, rand.Int64N))
+		}
+	}
+	if a.shortcut(c, "seek_start") {
+		a.seekActive(0)
+	}
+	if a.shortcut(c, "seek_medium_back") {
+		a.seekActive(a.activeSnapshot().Time - 15000)
+	}
+	if a.shortcut(c, "seek_long_back") {
+		a.seekActive(a.activeSnapshot().Time - 30000)
+	}
+	if a.shortcut(c, "seek_medium_forward") {
+		a.seekActive(a.activeSnapshot().Time + 15000)
+	}
+	if a.shortcut(c, "seek_long_forward") {
+		a.seekActive(a.activeSnapshot().Time + 30000)
+	}
+	if a.shortcut(c, "loop_start") {
+		a.setLoopPoint(true)
+	}
+	if a.shortcut(c, "loop_end") {
+		a.setLoopPoint(false)
+	}
+	if a.shortcut(c, "loop_reset") {
+		a.resetLoopPoints()
+	}
+	if a.shortcut(c, "rate_reset") {
+		a.setRate(1)
+	}
+	if a.shortcut(c, "zoom_in") {
+		a.stepZoom(1)
+	}
+	if a.shortcut(c, "zoom_out") {
+		a.stepZoom(-1)
+	}
+	if a.shortcut(c, "zoom_reset") {
+		a.resetZoom()
+	}
+	cropSteps := []struct {
+		action string
+		side   string
+		delta  float64
+	}{
+		{"crop_left_more", "left", 10}, {"crop_left_less", "left", -10},
+		{"crop_top_more", "top", 10}, {"crop_top_less", "top", -10},
+		{"crop_right_more", "right", 10}, {"crop_right_less", "right", -10},
+		{"crop_bottom_more", "bottom", 10}, {"crop_bottom_less", "bottom", -10},
+	}
+	for _, step := range cropSteps {
+		if a.shortcut(c, step.action) {
+			a.nudgeCrop(step.side, step.delta)
+		}
+	}
+	if a.shortcut(c, "crop_reset") {
+		for _, cell := range a.cells {
+			cell.cropMargins = cropMargins{}
+		}
+		a.setCrop("")
+	}
+	if a.shortcut(c, "shift_left") {
+		a.shiftPicture(-shiftStepShare, 0)
+	}
+	if a.shortcut(c, "shift_right") {
+		a.shiftPicture(shiftStepShare, 0)
+	}
+	if a.shortcut(c, "shift_up") {
+		a.shiftPicture(0, -shiftStepShare)
+	}
+	if a.shortcut(c, "shift_down") {
+		a.shiftPicture(0, shiftStepShare)
+	}
+	if a.shortcut(c, "sub_delay_later") {
+		a.nudgeSubtitleDelay(engine.SubtitleDelayStepMS)
+	}
+	if a.shortcut(c, "sub_delay_earlier") {
+		a.nudgeSubtitleDelay(-engine.SubtitleDelayStepMS)
+	}
+	if a.shortcut(c, "reload") {
+		a.reloadActive()
+	}
+}
+
+func (a *app) activeSnapshot() engine.Snapshot {
+	if eng := a.activeEngine(); eng != nil {
+		return eng.Snapshot()
+	}
+	return engine.Snapshot{}
+}
+
+func (a *app) seekActive(ms int64) {
+	if eng := a.activeEngine(); eng != nil {
+		c := a.activeCell()
+		if c != nil {
+			ms = seekableTime(ms, c.loopStart, c.loopEnd)
+		}
+		eng.SeekTo(ms)
+	}
+}
+
+func (a *app) seekPercentActive(percent float64) {
+	if eng := a.activeEngine(); eng != nil {
+		a.seekActive(seekPercentTarget(eng.Snapshot().Length, percent))
+	}
+}
+
+func (a *app) nudgeRate(delta float64) {
+	if eng := a.activeEngine(); eng != nil {
+		eng.SetRate(clampPlaybackRate(eng.Snapshot().Rate + delta))
+	}
+}
+
+func (a *app) stepZoom(direction int) {
+	a.defaultZoom = zoomRung(a.defaultZoom, direction, defaultZoomStep, false)
+	for _, c := range a.cells {
+		c.zoom = a.defaultZoom
+	}
+	a.saveSettings()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) resetZoom() {
+	a.setZoom(1)
+}
+
+func (a *app) nudgeCrop(side string, delta float64) {
+	for _, c := range a.cells {
+		c.cropMargins = cropStep(c.cropMargins, side, delta)
+	}
+	a.dirty = true
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) setLoopPoint(isStart bool) {
+	c := a.activeCell()
+	if c == nil {
+		return
+	}
+	at := a.activeSnapshot().Time
+	var start, end *int64
+	if isStart {
+		start = &c.loopStart
+		if c.loopEnd != 0 {
+			end = &c.loopEnd
+		}
+	} else {
+		end = &c.loopEnd
+		if c.loopStart != 0 {
+			start = &c.loopStart
+		}
+	}
+	if !setLoopPoint(start, end, at, isStart) {
+		return
+	}
+	a.dirty = true
+	a.status = fmt.Sprintf("loop %d-%dms", c.loopStart, c.loopEnd)
+}
+
+func (a *app) resetLoopPoints() {
+	for _, c := range a.cells {
+		c.loopStart, c.loopEnd = 0, 0
+	}
+	a.dirty = true
+	a.status = "loop reset"
+}
+
+func (a *app) nudgeSubtitleDelay(delta int64) {
+	for _, c := range a.cells {
+		c.subDelay = subtitleDelayNudge(c.subDelay, delta)
+		if c.eng != nil {
+			c.eng.SetSubtitleDelay(c.subDelay)
+		}
+	}
+	a.dirty = true
+	a.status = fmt.Sprintf("subtitle delay %+dms", a.activeCell().subDelay)
+}
+
+func (a *app) reloadActive() {
+	if eng := a.activeEngine(); eng != nil {
+		_ = eng.ReloadIfFailed(eng.Snapshot().Gen)
+		_ = eng.Reload()
 	}
 }
 
@@ -1897,6 +2101,9 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			}
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
+		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
+		c.loopStart = v.LoopStart
+		c.loopEnd = v.LoopEnd
 		if c.eng != nil {
 			reload := c.path != oldPath
 			if reload {
@@ -1911,6 +2118,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			c.eng.SetMute(c.muted)
 			c.eng.SetRate(c.rate)
 			c.eng.SetAudioDelay(c.audioDelay)
+			c.eng.SetSubtitleDelay(c.subDelay)
 			c.eng.SetLoop(c.loop)
 			if c.startPaused {
 				c.pauseOnPlay.Store(true)
@@ -2015,6 +2223,9 @@ func (a *app) document() *playlist.Document {
 			ListFail:        c.listFail,
 			ListFailWait:    cloneWait(c.listFailWait),
 			AudioDelay:      c.audioDelay,
+			SubtitleDelay:   c.subDelay,
+			LoopStart:       c.loopStart,
+			LoopEnd:         c.loopEnd,
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -2708,11 +2919,10 @@ func (a *app) menu() *mygo.Menu {
 				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(2) }},
 			}},
 			{Label: "Zoom", Submenu: []*mygo.MenuItem{
-				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(0.5) }},
-				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(1) }},
-				{Label: "1.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(1.5) }},
+				{Label: "Reset 1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(1) }},
 				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(2) }},
-				{Label: "4x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(4) }},
+				{Label: "5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(5) }},
+				{Label: "10x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(10) }},
 			}},
 			{Label: "Anchor", Submenu: []*mygo.MenuItem{
 				{Label: "Center", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAnchor("center") }},

@@ -116,6 +116,7 @@ type Backend interface {
 	SetVolume(volume int)
 	SetMute(muted bool)
 	SetAudioDelay(ms int64)
+	SetSubtitleDelay(ms int64)
 	SetLoop(loop bool)
 	Time() int64
 	Length() int64
@@ -175,6 +176,7 @@ type Engine struct {
 	volume     int
 	muted      bool
 	audioDelay int64
+	subDelay   int64
 	loop       bool
 	aspect     string
 	scale      float64
@@ -280,6 +282,7 @@ func (e *Engine) loadLocked(path string) error {
 	e.be = be
 	rate, volume, muted, loop := e.rate, e.volume, e.muted, e.loop
 	delay := e.audioDelay
+	subDelay := e.subDelay
 	aspect, scale, crop := e.aspect, e.scale, e.crop
 	subs := append([]string(nil), e.subtitles...)
 	audios := append([]string(nil), e.audioFiles...)
@@ -289,6 +292,7 @@ func (e *Engine) loadLocked(path string) error {
 	be.SetVolume(volume)
 	be.SetMute(muted)
 	be.SetAudioDelay(delay)
+	be.SetSubtitleDelay(subDelay)
 	be.SetLoop(loop)
 	be.SetAspectRatio(aspect)
 	be.SetScale(scale)
@@ -555,10 +559,24 @@ func (e *Engine) SetMute(muted bool) {
 }
 
 const (
-	MinAudioDelayMS  int64 = -60000
-	MaxAudioDelayMS  int64 = 60000
-	AudioDelayStepMS int64 = 50
+	MinAudioDelayMS     int64 = -60000
+	MaxAudioDelayMS     int64 = 60000
+	AudioDelayStepMS    int64 = 50
+	MinSubtitleDelayMS  int64 = -300000
+	MaxSubtitleDelayMS  int64 = 300000
+	SubtitleDelayStepMS int64 = 100
 )
+
+// ClampSubtitleDelay limits a subtitle delay to the frozen -300s..300s range.
+func ClampSubtitleDelay(ms int64) int64 {
+	if ms < MinSubtitleDelayMS {
+		return MinSubtitleDelayMS
+	}
+	if ms > MaxSubtitleDelayMS {
+		return MaxSubtitleDelayMS
+	}
+	return ms
+}
 
 // ClampAudioDelay limits a delay to the frozen -60s..60s range.
 func ClampAudioDelay(ms int64) int64 {
@@ -580,6 +598,18 @@ func (e *Engine) SetAudioDelay(ms int64) {
 	e.mu.Unlock()
 	if be != nil {
 		be.SetAudioDelay(ms)
+	}
+}
+
+// SetSubtitleDelay sets the subtitle offset in milliseconds.
+func (e *Engine) SetSubtitleDelay(ms int64) {
+	ms = ClampSubtitleDelay(ms)
+	e.mu.Lock()
+	e.subDelay = ms
+	be := e.be
+	e.mu.Unlock()
+	if be != nil {
+		be.SetSubtitleDelay(ms)
 	}
 }
 

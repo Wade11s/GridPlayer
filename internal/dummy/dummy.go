@@ -23,14 +23,15 @@ const (
 )
 
 type Backend struct {
-	mu      sync.Mutex
-	events  chan engine.Event
-	start   atomic.Int64 // UnixNano of play start
-	offset  int64
-	delay   int64
-	paused  bool
-	stopped bool
-	closed  atomic.Bool
+	mu       sync.Mutex
+	events   chan engine.Event
+	start    atomic.Int64 // UnixNano of play start
+	offset   int64
+	delay    int64
+	subDelay int64
+	paused   bool
+	stopped  bool
+	closed   atomic.Bool
 }
 
 // New returns a dummy backend whose clock starts now.
@@ -110,6 +111,12 @@ func (b *Backend) PreviousFrame() {
 func (b *Backend) SetAudioDelay(ms int64) {
 	b.mu.Lock()
 	b.delay = ms
+	b.mu.Unlock()
+}
+
+func (b *Backend) SetSubtitleDelay(ms int64) {
+	b.mu.Lock()
+	b.subDelay = ms
 	b.mu.Unlock()
 }
 
