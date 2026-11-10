@@ -28,6 +28,7 @@ import (
 	"gridplayer-go/internal/bookmarks"
 	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/i18n"
 	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/medialist"
 	"gridplayer-go/internal/nativehost"
@@ -118,6 +119,8 @@ type app struct {
 	settingsDraft       settingsDraft
 	resolver            *resolve.Resolver
 	keys                keymap.Map
+	language            string
+	translator          *i18n.Translator
 	subtitle            subtitleStyle
 	bookmarks           *bookmarks.Store
 	bookmarkWin         *mygo.Window
@@ -160,6 +163,7 @@ func newApp(paths []string) *app {
 		defaultAnchor: "center",
 		resolver:      resolve.New(),
 		keys:          keymap.Default(),
+		language:      "en_US",
 		subtitle:      subtitleStyle{Opacity: 255},
 	}
 	a.setRetryPolicy("times", defaultRetryTimes)
@@ -179,6 +183,8 @@ func (a *app) loadSettings() {
 		return
 	}
 	a.settings = st
+	a.language = st.Get("player/language", "en_US")
+	a.loadTranslator()
 	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
 		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
@@ -306,6 +312,26 @@ func (a *app) loadSettings() {
 	}
 }
 
+func (a *app) loadTranslator() {
+	dir, err := mygo.App.Path(mygo.PathResources)
+	if err != nil {
+		return
+	}
+	translator, err := i18n.Load(filepath.Join(dir, "translations"), a.language)
+	if err != nil {
+		log.Printf("i18n: %v", err)
+		translator, _ = i18n.Load(filepath.Join(dir, "translations"), "en_US")
+	}
+	a.translator = translator
+}
+
+func (a *app) tr(context, source string) string {
+	if a.translator == nil {
+		return source
+	}
+	return a.translator.Tr(context, source)
+}
+
 func (a *app) loadNetworkSettings(st *settings.Store) {
 	if a.resolver == nil {
 		a.resolver = resolve.New()
@@ -397,6 +423,7 @@ func (a *app) saveSettings() {
 		view = "fit"
 	}
 	a.settings.Set("video_defaults/cell_view_mode", view)
+	a.settings.Set("player/language", a.language)
 	a.settings.Set("video_defaults/aspect_ratio", a.aspect)
 	a.settings.Set("video_defaults/scale", fmt.Sprintf("%g", a.scale))
 	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))

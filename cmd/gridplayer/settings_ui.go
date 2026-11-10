@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/i18n"
 	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/resolve"
 )
@@ -22,10 +23,11 @@ type keyBindingDraft struct {
 type settingsDraft struct {
 	tab int
 
-	volume float64
-	muted  bool
-	rate   float64
-	loop   bool
+	volume   float64
+	muted    bool
+	rate     float64
+	loop     bool
+	language string
 
 	layout     string
 	rows       string
@@ -81,6 +83,7 @@ var (
 	retryModeOptions = []string{"Off", "Fixed attempts", "Keep trying"}
 	listFailOptions  = []string{"Play next", "Show error"}
 	endActionOptions = []string{"Loop file", "Next file", "Previous file", "Shuffle", "Pause", "Stop"}
+	languageOptions  = languageNames()
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -88,6 +91,7 @@ func defaultSettingsDraft() settingsDraft {
 		volume:       80,
 		rate:         1,
 		loop:         true,
+		language:     "English",
 		layout:       "Auto Rows",
 		rows:         "3",
 		cols:         "3",
@@ -131,7 +135,14 @@ func (a *app) openSettings() {
 func (a *app) settingsView(c *ui.Context) {
 	d := &a.settingsDraft
 	ui.Column(c).Fill().Padding(16).Gap(12).Children(func() {
-		ui.Tabs(c, &d.tab, "General", "Playback", "Grid", "Video", "Subtitles", "Network", "Keymap")
+		ui.Tabs(c, &d.tab,
+			a.tr("SettingsDialog", "General"),
+			a.tr("SettingsDialog", "Playback"),
+			a.tr("SettingsDialog", "Grid"),
+			a.tr("SettingsDialog", "Video"),
+			a.tr("SettingsDialog", "Subtitles"),
+			a.tr("SettingsDialog", "Network"),
+			a.tr("SettingsDialog", "Keymap"))
 		ui.Scroll(c).Fill().Children(func() {
 			switch d.tab {
 			case 0:
@@ -176,6 +187,9 @@ func (a *app) settingsView(c *ui.Context) {
 
 func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
+		ui.Field(c, a.tr("SettingsDialog", "Language"), func() {
+			ui.Select(c, &d.language, languageOptions)
+		})
 		ui.Field(c, "Default volume", func() {
 			ui.Slider(c, &d.volume, 0, 100)
 		}).Description(fmt.Sprintf("%.0f%% — applies to newly opened cells", d.volume))
@@ -402,6 +416,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.muted = a.defaultMuted
 	d.rate = a.defaultRate
 	d.loop = a.defaultLoop
+	d.language = i18n.Name(a.language)
 	d.snap = a.snap
 	d.overlap = a.overlap
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
@@ -469,6 +484,8 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultVolume = clampInt(int(math.Round(d.volume)), 0, 100)
 	a.defaultMuted = d.muted
 	a.defaultRate = clampPlaybackRate(d.rate)
+	a.language = i18n.Code(d.language)
+	a.loadTranslator()
 	a.defaultEnd = endActionValue(d.endAction)
 	if a.defaultEnd == endLoop && !d.loop {
 		a.defaultEnd = endStop
@@ -699,6 +716,14 @@ func clampInt(v, lo, hi int) int {
 		return hi
 	}
 	return v
+}
+
+func languageNames() []string {
+	names := make([]string, 0, len(i18n.Languages))
+	for _, language := range i18n.Languages {
+		names = append(names, language.Name)
+	}
+	return names
 }
 
 func clampFloat(v, lo, hi float64) float64 {
