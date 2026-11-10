@@ -37,10 +37,11 @@ type settingsDraft struct {
 	overlap    bool
 	singleSide string
 
-	view   string
-	aspect string
-	scale  string
-	crop   string
+	view      string
+	aspect    string
+	scale     string
+	crop      string
+	fillLimit string
 
 	subFont         string
 	subSize         string
@@ -78,6 +79,7 @@ var (
 	aspectOptions    = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
 	scaleOptions     = []string{"Fit", "1x", "1.5x", "2x"}
 	cropOptions      = []string{"None", "16:9", "4:3", "2.35:1"}
+	fillLimitOptions = []string{"Off", "50%", "30%", "20%", "10%", "0%"}
 	formatOptions    = []string{"Best", "Worst", "720p", "480p"}
 	outlineOptions   = []string{"None", "Thin", "Normal", "Thick"}
 	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
@@ -104,6 +106,7 @@ func defaultSettingsDraft() settingsDraft {
 		aspect:          "Auto",
 		scale:           "Fit",
 		crop:            "None",
+		fillLimit:       "Off",
 		subOutline:      "None",
 		subOpacity:      100,
 		subEncoding:     "Auto",
@@ -287,6 +290,9 @@ func (a *app) settingsVideo(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, a.tr("SettingsDialog", "Crop"), func() {
 			ui.Select(c, &d.crop, cropOptions)
 		})
+		ui.Field(c, a.tr("SettingsDialog", "Fill limit"), func() {
+			ui.Select(c, &d.fillLimit, fillLimitOptions)
+		})
 	})
 }
 
@@ -452,6 +458,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.aspect = aspectName(a.aspect)
 	d.scale = scaleName(a.scale)
 	d.crop = cropName(a.crop)
+	d.fillLimit = fillLimitName(a.fillLimit)
 	if a.resolver != nil {
 		d.proxy = a.resolver.Proxy
 		d.cookies = a.resolver.Cookies
@@ -512,6 +519,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.aspect = aspectFromName(d.aspect)
 	a.scale = scaleFromName(d.scale)
 	a.crop = cropFromName(d.crop)
+	a.fillLimit = fillLimitValue(d.fillLimit)
 	oldSub := a.subtitle
 	a.subtitle = subtitleStyle{
 		Font:         strings.TrimSpace(d.subFont),
@@ -717,6 +725,32 @@ func cropFromName(s string) string {
 		return ""
 	}
 	return s
+}
+
+func fillLimitName(limit int) string {
+	switch limit {
+	case 50, 30, 20, 10, 0:
+		return fmt.Sprintf("%d%%", limit)
+	default:
+		return "Off"
+	}
+}
+
+func fillLimitValue(name string) int {
+	switch name {
+	case "0%":
+		return 0
+	case "50%":
+		return 50
+	case "30%":
+		return 30
+	case "20%":
+		return 20
+	case "10%":
+		return 10
+	default:
+		return 100
+	}
 }
 
 func clampInt(v, lo, hi int) int {

@@ -1039,13 +1039,15 @@ func TestAutoReloadInterval(t *testing.T) {
 
 func TestPictureRectGeometry(t *testing.T) {
 	centre := viewZoom{Scale: 1, AnchorX: 0.5, AnchorY: 0.5}
+	centreFill := centre
+	centreFill.FillLimit = 100
 	// Square video in a wide cell, fit: the picture is the cell height.
 	r := placePicture(videoShape{W: 100, H: 100}, 200, 100, false, false, centre)
 	if r.W != 100 || r.H != 100 || r.X != 50 || r.Y != 0 {
 		t.Fatalf("fit: %+v", r)
 	}
 	// Same, fill: the picture covers the cell width.
-	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, true, false, centre)
+	r = placePicture(videoShape{W: 100, H: 100}, 200, 100, true, false, centreFill)
 	if r.W != 200 || r.H != 200 || r.X != 0 || r.Y != -50 {
 		t.Fatalf("fill: %+v", r)
 	}
@@ -1158,6 +1160,26 @@ func TestCropIsFoldedIntoPlacement(t *testing.T) {
 	// The kept region lands centred in the cell: 133.3 wide at x=33.3.
 	if !near(r.X+240*(r.W/1920), 33.33) {
 		t.Fatalf("kept region not centred: %+v", r)
+	}
+}
+
+func TestFillLimitFallsBackToFit(t *testing.T) {
+	video := videoShape{W: 100, H: 100}
+	fill := placePicture(video, 200, 100, true, false, viewZoom{Scale: 1, FillLimit: 100, AnchorX: 0.5, AnchorY: 0.5})
+	if fill.W != 200 || fill.H != 200 {
+		t.Fatalf("unlimited fill %+v", fill)
+	}
+	limited := placePicture(video, 200, 100, true, false, viewZoom{Scale: 1, FillLimit: 30, AnchorX: 0.5, AnchorY: 0.5})
+	if limited.W != 100 || limited.H != 100 || limited.X != 50 {
+		t.Fatalf("limited fill %+v", limited)
+	}
+	zero := placePicture(video, 200, 100, true, false, viewZoom{Scale: 1, FillLimit: 0, AnchorX: 0.5, AnchorY: 0.5})
+	if zero.W != 100 || zero.H != 100 || zero.X != 50 {
+		t.Fatalf("zero fill limit %+v", zero)
+	}
+	if fillLimitName(100) != "Off" || fillLimitName(30) != "30%" || fillLimitName(0) != "0%" ||
+		fillLimitValue("20%") != 20 || fillLimitValue("0%") != 0 || fillLimitValue("Off") != 100 {
+		t.Fatal("fill limit names")
 	}
 }
 

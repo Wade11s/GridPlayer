@@ -108,6 +108,7 @@ type app struct {
 	aspect              string
 	scale               float64
 	crop                string
+	fillLimit           int
 	pauseBackground     bool
 	backgroundPaused    map[*cell]bool
 	closed              atomic.Bool
@@ -164,6 +165,7 @@ func newApp(paths []string) *app {
 		defaultLoop:     true,
 		defaultZoom:     1,
 		defaultAnchor:   "center",
+		fillLimit:       100,
 		pauseBackground: true,
 		resolver:        resolve.New(),
 		keys:            keymap.Default(),
@@ -286,6 +288,7 @@ func (a *app) loadSettings() {
 	}
 	a.defaultAnchor = st.Get("video_defaults/anchor", "center")
 	a.crop = st.Get("video_defaults/crop_ratio", "")
+	a.fillLimit = clampInt(atoi(st.Get("video_defaults/fill_limit", "100"), 100), 0, 100)
 	a.loadNetworkSettings(st)
 	a.subtitle.Font = st.Get("subtitles/font", "")
 	a.subtitle.Size = subtitleSize(st.Get("subtitles/font_size", "0"))
@@ -440,6 +443,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))
 	a.settings.Set("video_defaults/anchor", a.defaultAnchor)
 	a.settings.Set("video_defaults/crop_ratio", a.crop)
+	a.settings.Set("video_defaults/fill_limit", fmt.Sprint(a.fillLimit))
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
 	a.settings.Set("video_defaults/rate", fmt.Sprintf("%g", a.defaultRate))
@@ -836,7 +840,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		c.eng.SetScale(a.scale)
 	}
 	place := placePicture(videoShape{W: float64(s.Width), H: float64(s.Height)},
-		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: c.cropMargins.combined(parseCropRatio(a.crop, videoShape{W: float64(s.Width), H: float64(s.Height)})), AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
+		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: c.cropMargins.combined(parseCropRatio(a.crop, videoShape{W: float64(s.Width), H: float64(s.Height)})), FillLimit: a.fillLimit, AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
 	nativehost.SetFrame(c.view, nativehost.ToMac(
 		nativehost.DIP{X: place.X, Y: place.Y, W: place.W, H: place.H}, float64(r.H)))
 }
