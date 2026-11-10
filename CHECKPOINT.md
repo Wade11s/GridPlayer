@@ -256,6 +256,30 @@ CI produced a real job for the reviewed head.
   `--subsdec-*`; Settings > Subtitles persists `subtitles/*` and reloads
   live cells at their current position. Translations/per-track styling still
   open.
+- #2/#3 F10 shortcuts (merged d9c48ba): percent/random seek, three seek tiers,
+  fragment loop, rate 0.2–12, stepped zoom 1–10, crop margins, shift, subtitle
+  delay, timecode dialog, screenshot, reload, PgUp/PgDn, and 61 editable
+  actions. All-cells variants remain open.
+- #3 F4 zoom/crop (merged 01c8476, 2fdde1d, 128dc19): zoom/anchor/shift,
+  crop folded into placement, fill limit 0–100, and transform 90/180/270,
+  flips, transpose/anti-transpose. `zoom_to_cursor` and per-tile crop limits
+  remain open.
+- #3 F5 templates (merged 38e0bdb): six frozen built-in fixed-grid templates
+  with big-cell spans, capacity checks, settings and `.gpls` persistence.
+  Hover/draggable grid lines, manual weights, user templates and Fit Shapes
+  remain open.
+- #4/#5 F13 i18n (merged bdd4e78): 19 bundled locales, runtime `.ts` parser,
+  English fallback, language setting, Settings selector, and a Go-specific
+  Polish overlay. Non-Polish Go-specific labels and full menu/option coverage
+  remain open.
+- #2/#3 F11 player settings (merged 2563075, ba48ec8, 132163c): background
+  pause, truthful Hardware SP display, window stay-on-top/start
+  maximized/fullscreen, and an exit-safe `caffeinate` screensaver guard.
+  Tray/close-to-tray, videos-per-process and a selectable driver remain open.
+- #2/#4 F12 SponsorBlock (merged 6b1d5b3): direct HTTP client, 10 categories,
+  skip/show/off, span merge and skip, YouTube ID extraction, settings and
+  per-cell skip state. Show-mode seek-bar marks, per-video overrides and
+  cache/dedupe remain open.
 
 No scope, acceptance, or gate lowered. No public release, no notarization,
 no Gatekeeper change.
