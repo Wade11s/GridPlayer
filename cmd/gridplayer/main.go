@@ -794,10 +794,9 @@ func (a *app) ensure(i int, r grid.Rect) {
 			c.eng.SetAspectRatio(a.aspect)
 		}
 		c.eng.SetScale(a.scale)
-		c.eng.SetCrop(a.crop)
 	}
 	place := placePicture(videoShape{W: float64(s.Width), H: float64(s.Height)},
-		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
+		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: parseCropRatio(a.crop, videoShape{W: float64(s.Width), H: float64(s.Height)}), AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
 	nativehost.SetFrame(c.view, nativehost.ToMac(
 		nativehost.DIP{X: place.X, Y: place.Y, W: place.W, H: place.H}, float64(r.H)))
 }
@@ -2224,12 +2223,11 @@ func (a *app) setScale(scale float64) {
 
 func (a *app) setCrop(crop string) {
 	a.crop = crop
-	for _, c := range a.cells {
-		if c.eng != nil {
-			c.eng.SetCrop(crop)
-		}
-	}
 	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) setViewMode(fill bool, stretch bool) {
