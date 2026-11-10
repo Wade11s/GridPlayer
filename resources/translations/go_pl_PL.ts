@@ -61,6 +61,10 @@
     <message><source>Transform</source><translation>Transformacja</translation></message>
     <message><source>SponsorBlock</source><translation>SponsorBlock</translation></message>
     <message><source>Enabled</source><translation>Włączone</translation></message>
+    <message><source>Window</source><translation>Okno</translation></message>
+    <message><source>Always on top</source><translation>Zawsze na wierzchu</translation></message>
+    <message><source>Start maximized</source><translation>Uruchamiaj zmaksymalizowane</translation></message>
+    <message><source>Start full screen</source><translation>Uruchamiaj na pełnym ekranie</translation></message>
   </context>
   <context>
     <name>Actions</name>
