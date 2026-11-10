@@ -100,8 +100,11 @@ func (b *vlcBackend) SetVolume(volume int)      { b.pl.SetVolume(volume) }
 func (b *vlcBackend) SetMute(muted bool)        { b.pl.SetMute(muted) }
 func (b *vlcBackend) SetAudioDelay(ms int64)    { b.pl.SetAudioDelay(ms) }
 func (b *vlcBackend) SetSubtitleDelay(ms int64) { b.pl.SetSubtitleDelay(ms) }
-func (b *vlcBackend) Time() int64               { return b.pl.Time() }
-func (b *vlcBackend) Length() int64             { return b.pl.Length() }
+func (b *vlcBackend) SetTransform(transform string) bool {
+	return b.pl.SetTransform(transform)
+}
+func (b *vlcBackend) Time() int64   { return b.pl.Time() }
+func (b *vlcBackend) Length() int64 { return b.pl.Length() }
 
 func (b *vlcBackend) SetLoop(bool) {
 	// Loop is fixed when the media is created (input-repeat); the engine

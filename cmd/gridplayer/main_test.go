@@ -1183,6 +1183,25 @@ func TestFillLimitFallsBackToFit(t *testing.T) {
 	}
 }
 
+func TestTransformHelpers(t *testing.T) {
+	if normalizeTransform("90") != "90" || normalizeTransform("bad") != "none" {
+		t.Fatal("normalize transform")
+	}
+	if !isSideTransform("90") || !isSideTransform("transpose") || isSideTransform("hflip") {
+		t.Fatal("side transform")
+	}
+	if transformName("270") != "Rotate 270" || transformValue("Flip vertical") != "vflip" {
+		t.Fatal("transform names")
+	}
+	crop := cropMargins{Left: 1, Top: 2, Right: 3, Bottom: 4}
+	if got := transformCrop(crop, "90"); got != (cropMargins{Left: 4, Top: 1, Right: 2, Bottom: 3}) {
+		t.Fatalf("rotate 90 crop %+v", got)
+	}
+	if got := transformCrop(crop, "hflip"); got != (cropMargins{Left: 3, Top: 2, Right: 1, Bottom: 4}) {
+		t.Fatalf("hflip crop %+v", got)
+	}
+}
+
 func near(a, b float64) bool {
 	d := a - b
 	return d < 0.05 && d > -0.05

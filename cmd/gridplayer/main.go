@@ -65,6 +65,7 @@ type cell struct {
 	zoom             float64
 	anchorX, anchorY float64
 	shiftX, shiftY   float64
+	transform        string
 
 	list      []string
 	listIndex int
@@ -146,6 +147,7 @@ type app struct {
 	defaultLoop         bool
 	defaultZoom         float64
 	defaultAnchor       string
+	defaultTransform    string
 	defaultEnd          string
 	retryMode           atomic.Int32
 	retryTimes          atomic.Int32
@@ -156,21 +158,22 @@ type app struct {
 
 func newApp(paths []string) *app {
 	a := &app{
-		cfg:             grid.Config{Mode: grid.AutoRows},
-		fill:            true,
-		snap:            true,
-		overlap:         true,
-		defaultVolume:   80,
-		defaultRate:     1,
-		defaultLoop:     true,
-		defaultZoom:     1,
-		defaultAnchor:   "center",
-		fillLimit:       100,
-		pauseBackground: true,
-		resolver:        resolve.New(),
-		keys:            keymap.Default(),
-		language:        "en_US",
-		subtitle:        subtitleStyle{Opacity: 255},
+		cfg:              grid.Config{Mode: grid.AutoRows},
+		fill:             true,
+		snap:             true,
+		overlap:          true,
+		defaultVolume:    80,
+		defaultRate:      1,
+		defaultLoop:      true,
+		defaultZoom:      1,
+		defaultAnchor:    "center",
+		defaultTransform: "none",
+		fillLimit:        100,
+		pauseBackground:  true,
+		resolver:         resolve.New(),
+		keys:             keymap.Default(),
+		language:         "en_US",
+		subtitle:         subtitleStyle{Opacity: 255},
 	}
 	a.setRetryPolicy("times", defaultRetryTimes)
 	a.setListFailPolicy(listFailPlayNext, defaultListFailWait)
@@ -287,6 +290,7 @@ func (a *app) loadSettings() {
 		a.defaultZoom = 1
 	}
 	a.defaultAnchor = st.Get("video_defaults/anchor", "center")
+	a.defaultTransform = st.Get("video_defaults/transform", "none")
 	a.crop = st.Get("video_defaults/crop_ratio", "")
 	a.fillLimit = clampInt(atoi(st.Get("video_defaults/fill_limit", "100"), 100), 0, 100)
 	a.loadNetworkSettings(st)
@@ -306,6 +310,7 @@ func (a *app) loadSettings() {
 		c.loop = a.defaultLoop
 		c.zoom = a.defaultZoom
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
+		c.transform = a.defaultTransform
 		c.viewMode = viewModeName(a.fill, a.stretch)
 	}
 	if raw := st.Get("app/recent", ""); raw != "" {
@@ -442,6 +447,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/scale", fmt.Sprintf("%g", a.scale))
 	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))
 	a.settings.Set("video_defaults/anchor", a.defaultAnchor)
+	a.settings.Set("video_defaults/transform", a.defaultTransform)
 	a.settings.Set("video_defaults/crop_ratio", a.crop)
 	a.settings.Set("video_defaults/fill_limit", fmt.Sprint(a.fillLimit))
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
@@ -621,14 +627,17 @@ func (a *app) setPlaylist(paths []string) {
 
 func (a *app) newCell(i int, p string) *cell {
 	c := &cell{
-		label:    labelFor(p),
-		source:   p,
-		path:     p,
-		volume:   a.defaultVolume,
-		rate:     a.defaultRate,
-		loop:     a.defaultLoop,
-		viewMode: viewModeName(a.fill, a.stretch),
+		label:     labelFor(p),
+		source:    p,
+		path:      p,
+		volume:    a.defaultVolume,
+		rate:      a.defaultRate,
+		loop:      a.defaultLoop,
+		viewMode:  viewModeName(a.fill, a.stretch),
+		zoom:      a.defaultZoom,
+		transform: a.defaultTransform,
 	}
+	c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 	if i > 0 || a.defaultMuted {
 		c.muted = true
 	}
@@ -809,6 +818,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		eng.SetRate(c.rate)
 		eng.SetAudioDelay(c.audioDelay)
 		eng.SetSubtitleDelay(c.subDelay)
+		eng.SetTransform(c.transform)
 		eng.SetStartPosition(int64(c.startAt))
 		if err := eng.Load(c.path); err != nil {
 			eng.Close()
@@ -839,8 +849,14 @@ func (a *app) ensure(i int, r grid.Rect) {
 		}
 		c.eng.SetScale(a.scale)
 	}
-	place := placePicture(videoShape{W: float64(s.Width), H: float64(s.Height)},
-		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: c.cropMargins.combined(parseCropRatio(a.crop, videoShape{W: float64(s.Width), H: float64(s.Height)})), FillLimit: a.fillLimit, AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
+	shape := videoShape{W: float64(s.Width), H: float64(s.Height)}
+	crop := c.cropMargins.combined(parseCropRatio(a.crop, shape))
+	crop = transformCrop(crop, c.transform)
+	if isSideTransform(c.transform) {
+		shape.W, shape.H = shape.H, shape.W
+	}
+	place := placePicture(shape,
+		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: crop, FillLimit: a.fillLimit, AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
 	nativehost.SetFrame(c.view, nativehost.ToMac(
 		nativehost.DIP{X: place.X, Y: place.Y, W: place.W, H: place.H}, float64(r.H)))
 }
@@ -2240,6 +2256,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
 		c.loopStart = v.LoopStart
 		c.loopEnd = v.LoopEnd
+		c.transform = normalizeTransform(v.Transform)
 		if c.eng != nil {
 			reload := c.path != oldPath
 			if reload {
@@ -2255,6 +2272,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			c.eng.SetRate(c.rate)
 			c.eng.SetAudioDelay(c.audioDelay)
 			c.eng.SetSubtitleDelay(c.subDelay)
+			c.eng.SetTransform(c.transform)
 			c.eng.SetLoop(c.loop)
 			if c.startPaused {
 				c.pauseOnPlay.Store(true)
@@ -2369,6 +2387,7 @@ func (a *app) document() *playlist.Document {
 			SubtitleDelay:   c.subDelay,
 			LoopStart:       c.loopStart,
 			LoopEnd:         c.loopEnd,
+			Transform:       c.transform,
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -2605,6 +2624,23 @@ func (a *app) setScale(scale float64) {
 
 func (a *app) setCrop(crop string) {
 	a.crop = crop
+	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) setTransform(transform string) {
+	a.defaultTransform = normalizeTransform(transform)
+	for _, c := range a.cells {
+		c.transform = a.defaultTransform
+		if c.eng != nil {
+			c.eng.SetTransform(c.transform)
+			_ = c.eng.Reload()
+		}
+	}
+	a.dirty = true
 	a.saveSettings()
 	a.refreshMenu()
 	if a.win != nil {
@@ -3130,6 +3166,16 @@ func (a *app) menu() *mygo.Menu {
 				{Label: "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("16:9") }},
 				{Label: "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("4:3") }},
 				{Label: "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("2.35:1") }},
+			}},
+			{Label: "Transform", Submenu: []*mygo.MenuItem{
+				{Label: "None", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("none") }},
+				{Label: "Rotate 90", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("90") }},
+				{Label: "Rotate 180", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("180") }},
+				{Label: "Rotate 270", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("270") }},
+				{Label: "Flip horizontal", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("hflip") }},
+				{Label: "Flip vertical", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("vflip") }},
+				{Label: "Transpose", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("transpose") }},
+				{Label: "Anti-transpose", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("antitranspose") }},
 			}},
 		}},
 		{Label: a.tr("Actions", "Bookmarks"), Submenu: append([]*mygo.MenuItem{

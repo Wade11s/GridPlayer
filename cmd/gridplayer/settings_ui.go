@@ -42,6 +42,7 @@ type settingsDraft struct {
 	scale     string
 	crop      string
 	fillLimit string
+	transform string
 
 	subFont         string
 	subSize         string
@@ -80,6 +81,7 @@ var (
 	scaleOptions     = []string{"Fit", "1x", "1.5x", "2x"}
 	cropOptions      = []string{"None", "16:9", "4:3", "2.35:1"}
 	fillLimitOptions = []string{"Off", "50%", "30%", "20%", "10%", "0%"}
+	transformOptions = []string{"None", "Rotate 90", "Rotate 180", "Rotate 270", "Flip horizontal", "Flip vertical", "Transpose", "Anti-transpose"}
 	formatOptions    = []string{"Best", "Worst", "720p", "480p"}
 	outlineOptions   = []string{"None", "Thin", "Normal", "Thick"}
 	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
@@ -107,6 +109,7 @@ func defaultSettingsDraft() settingsDraft {
 		scale:           "Fit",
 		crop:            "None",
 		fillLimit:       "Off",
+		transform:       "None",
 		subOutline:      "None",
 		subOpacity:      100,
 		subEncoding:     "Auto",
@@ -293,6 +296,9 @@ func (a *app) settingsVideo(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, a.tr("SettingsDialog", "Fill limit"), func() {
 			ui.Select(c, &d.fillLimit, fillLimitOptions)
 		})
+		ui.Field(c, a.tr("SettingsDialog", "Transform"), func() {
+			ui.Select(c, &d.transform, transformOptions)
+		})
 	})
 }
 
@@ -459,6 +465,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.scale = scaleName(a.scale)
 	d.crop = cropName(a.crop)
 	d.fillLimit = fillLimitName(a.fillLimit)
+	d.transform = transformName(a.defaultTransform)
 	if a.resolver != nil {
 		d.proxy = a.resolver.Proxy
 		d.cookies = a.resolver.Cookies
@@ -520,6 +527,14 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.scale = scaleFromName(d.scale)
 	a.crop = cropFromName(d.crop)
 	a.fillLimit = fillLimitValue(d.fillLimit)
+	a.defaultTransform = transformValue(d.transform)
+	for _, cell := range a.cells {
+		cell.transform = a.defaultTransform
+		if cell.eng != nil {
+			cell.eng.SetTransform(cell.transform)
+			_ = cell.eng.Reload()
+		}
+	}
 	oldSub := a.subtitle
 	a.subtitle = subtitleStyle{
 		Font:         strings.TrimSpace(d.subFont),
@@ -750,6 +765,48 @@ func fillLimitValue(name string) int {
 		return 10
 	default:
 		return 100
+	}
+}
+
+func transformName(value string) string {
+	switch value {
+	case "90":
+		return "Rotate 90"
+	case "180":
+		return "Rotate 180"
+	case "270":
+		return "Rotate 270"
+	case "hflip":
+		return "Flip horizontal"
+	case "vflip":
+		return "Flip vertical"
+	case "transpose":
+		return "Transpose"
+	case "antitranspose":
+		return "Anti-transpose"
+	default:
+		return "None"
+	}
+}
+
+func transformValue(name string) string {
+	switch name {
+	case "Rotate 90":
+		return "90"
+	case "Rotate 180":
+		return "180"
+	case "Rotate 270":
+		return "270"
+	case "Flip horizontal":
+		return "hflip"
+	case "Flip vertical":
+		return "vflip"
+	case "Transpose":
+		return "transpose"
+	case "Anti-transpose":
+		return "antitranspose"
+	default:
+		return "none"
 	}
 }
 

@@ -46,6 +46,46 @@ var (
 	}
 )
 
+var transforms = map[string]bool{
+	"none": true, "90": true, "180": true, "270": true,
+	"hflip": true, "vflip": true, "transpose": true, "antitranspose": true,
+}
+
+func normalizeTransform(name string) string {
+	if transforms[name] {
+		return name
+	}
+	return "none"
+}
+
+func isSideTransform(name string) bool {
+	switch name {
+	case "90", "270", "transpose", "antitranspose":
+		return true
+	default:
+		return false
+	}
+}
+
+func transformCrop(m cropMargins, transform string) cropMargins {
+	switch transform {
+	case "90":
+		return cropMargins{Left: m.Bottom, Top: m.Left, Right: m.Top, Bottom: m.Right}
+	case "270":
+		return cropMargins{Left: m.Top, Top: m.Right, Right: m.Bottom, Bottom: m.Left}
+	case "transpose":
+		return cropMargins{Left: m.Top, Top: m.Left, Right: m.Bottom, Bottom: m.Right}
+	case "antitranspose":
+		return cropMargins{Left: m.Bottom, Top: m.Right, Right: m.Top, Bottom: m.Left}
+	case "hflip":
+		return cropMargins{Left: m.Right, Top: m.Top, Right: m.Left, Bottom: m.Bottom}
+	case "vflip":
+		return cropMargins{Left: m.Left, Top: m.Bottom, Right: m.Right, Bottom: m.Top}
+	default:
+		return m
+	}
+}
+
 // parseAnchor turns a stored anchor name into its cell fraction.
 func parseAnchor(name string) (float64, float64) {
 	if p, ok := anchorNames[name]; ok {

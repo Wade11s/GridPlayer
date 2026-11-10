@@ -66,6 +66,29 @@ func TestRealVLCDummyOutput(t *testing.T) {
 	}
 }
 
+func TestRealVLCTransform(t *testing.T) {
+	fixture, err := filepath.Abs("../../testdata/fixtures/plane-a.mp4")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fixture); err != nil {
+		t.Skip("fixture missing")
+	}
+	e := New(NewVLCFactory(VLCOptions{Args: []string{"--vout=dummy", "--aout=dummy"}}))
+	defer e.Close()
+	e.SetTransform("90")
+	if err := e.Load(fixture); err != nil {
+		t.Skipf("libVLC unavailable: %v", err)
+	}
+	deadline := time.Now().Add(15 * time.Second)
+	for e.Snapshot().Phase != Playing && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if e.Snapshot().Phase != Playing {
+		t.Fatalf("transform did not play: %+v", e.Snapshot())
+	}
+}
+
 // TestRealVLCLoadPaused pauses immediately after Load, the path used when a
 // saved playlist restores a paused cell.
 func TestRealVLCLoadPaused(t *testing.T) {
