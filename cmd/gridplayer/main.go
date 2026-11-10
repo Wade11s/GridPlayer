@@ -859,6 +859,7 @@ func (a *app) resetSponsor(c *cell, raw string) {
 	if c == nil {
 		return
 	}
+	c.sponsorFetchGen.Add(1)
 	a.sponsorMu.Lock()
 	delete(a.sponsorSpans, c)
 	delete(a.sponsorLoading, c)
