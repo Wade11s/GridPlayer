@@ -24,17 +24,18 @@ type keyBindingDraft struct {
 type settingsDraft struct {
 	tab int
 
-	volume          float64
-	muted           bool
-	rate            float64
-	loop            bool
-	language        string
-	pauseBackground bool
-	sponsorEnabled  bool
-	sponsorModes    []string
-	stayOnTop       bool
-	startMaximized  bool
-	startFullscreen bool
+	volume             float64
+	muted              bool
+	rate               float64
+	loop               bool
+	language           string
+	pauseBackground    bool
+	inhibitScreensaver bool
+	sponsorEnabled     bool
+	sponsorModes       []string
+	stayOnTop          bool
+	startMaximized     bool
+	startFullscreen    bool
 
 	layout     string
 	rows       string
@@ -100,38 +101,39 @@ var (
 
 func defaultSettingsDraft() settingsDraft {
 	return settingsDraft{
-		volume:          80,
-		rate:            1,
-		loop:            true,
-		language:        "English",
-		pauseBackground: true,
-		sponsorModes:    defaultSponsorModes(),
-		stayOnTop:       false,
-		startMaximized:  false,
-		startFullscreen: false,
-		layout:          "Auto Rows",
-		rows:            "3",
-		cols:            "3",
-		snap:            true,
-		overlap:         true,
-		singleSide:      "Auto",
-		view:            "Fill (cover)",
-		aspect:          "Auto",
-		scale:           "Fit",
-		crop:            "None",
-		fillLimit:       "Off",
-		transform:       "None",
-		subOutline:      "None",
-		subOpacity:      100,
-		subEncoding:     "Auto",
-		subSize:         "0",
-		format:          "Best",
-		retryMode:       "Fixed attempts",
-		retryTimes:      "3",
-		listFail:        "Play next",
-		listFailWait:    "2",
-		endAction:       "Loop file",
-		keys:            defaultKeyBindingDrafts(),
+		volume:             80,
+		rate:               1,
+		loop:               true,
+		language:           "English",
+		pauseBackground:    true,
+		inhibitScreensaver: true,
+		sponsorModes:       defaultSponsorModes(),
+		stayOnTop:          false,
+		startMaximized:     false,
+		startFullscreen:    false,
+		layout:             "Auto Rows",
+		rows:               "3",
+		cols:               "3",
+		snap:               true,
+		overlap:            true,
+		singleSide:         "Auto",
+		view:               "Fill (cover)",
+		aspect:             "Auto",
+		scale:              "Fit",
+		crop:               "None",
+		fillLimit:          "Off",
+		transform:          "None",
+		subOutline:         "None",
+		subOpacity:         100,
+		subEncoding:        "Auto",
+		subSize:            "0",
+		format:             "Best",
+		retryMode:          "Fixed attempts",
+		retryTimes:         "3",
+		listFail:           "Play next",
+		listFailWait:       "2",
+		endAction:          "Loop file",
+		keys:               defaultKeyBindingDrafts(),
 	}
 }
 
@@ -220,6 +222,9 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Pause videos when minimized"), func() {
 			ui.Checkbox(c, &d.pauseBackground, "Pause when the window loses focus")
+		})
+		ui.Field(c, a.tr("SettingsDialog", "Disable screensaver while playing"), func() {
+			ui.Checkbox(c, &d.inhibitScreensaver, a.tr("SettingsDialog", "Keep the display awake"))
 		})
 		ui.Field(c, "Window", func() {
 			ui.Column(c).Gap(4).Children(func() {
@@ -473,6 +478,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.loop = a.defaultLoop
 	d.language = i18n.Name(a.language)
 	d.pauseBackground = a.pauseBackground
+	d.inhibitScreensaver = a.inhibitScreensaver
 	d.stayOnTop = a.stayOnTop
 	d.startMaximized = a.startMaximized
 	d.startFullscreen = a.startFullscreen
@@ -554,6 +560,8 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.language = i18n.Code(d.language)
 	a.loadTranslator()
 	a.pauseBackground = d.pauseBackground
+	a.inhibitScreensaver = d.inhibitScreensaver
+	a.screensaver.Enable(a.inhibitScreensaver)
 	a.sponsorEnabled.Store(d.sponsorEnabled)
 	a.stayOnTop = d.stayOnTop
 	a.startMaximized = d.startMaximized

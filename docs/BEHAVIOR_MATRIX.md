@@ -31,6 +31,11 @@ Decoders/output: `VideoDriver` enum `{VLC_SW, VLC_SW_SP, VLC_HW, VLC_HW_SP, DUMM
 | F12 | Chapters, bookmarks, sponsorblock, screenshots, recovery | widgets/video_block_*.py, models/*.py | Later phase; fixtures for chapters first | Chapter seek test | chapter times |
 | F13 | i18n (Crowdin .ts/.qm), icons/fonts | resources/, params/languages.py | Polish/English first; translations bundled, not hand-edited sources | Resource presence | bundled files list |
 
+macOS F11 note: screensaver inhibition uses `/usr/bin/caffeinate -d -i -w <pid>`
+rather than an in-process IOKit assertion; `<pid>` is the process that called
+`Enable`, and `-w` makes the child exit with that process. Tray/menu-bar and
+close-to-tray behaviors remain out of scope on macOS.
+
 ## Non-goals / prohibitions (from spec)
 
 - No AVFoundation/`ui/video` substitution for libVLC; no external VLC window, fake frames, or browser player.

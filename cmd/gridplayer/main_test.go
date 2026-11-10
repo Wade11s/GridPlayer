@@ -216,6 +216,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 		defaultLoop:   true,
 		cells:         []*cell{{}, {}},
 	}
+	defer a.screensaver.Close()
 	d := a.currentSettingsDraft()
 	if d.layout != "Fixed" || d.rows != "2" || d.cols != "4" {
 		t.Fatalf("draft layout=%q rows=%q cols=%q", d.layout, d.rows, d.cols)
@@ -225,6 +226,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.rate = 1.5
 	d.loop = false
 	d.pauseBackground = false
+	d.inhibitScreensaver = false
 	d.sponsorEnabled = true
 	d.sponsorModes[0] = "Show"
 	d.stayOnTop = true
@@ -251,6 +253,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if a.pauseBackground {
 		t.Fatal("pause background not applied")
+	}
+	if a.inhibitScreensaver {
+		t.Fatal("screensaver setting not applied")
 	}
 	if !a.sponsorEnabled.Load() || a.sponsorModes["sponsor"] != "show" {
 		t.Fatalf("sponsor settings %v %q", a.sponsorEnabled.Load(), a.sponsorModes["sponsor"])
@@ -563,6 +568,7 @@ func TestBindingUI(t *testing.T) {
 
 func TestSettingsDraftKeymap(t *testing.T) {
 	a := &app{keys: keymap.Default()}
+	defer a.screensaver.Close()
 	d := a.currentSettingsDraft()
 	if len(d.keys) != len(keymap.Actions) {
 		t.Fatalf("keys=%d", len(d.keys))
@@ -729,6 +735,7 @@ func TestNetworkRetryLimit(t *testing.T) {
 
 func TestSettingsDraftSubtitles(t *testing.T) {
 	a := &app{}
+	defer a.screensaver.Close()
 	d := defaultSettingsDraft()
 	d.subFont = "Arial"
 	d.subSize = "48"

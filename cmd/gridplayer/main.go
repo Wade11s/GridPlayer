@@ -116,6 +116,8 @@ type app struct {
 	fillLimit           int
 	pauseBackground     bool
 	backgroundPaused    map[*cell]bool
+	inhibitScreensaver  bool
+	screensaver         screensaverGuard
 	stayOnTop           bool
 	startMaximized      bool
 	startFullscreen     bool
@@ -171,26 +173,27 @@ type app struct {
 
 func newApp(paths []string) *app {
 	a := &app{
-		cfg:              grid.Config{Mode: grid.AutoRows},
-		fill:             true,
-		snap:             true,
-		overlap:          true,
-		defaultVolume:    80,
-		defaultRate:      1,
-		defaultLoop:      true,
-		defaultZoom:      1,
-		defaultAnchor:    "center",
-		defaultTransform: "none",
-		fillLimit:        100,
-		pauseBackground:  true,
-		resolver:         resolve.New(),
-		keys:             keymap.Default(),
-		language:         "en_US",
-		sponsorModes:     sponsorblock.DefaultModes(),
-		sponsorClient:    sponsorblock.New(),
-		sponsorSpans:     map[*cell][]sponsorblock.Span{},
-		sponsorLoading:   map[*cell]bool{},
-		subtitle:         subtitleStyle{Opacity: 255},
+		cfg:                grid.Config{Mode: grid.AutoRows},
+		fill:               true,
+		snap:               true,
+		overlap:            true,
+		defaultVolume:      80,
+		defaultRate:        1,
+		defaultLoop:        true,
+		defaultZoom:        1,
+		defaultAnchor:      "center",
+		defaultTransform:   "none",
+		fillLimit:          100,
+		pauseBackground:    true,
+		inhibitScreensaver: true,
+		resolver:           resolve.New(),
+		keys:               keymap.Default(),
+		language:           "en_US",
+		sponsorModes:       sponsorblock.DefaultModes(),
+		sponsorClient:      sponsorblock.New(),
+		sponsorSpans:       map[*cell][]sponsorblock.Span{},
+		sponsorLoading:     map[*cell]bool{},
+		subtitle:           subtitleStyle{Opacity: 255},
 	}
 	a.setRetryPolicy("times", defaultRetryTimes)
 	a.setListFailPolicy(listFailPlayNext, defaultListFailWait)
@@ -212,6 +215,8 @@ func (a *app) loadSettings() {
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
 	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
+	a.inhibitScreensaver = st.Get("player/inhibit_screensaver", "true") == "true"
+	a.screensaver.Enable(a.inhibitScreensaver)
 	a.stayOnTop = st.Get("player/stay_on_top", "false") == "true"
 	a.startMaximized = st.Get("player/start_maximized", "false") == "true"
 	a.startFullscreen = st.Get("player/start_fullscreen", "false") == "true"
@@ -468,6 +473,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/cell_view_mode", view)
 	a.settings.Set("player/language", a.language)
 	a.settings.Set("playlist/pause_background_videos", fmt.Sprint(a.pauseBackground))
+	a.settings.Set("player/inhibit_screensaver", fmt.Sprint(a.inhibitScreensaver))
 	a.settings.Set("player/stay_on_top", fmt.Sprint(a.stayOnTop))
 	a.settings.Set("player/start_maximized", fmt.Sprint(a.startMaximized))
 	a.settings.Set("player/start_fullscreen", fmt.Sprint(a.startFullscreen))
@@ -1575,6 +1581,7 @@ func (a *app) teardown() {
 	if !a.closed.CompareAndSwap(false, true) {
 		return
 	}
+	a.screensaver.Close()
 	a.saveSettings()
 	a.saveWindowState()
 	if a.settingsWin != nil {

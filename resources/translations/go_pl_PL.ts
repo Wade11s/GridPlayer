@@ -65,6 +65,8 @@
     <message><source>Always on top</source><translation>Zawsze na wierzchu</translation></message>
     <message><source>Start maximized</source><translation>Uruchamiaj zmaksymalizowane</translation></message>
     <message><source>Start full screen</source><translation>Uruchamiaj na pełnym ekranie</translation></message>
+    <message><source>Disable screensaver while playing</source><translation>Wyłącz wygaszacz ekranu podczas odtwarzania</translation></message>
+    <message><source>Keep the display awake</source><translation>Utrzymuj ekran wybudzony</translation></message>
   </context>
   <context>
     <name>Actions</name>
