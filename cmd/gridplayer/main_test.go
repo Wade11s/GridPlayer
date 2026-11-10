@@ -216,6 +216,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 		defaultLoop:   true,
 		cells:         []*cell{{}, {}},
 	}
+	defer a.screensaver.Close()
 	d := a.currentSettingsDraft()
 	if d.layout != "Fixed" || d.rows != "2" || d.cols != "4" {
 		t.Fatalf("draft layout=%q rows=%q cols=%q", d.layout, d.rows, d.cols)
@@ -567,6 +568,7 @@ func TestBindingUI(t *testing.T) {
 
 func TestSettingsDraftKeymap(t *testing.T) {
 	a := &app{keys: keymap.Default()}
+	defer a.screensaver.Close()
 	d := a.currentSettingsDraft()
 	if len(d.keys) != len(keymap.Actions) {
 		t.Fatalf("keys=%d", len(d.keys))
@@ -733,6 +735,7 @@ func TestNetworkRetryLimit(t *testing.T) {
 
 func TestSettingsDraftSubtitles(t *testing.T) {
 	a := &app{}
+	defer a.screensaver.Close()
 	d := defaultSettingsDraft()
 	d.subFont = "Arial"
 	d.subSize = "48"

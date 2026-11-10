@@ -9,9 +9,10 @@ import (
 )
 
 type screensaverGuard struct {
-	mu     sync.Mutex
-	cmd    *exec.Cmd
-	active bool
+	mu      sync.Mutex
+	cmd     *exec.Cmd
+	active  bool
+	command func() *exec.Cmd
 }
 
 func (g *screensaverGuard) Enable(enabled bool) {
@@ -28,11 +29,16 @@ func (g *screensaverGuard) Enable(enabled bool) {
 		g.active = false
 		return
 	}
-	path, err := exec.LookPath("caffeinate")
-	if err != nil {
-		path = "/usr/bin/caffeinate"
+	cmd := (*exec.Cmd)(nil)
+	if g.command != nil {
+		cmd = g.command()
+	} else {
+		path, err := exec.LookPath("caffeinate")
+		if err != nil {
+			path = "/usr/bin/caffeinate"
+		}
+		cmd = exec.Command(path, "-d", "-i", "-w", strconv.Itoa(os.Getpid()))
 	}
-	cmd := exec.Command(path, "-d", "-i", "-w", strconv.Itoa(os.Getpid()))
 	if err := cmd.Start(); err != nil {
 		log.Printf("screensaver: %v", err)
 		g.cmd = nil

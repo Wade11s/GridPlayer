@@ -41,4 +41,8 @@ if ps -axo command | grep -F "$SMOKE/Contents/MacOS/GridPlayer" | grep -v grep >
   echo "FAIL: app process still running" >&2
   exit 1
 fi
+if ps -axo command | grep -F "caffeinate -d -i -w" | grep -v grep >/dev/null; then
+  echo "FAIL: caffeinate guard still running" >&2
+  exit 1
+fi
 echo "app smoke: PASS"
