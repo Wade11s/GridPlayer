@@ -79,7 +79,7 @@ var (
 	aspectOptions    = []string{"Auto", "16:9", "4:3", "1:1", "2.35:1"}
 	scaleOptions     = []string{"Fit", "1x", "1.5x", "2x"}
 	cropOptions      = []string{"None", "16:9", "4:3", "2.35:1"}
-	fillLimitOptions = []string{"Off", "50%", "30%", "20%", "10%"}
+	fillLimitOptions = []string{"Off", "50%", "30%", "20%", "10%", "0%"}
 	formatOptions    = []string{"Best", "Worst", "720p", "480p"}
 	outlineOptions   = []string{"None", "Thin", "Normal", "Thick"}
 	encodingOptions  = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
@@ -729,7 +729,7 @@ func cropFromName(s string) string {
 
 func fillLimitName(limit int) string {
 	switch limit {
-	case 50, 30, 20, 10:
+	case 50, 30, 20, 10, 0:
 		return fmt.Sprintf("%d%%", limit)
 	default:
 		return "Off"
@@ -738,6 +738,8 @@ func fillLimitName(limit int) string {
 
 func fillLimitValue(name string) int {
 	switch name {
+	case "0%":
+		return 0
 	case "50%":
 		return 50
 	case "30%":

@@ -155,7 +155,7 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 	if !stretch {
 		picAspect := rw / rh
 		cellAspect := cellW / cellH
-		if fill && v.FillLimit > 0 && v.FillLimit < 100 {
+		if fill && v.FillLimit < 100 {
 			fitX := cellW / rw
 			fitY := cellH / rh
 			cut := 1 - math.Min(fitX, fitY)/math.Max(fitX, fitY)
