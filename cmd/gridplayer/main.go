@@ -240,13 +240,7 @@ func (a *app) loadSettings() {
 		a.defaultVolume = int(v * 100)
 	}
 	a.defaultMuted = st.Get("video_defaults/muted", "false") == "true"
-	a.defaultRate = atof(st.Get("video_defaults/rate", "1"), 1)
-	if a.defaultRate < 0.25 {
-		a.defaultRate = 0.25
-	}
-	if a.defaultRate > 4 {
-		a.defaultRate = 4
-	}
+	a.defaultRate = clampPlaybackRate(atof(st.Get("video_defaults/rate", "1"), 1))
 	a.defaultLoop = st.Get("video_defaults/loop", "true") == "true"
 	if raw := st.Get("video_defaults/end_action", ""); raw != "" {
 		a.defaultEnd = normalizeEndAction(raw)
@@ -1640,10 +1634,9 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "seek_random") {
 		if eng != nil {
-			c := a.activeCell()
 			lo, hi := int64(0), eng.Snapshot().Length
-			if c != nil {
-				lo, hi = c.loopStart, c.loopEnd
+			if cell := a.activeCell(); cell != nil && cell.loopEnd > 0 {
+				lo, hi = cell.loopStart, cell.loopEnd
 			}
 			a.seekActive(randomSeekTarget(lo, hi, rand.Int64N))
 		}
@@ -1851,7 +1844,9 @@ func (a *app) nudgeSubtitleDelay(delta int64) {
 		}
 	}
 	a.dirty = true
-	a.status = fmt.Sprintf("subtitle delay %+dms", a.activeCell().subDelay)
+	if c := a.activeCell(); c != nil {
+		a.status = fmt.Sprintf("subtitle delay %+dms", c.subDelay)
+	}
 }
 
 func (a *app) reloadActive() {

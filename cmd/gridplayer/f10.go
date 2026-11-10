@@ -84,7 +84,7 @@ func seekPercentTarget(length int64, percent float64) int64 {
 // randomSeekTarget picks a time between loopStart and loopEnd.
 func randomSeekTarget(loopStart, loopEnd int64, next func(int64) int64) int64 {
 	if loopEnd <= 0 {
-		return 0
+		return loopStart
 	}
 	if loopStart < 0 {
 		loopStart = 0
