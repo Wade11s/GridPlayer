@@ -19,6 +19,7 @@ type fakeBackend struct {
 	muted, loop   bool
 	delay         int64
 	subDelay      int64
+	transform     string
 	time, length  int64
 	state         BackendState
 	w, h          int
@@ -88,6 +89,12 @@ func (f *fakeBackend) SetSubtitleDelay(ms int64) {
 	f.mu.Lock()
 	f.subDelay = ms
 	f.mu.Unlock()
+}
+func (f *fakeBackend) SetTransform(transform string) bool {
+	f.mu.Lock()
+	f.transform = transform
+	f.mu.Unlock()
+	return true
 }
 func (f *fakeBackend) SetMute(m bool) {
 	f.mu.Lock()
@@ -518,6 +525,22 @@ func TestEngineStepsFrames(t *testing.T) {
 	}
 	if tm != FrameStepBack(1040, 25) {
 		t.Fatalf("time %d", tm)
+	}
+}
+
+func TestEngineStoresTransform(t *testing.T) {
+	f := newFake()
+	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	defer e.Close()
+	e.SetTransform("90")
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	transform := f.transform
+	f.mu.Unlock()
+	if transform != "90" {
+		t.Fatalf("transform %q", transform)
 	}
 }
 

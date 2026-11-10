@@ -484,6 +484,29 @@ func (p *Player) SetMedia(path string, loop bool) error {
 	return nil
 }
 
+// SetTransform applies libVLC's transform filter to the current media.
+// Call after SetMedia and before Play; "none" removes the filter.
+func (p *Player) SetTransform(transform string) bool {
+	if p == nil {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.released || p.md == nil {
+		return false
+	}
+	if transform == "" || transform == "none" {
+		return true
+	}
+	filter := C.CString(":video-filter=transform")
+	defer C.free(unsafe.Pointer(filter))
+	C.libvlc_media_add_option(p.md, filter)
+	kind := C.CString(":transform-type=" + transform)
+	defer C.free(unsafe.Pointer(kind))
+	C.libvlc_media_add_option(p.md, kind)
+	return true
+}
+
 func (p *Player) with(fn func(mp *C.libvlc_media_player_t)) bool {
 	if p == nil {
 		return false

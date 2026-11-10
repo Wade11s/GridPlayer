@@ -117,6 +117,7 @@ type Backend interface {
 	SetMute(muted bool)
 	SetAudioDelay(ms int64)
 	SetSubtitleDelay(ms int64)
+	SetTransform(transform string) bool
 	SetLoop(loop bool)
 	Time() int64
 	Length() int64
@@ -177,6 +178,7 @@ type Engine struct {
 	muted      bool
 	audioDelay int64
 	subDelay   int64
+	transform  string
 	loop       bool
 	aspect     string
 	scale      float64
@@ -283,6 +285,7 @@ func (e *Engine) loadLocked(path string) error {
 	rate, volume, muted, loop := e.rate, e.volume, e.muted, e.loop
 	delay := e.audioDelay
 	subDelay := e.subDelay
+	transform := e.transform
 	aspect, scale, crop := e.aspect, e.scale, e.crop
 	subs := append([]string(nil), e.subtitles...)
 	audios := append([]string(nil), e.audioFiles...)
@@ -293,6 +296,7 @@ func (e *Engine) loadLocked(path string) error {
 	be.SetMute(muted)
 	be.SetAudioDelay(delay)
 	be.SetSubtitleDelay(subDelay)
+	be.SetTransform(transform)
 	be.SetLoop(loop)
 	be.SetAspectRatio(aspect)
 	be.SetScale(scale)
@@ -618,6 +622,17 @@ func (e *Engine) AudioDelay() int64 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.audioDelay
+}
+
+// SetTransform changes the libVLC transform filter for the next load.
+func (e *Engine) SetTransform(transform string) {
+	e.mu.Lock()
+	e.transform = transform
+	be := e.be
+	e.mu.Unlock()
+	if be != nil {
+		be.SetTransform(transform)
+	}
 }
 
 // NudgeAudioDelay adds delta milliseconds and returns the clamped result.

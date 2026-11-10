@@ -58,6 +58,7 @@
     <message><source>Hardware SP</source><translation>Sprzętowy SP</translation></message>
     <message><source>Videos per process</source><translation>Liczba wideo na proces</translation></message>
     <message><source>Fill limit</source><translation>Limit wypełnienia</translation></message>
+    <message><source>Transform</source><translation>Transformacja</translation></message>
   </context>
   <context>
     <name>Actions</name>
