@@ -1100,6 +1100,16 @@ func TestCropMargins(t *testing.T) {
 	if !parseCropRatio("wat", videoShape{W: 10, H: 10}).empty() {
 		t.Fatal("bad ratio should crop nothing")
 	}
+	// Decimal ratios must parse: 2.35:1 on 1920x1080 keeps 817 px, so the
+	// margins are 131/132, not a 1 px sliver.
+	m = parseCropRatio("2.35:1", videoShape{W: 1920, H: 1080})
+	if m.Top != 131 || m.Bottom != 132 {
+		t.Fatalf("2.35:1 top/bottom %+v", m)
+	}
+	m = parseCropRatio("1.5:1", videoShape{W: 1920, H: 1080})
+	if m.Left != 150 || m.Right != 150 {
+		t.Fatalf("1.5:1 sides %+v", m)
+	}
 	x, y, w, h := cropRegion(videoShape{W: 1920, H: 1080}, cropMargins{Left: 240, Right: 240})
 	if x != 240 || y != 0 || w != 1440 || h != 1080 {
 		t.Fatalf("region %v %v %v %v", x, y, w, h)

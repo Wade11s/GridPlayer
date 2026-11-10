@@ -1,5 +1,10 @@
 package main
 
+import (
+	"math"
+	"strconv"
+)
+
 // Aspect of a source video, in the same arbitrary units as a cell size.
 type videoShape struct {
 	W, H float64
@@ -74,8 +79,8 @@ func parseCropRatio(ratio string, video videoShape) cropMargins {
 	}
 	want := 0.0
 	if i := indexByteColon(ratio); i > 0 {
-		w, err1 := parseFloat(ratio[:i])
-		h, err2 := parseFloat(ratio[i+1:])
+		w, err1 := strconv.ParseFloat(ratio[:i], 64)
+		h, err2 := strconv.ParseFloat(ratio[i+1:], 64)
 		if err1 == nil && err2 == nil && h > 0 {
 			want = w / h
 		}
@@ -85,11 +90,11 @@ func parseCropRatio(ratio string, video videoShape) cropMargins {
 	}
 	if video.W/video.H > want {
 		kept := clamped(round(video.H*want), 1, video.W)
-		left := (video.W - kept) / 2
+		left := math.Floor((video.W - kept) / 2)
 		return cropMargins{Left: left, Right: video.W - kept - left}
 	}
 	kept := clamped(round(video.W/want), 1, video.H)
-	top := (video.H - kept) / 2
+	top := math.Floor((video.H - kept) / 2)
 	return cropMargins{Top: top, Bottom: video.H - kept - top}
 }
 
@@ -100,49 +105,6 @@ func indexByteColon(s string) int {
 		}
 	}
 	return -1
-}
-
-func parseFloat(s string) (float64, error) {
-	var out, frac float64
-	scale := 1.0
-	seen := false
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c == '.' {
-			scale = 0.1
-			continue
-		}
-		if c < '0' || c > '9' {
-			return 0, errBadNumber
-		}
-		seen = true
-		out = out*10 + float64(c-'0')
-		if scale != 1 {
-			out += float64(c-'0') * scale
-			scale /= 10
-		}
-	}
-	if !seen {
-		return 0, errBadNumber
-	}
-	_ = frac
-	return out, nil
-}
-
-var errBadNumber = &simpleError{"crop ratio"}
-
-type simpleError struct{ msg string }
-
-func (e *simpleError) Error() string { return e.msg }
-
-func clamped(v, lo, hi float64) float64 {
-	if v < lo {
-		return lo
-	}
-	if v > hi {
-		return hi
-	}
-	return v
 }
 
 func round(v float64) float64 {
@@ -259,6 +221,17 @@ func clampUnit(v float64) float64 {
 	}
 	if v > 1 {
 		return 1
+	}
+	return v
+}
+
+// clamped limits v to [lo, hi].
+func clamped(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
 	}
 	return v
 }
