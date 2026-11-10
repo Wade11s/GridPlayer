@@ -127,6 +127,8 @@ type app struct {
 	bookmarkRenameInput string
 	snapshots           *snapshots.Store
 	snapshotSaveWin     *mygo.Window
+	timecodeWin         *mygo.Window
+	timecodeInput       string
 	snapshotSaveName    string
 	pending             []pendingDrop
 	settings            *settings.Store
@@ -1389,6 +1391,10 @@ func (a *app) teardown() {
 		a.snapshotSaveWin.Close()
 		a.snapshotSaveWin = nil
 	}
+	if a.timecodeWin != nil {
+		a.timecodeWin.Close()
+		a.timecodeWin = nil
+	}
 	fmt.Println("gridplayer: teardown (stop->unbind->detach->release)...")
 	for i, c := range a.cells {
 		if c == nil {
@@ -1720,6 +1726,34 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.shortcut(c, "reload") {
 		a.reloadActive()
 	}
+	if a.shortcut(c, "timecode") {
+		a.openTimecodeDialog()
+	}
+	if a.shortcut(c, "take_screenshot") {
+		a.saveFrame(a.activeEngine())
+	}
+	if a.shortcut(c, "rate_increase") {
+		a.nudgeRate(0.25)
+	}
+	if a.shortcut(c, "rate_decrease") {
+		a.nudgeRate(-0.25)
+	}
+	if a.shortcut(c, "next_file") {
+		if cell := a.activeCell(); cell != nil {
+			a.advanceList(cell)
+		}
+	}
+	if a.shortcut(c, "previous_file") {
+		if cell := a.activeCell(); cell != nil {
+			a.previousList(cell)
+		}
+	}
+	if a.shortcut(c, "crop_off") {
+		for _, cell := range a.cells {
+			cell.cropMargins = cropMargins{}
+		}
+		a.setCrop("")
+	}
 }
 
 func (a *app) activeSnapshot() engine.Snapshot {
@@ -1825,6 +1859,43 @@ func (a *app) reloadActive() {
 		_ = eng.ReloadIfFailed(eng.Snapshot().Gen)
 		_ = eng.Reload()
 	}
+}
+
+func (a *app) openTimecodeDialog() {
+	if a.timecodeWin != nil {
+		return
+	}
+	a.timecodeInput = ""
+	w := mygo.NewWindow(mygo.WindowOptions{
+		Title:          "Go to timecode",
+		Width:          320,
+		Height:         150,
+		UseContentSize: true,
+		Content:        ui.View(a.timecodeView),
+	})
+	a.timecodeWin = w
+	w.OnClose(func(*mygo.CloseEvent) { a.timecodeWin = nil })
+}
+
+func (a *app) timecodeView(c *ui.Context) {
+	ui.Column(c).Fill().Padding(16).Gap(10).Children(func() {
+		ui.TextInput(c.Key("timecode"), &a.timecodeInput).Label("hh:mm:ss.mmm")
+		ui.Row(c).Gap(8).Children(func() {
+			if ui.Button(c.Key("timecode-ok"), "Go").Clicked() {
+				if ms, ok := parseTimecode(a.timecodeInput); ok {
+					a.seekActive(ms)
+				} else {
+					a.status = "invalid timecode"
+				}
+				if a.timecodeWin != nil {
+					a.timecodeWin.Close()
+				}
+			}
+			if ui.Button(c.Key("timecode-cancel"), "Cancel").Clicked() && a.timecodeWin != nil {
+				a.timecodeWin.Close()
+			}
+		})
+	})
 }
 
 func (a *app) openDialog(add bool) {

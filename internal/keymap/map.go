@@ -58,6 +58,13 @@ var Actions = []string{
 	"sub_delay_later",
 	"sub_delay_earlier",
 	"reload",
+	"timecode",
+	"take_screenshot",
+	"rate_increase",
+	"rate_decrease",
+	"next_file",
+	"previous_file",
+	"crop_off",
 }
 
 // Labels are the user-facing action names.
@@ -116,6 +123,13 @@ var Labels = map[string]string{
 	"sub_delay_later":     "Subtitle delay later",
 	"sub_delay_earlier":   "Subtitle delay earlier",
 	"reload":              "Reload",
+	"timecode":            "Go to timecode",
+	"take_screenshot":     "Take screenshot",
+	"rate_increase":       "Faster",
+	"rate_decrease":       "Slower",
+	"next_file":           "Next file",
+	"previous_file":       "Previous file",
+	"crop_off":            "Crop off",
 }
 
 // Map is a set of action bindings.
@@ -181,6 +195,13 @@ func Default() Map {
 		"sub_delay_later":     "h",
 		"sub_delay_earlier":   "g",
 		"reload":              "f5",
+		"timecode":            "t",
+		"take_screenshot":     "alt+s",
+		"rate_increase":       "c",
+		"rate_decrease":       "x",
+		"next_file":           "pagedown",
+		"previous_file":       "pageup",
+		"crop_off":            "shift+y",
 	} {
 		b, err := Parse(value)
 		if err != nil {
