@@ -10,12 +10,17 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"sync"
+	"time"
 )
 
 const (
-	SkipJoinMS    int64 = 1000
-	SkipMinMS     int64 = 1000
-	SkipEndMargin int64 = 1000
+	SkipJoinMS            int64 = 1000
+	SkipMinMS             int64 = 1000
+	SkipEndMargin         int64 = 1000
+	DefaultCacheTTL             = time.Hour
+	maxCacheEntries             = 256
+	DefaultRequestTimeout       = 30 * time.Second
 )
 
 // Category is one SponsorBlock category and its default mode.
@@ -66,14 +71,37 @@ type Client struct {
 	HTTP      *http.Client
 	BaseURL   string
 	UserAgent string
+	CacheTTL  time.Duration
+	// RequestTimeout bounds one shared lookup. It is independent of any single
+	// caller's context so one canceled caller cannot fail the others.
+	RequestTimeout time.Duration
+
+	mu       sync.Mutex
+	cache    map[string]cacheEntry
+	inflight map[string]*fetchCall
+}
+
+type cacheEntry struct {
+	segments []Segment
+	at       time.Time
+}
+
+type fetchCall struct {
+	done     chan struct{}
+	segments []Segment
+	err      error
 }
 
 // New returns a client for the public SponsorBlock API.
 func New() *Client {
 	return &Client{
-		HTTP:      http.DefaultClient,
-		BaseURL:   "https://sponsor.ajay.app/api/skipSegments",
-		UserAgent: "GridPlayer-Go",
+		HTTP:           http.DefaultClient,
+		BaseURL:        "https://sponsor.ajay.app/api/skipSegments",
+		UserAgent:      "GridPlayer-Go",
+		CacheTTL:       DefaultCacheTTL,
+		RequestTimeout: DefaultRequestTimeout,
+		cache:          map[string]cacheEntry{},
+		inflight:       map[string]*fetchCall{},
 	}
 }
 
@@ -82,6 +110,97 @@ func (c *Client) Fetch(ctx context.Context, videoID string, categories []string)
 	if c == nil || videoID == "" {
 		return nil, nil
 	}
+	key := cacheKey(videoID, categories)
+	c.mu.Lock()
+	if c.cache == nil {
+		c.cache = map[string]cacheEntry{}
+	}
+	if c.inflight == nil {
+		c.inflight = map[string]*fetchCall{}
+	}
+	ttl := c.CacheTTL
+	if ttl <= 0 {
+		ttl = DefaultCacheTTL
+	}
+	if entry, ok := c.cache[key]; ok && time.Since(entry.at) < ttl {
+		segments := cloneSegments(entry.segments)
+		c.mu.Unlock()
+		return segments, nil
+	}
+	if call, ok := c.inflight[key]; ok {
+		c.mu.Unlock()
+		select {
+		case <-call.done:
+			return cloneSegments(call.segments), call.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	call := &fetchCall{done: make(chan struct{})}
+	c.inflight[key] = call
+	c.mu.Unlock()
+
+	go c.runFetch(ctx, key, videoID, categories, call)
+
+	select {
+	case <-call.done:
+		return cloneSegments(call.segments), call.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
+// runFetch performs the shared lookup. It runs on a context detached from the
+// caller that happened to start it, so a canceled caller cannot fail the
+// callers waiting on the same key.
+func (c *Client) runFetch(ctx context.Context, key, videoID string, categories []string, call *fetchCall) {
+	timeout := c.RequestTimeout
+	if timeout <= 0 {
+		timeout = DefaultRequestTimeout
+	}
+	shared, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
+	defer cancel()
+
+	var segments []Segment
+	var err error
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			segments = nil
+			err = fmt.Errorf("sponsorblock: panic: %v", recovered)
+		}
+		c.mu.Lock()
+		call.segments = cloneSegments(segments)
+		call.err = err
+		if err == nil {
+			c.cache[key] = cacheEntry{segments: cloneSegments(segments), at: time.Now()}
+			c.evictLocked()
+		}
+		delete(c.inflight, key)
+		close(call.done)
+		c.mu.Unlock()
+	}()
+
+	segments, err = c.fetchHTTP(shared, videoID, categories)
+}
+
+// evictLocked drops the oldest entry once the cache exceeds its bound.
+// Callers must hold c.mu.
+func (c *Client) evictLocked() {
+	if len(c.cache) <= maxCacheEntries {
+		return
+	}
+	oldestKey := ""
+	var oldest time.Time
+	for key, entry := range c.cache {
+		if oldestKey == "" || entry.at.Before(oldest) {
+			oldestKey = key
+			oldest = entry.at
+		}
+	}
+	delete(c.cache, oldestKey)
+}
+
+func (c *Client) fetchHTTP(ctx context.Context, videoID string, categories []string) ([]Segment, error) {
 	categoriesJSON, err := json.Marshal(categories)
 	if err != nil {
 		return nil, err
@@ -101,12 +220,17 @@ func (c *Client) Fetch(ctx context.Context, videoID string, categories []string)
 	if c.UserAgent != "" {
 		request.Header.Set("User-Agent", c.UserAgent)
 	}
-	response, err := c.HTTP.Do(request)
+	httpClient := c.HTTP
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+	response, err := httpClient.Do(request)
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
 	if response.StatusCode == http.StatusNotFound {
+		_, _ = io.Copy(io.Discard, io.LimitReader(response.Body, 1<<20))
 		return nil, nil
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -118,6 +242,16 @@ func (c *Client) Fetch(ctx context.Context, videoID string, categories []string)
 		return nil, err
 	}
 	return Parse(data)
+}
+
+func cacheKey(videoID string, categories []string) string {
+	sorted := append([]string(nil), categories...)
+	sort.Strings(sorted)
+	return videoID + "\x00" + strings.Join(sorted, ",")
+}
+
+func cloneSegments(segments []Segment) []Segment {
+	return append([]Segment(nil), segments...)
 }
 
 type apiResponse []struct {

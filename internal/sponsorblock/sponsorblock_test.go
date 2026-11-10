@@ -5,7 +5,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestParseAndSkipSpans(t *testing.T) {
@@ -54,8 +57,10 @@ func TestYouTubeID(t *testing.T) {
 }
 
 func TestFetch(t *testing.T) {
+	var calls atomic.Int32
 	client := &Client{
 		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
 			if r.URL.Query().Get("videoID") != "dQw4w9WgXcQ" {
 				t.Errorf("video id %q", r.URL.Query().Get("videoID"))
 			}
@@ -73,6 +78,229 @@ func TestFetch(t *testing.T) {
 	}
 	if len(segments) != 1 || segments[0].Start != 1000 || segments[0].End != 2000 {
 		t.Fatalf("segments %+v", segments)
+	}
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"}); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("cache miss, calls %d", calls.Load())
+	}
+}
+
+func TestFetchDedupesConcurrentRequests(t *testing.T) {
+	var calls atomic.Int32
+	release := make(chan struct{})
+	entered := make(chan struct{}, 1)
+	client := &Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			select {
+			case entered <- struct{}{}:
+			default:
+			}
+			<-release
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`[{"segments":[{"segment":[1,2],"category":"sponsor"}]}]`)),
+				Header:     http.Header{},
+			}, nil
+		})},
+		BaseURL: "https://sponsor.example/api/skipSegments",
+	}
+
+	const workers = 8
+	var wait sync.WaitGroup
+	var started sync.WaitGroup
+	wait.Add(workers)
+	started.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			defer wait.Done()
+			started.Done()
+			got, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"})
+			if err != nil || len(got) != 1 {
+				t.Errorf("concurrent fetch %v %v", got, err)
+			}
+		}()
+	}
+	started.Wait()
+	<-entered
+	time.Sleep(50 * time.Millisecond)
+	close(release)
+	wait.Wait()
+
+	if calls.Load() != 1 {
+		t.Fatalf("http calls %d, want 1", calls.Load())
+	}
+}
+
+func TestFetchCancelDoesNotFailWaiters(t *testing.T) {
+	release := make(chan struct{})
+	entered := make(chan struct{}, 1)
+	client := &Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			select {
+			case entered <- struct{}{}:
+			default:
+			}
+			<-release
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`[{"segments":[{"segment":[1,2],"category":"sponsor"}]}]`)),
+				Header:     http.Header{},
+			}, nil
+		})},
+		BaseURL: "https://sponsor.example/api/skipSegments",
+	}
+
+	leaderCtx, cancelLeader := context.WithCancel(context.Background())
+	leaderErr := make(chan error, 1)
+	go func() {
+		_, err := client.Fetch(leaderCtx, "dQw4w9WgXcQ", []string{"sponsor"})
+		leaderErr <- err
+	}()
+	<-entered
+
+	waiterDone := make(chan []Segment, 1)
+	waiterErr := make(chan error, 1)
+	go func() {
+		got, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"})
+		waiterDone <- got
+		waiterErr <- err
+	}()
+	time.Sleep(20 * time.Millisecond)
+
+	cancelLeader()
+	if err := <-leaderErr; err == nil {
+		t.Fatal("leader should report its own cancellation")
+	}
+	close(release)
+
+	if err := <-waiterErr; err != nil {
+		t.Fatalf("waiter failed with the leader's cancellation: %v", err)
+	}
+	if got := <-waiterDone; len(got) != 1 {
+		t.Fatalf("waiter segments %+v", got)
+	}
+}
+
+func TestFetchRecoversFromPanic(t *testing.T) {
+	var calls atomic.Int32
+	client := &Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if calls.Add(1) == 1 {
+				panic("transport exploded")
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`[{"segments":[{"segment":[1,2],"category":"sponsor"}]}]`)),
+				Header:     http.Header{},
+			}, nil
+		})},
+		BaseURL: "https://sponsor.example/api/skipSegments",
+	}
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"}); err == nil {
+		t.Fatal("expected panic to surface as an error")
+	}
+
+	done := make(chan struct{})
+	var got []Segment
+	var err error
+	go func() {
+		defer close(done)
+		got, err = client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"})
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("inflight entry leaked after panic; second fetch blocked")
+	}
+	if err != nil || len(got) != 1 {
+		t.Fatalf("retry after panic %v %v", got, err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("http calls %d, want 2", calls.Load())
+	}
+}
+
+func TestFetchCacheKeyIgnoresCategoryOrder(t *testing.T) {
+	var calls atomic.Int32
+	client := &Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`[]`)),
+				Header:     http.Header{},
+			}, nil
+		})},
+		BaseURL: "https://sponsor.example/api/skipSegments",
+	}
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor", "intro"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"intro", "sponsor"}); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("http calls %d, want 1", calls.Load())
+	}
+}
+
+func TestFetchExpiresCache(t *testing.T) {
+	var calls atomic.Int32
+	client := &Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			calls.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`[]`)),
+				Header:     http.Header{},
+			}, nil
+		})},
+		BaseURL:  "https://sponsor.example/api/skipSegments",
+		CacheTTL: 20 * time.Millisecond,
+	}
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"}); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(40 * time.Millisecond)
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"}); err != nil {
+		t.Fatal(err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("http calls %d, want 2", calls.Load())
+	}
+}
+
+func TestFetchDoesNotCacheErrors(t *testing.T) {
+	var calls atomic.Int32
+	client := &Client{
+		HTTP: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if calls.Add(1) == 1 {
+				return &http.Response{
+					StatusCode: http.StatusInternalServerError,
+					Body:       io.NopCloser(strings.NewReader(`boom`)),
+					Header:     http.Header{},
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`[{"segments":[{"segment":[1,2],"category":"sponsor"}]}]`)),
+				Header:     http.Header{},
+			}, nil
+		})},
+		BaseURL: "https://sponsor.example/api/skipSegments",
+	}
+	if _, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"}); err == nil {
+		t.Fatal("expected error")
+	}
+	got, err := client.Fetch(context.Background(), "dQw4w9WgXcQ", []string{"sponsor"})
+	if err != nil || len(got) != 1 {
+		t.Fatalf("retry %v %v", got, err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("http calls %d, want 2", calls.Load())
 	}
 }
 
