@@ -225,6 +225,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.rate = 1.5
 	d.loop = false
 	d.pauseBackground = false
+	d.inhibitScreensaver = false
 	d.sponsorEnabled = true
 	d.sponsorModes[0] = "Show"
 	d.stayOnTop = true
@@ -251,6 +252,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if a.pauseBackground {
 		t.Fatal("pause background not applied")
+	}
+	if a.inhibitScreensaver {
+		t.Fatal("screensaver setting not applied")
 	}
 	if !a.sponsorEnabled.Load() || a.sponsorModes["sponsor"] != "show" {
 		t.Fatalf("sponsor settings %v %q", a.sponsorEnabled.Load(), a.sponsorModes["sponsor"])
