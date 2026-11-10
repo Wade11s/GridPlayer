@@ -116,6 +116,9 @@ type app struct {
 	fillLimit           int
 	pauseBackground     bool
 	backgroundPaused    map[*cell]bool
+	stayOnTop           bool
+	startMaximized      bool
+	startFullscreen     bool
 	closed              atomic.Bool
 	status              string
 	doc                 *playlist.Document
@@ -209,6 +212,9 @@ func (a *app) loadSettings() {
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
 	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
+	a.stayOnTop = st.Get("player/stay_on_top", "false") == "true"
+	a.startMaximized = st.Get("player/start_maximized", "false") == "true"
+	a.startFullscreen = st.Get("player/start_fullscreen", "false") == "true"
 	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
 		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
@@ -462,6 +468,9 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/cell_view_mode", view)
 	a.settings.Set("player/language", a.language)
 	a.settings.Set("playlist/pause_background_videos", fmt.Sprint(a.pauseBackground))
+	a.settings.Set("player/stay_on_top", fmt.Sprint(a.stayOnTop))
+	a.settings.Set("player/start_maximized", fmt.Sprint(a.startMaximized))
+	a.settings.Set("player/start_fullscreen", fmt.Sprint(a.startFullscreen))
 	a.settings.Set("video_defaults/aspect_ratio", a.aspect)
 	a.settings.Set("video_defaults/scale", fmt.Sprintf("%g", a.scale))
 	a.settings.Set("video_defaults/zoom", fmt.Sprintf("%g", a.defaultZoom))
@@ -3425,6 +3434,9 @@ func main() {
 			Width:          1280,
 			Height:         720,
 			UseContentSize: true,
+			AlwaysOnTop:    a.stayOnTop,
+			Maximized:      a.startMaximized && !a.startFullscreen,
+			FullScreen:     a.startFullscreen,
 			Content:        ui.View(a.view),
 		}
 		if a.settings != nil {

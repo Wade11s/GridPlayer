@@ -32,6 +32,9 @@ type settingsDraft struct {
 	pauseBackground bool
 	sponsorEnabled  bool
 	sponsorModes    []string
+	stayOnTop       bool
+	startMaximized  bool
+	startFullscreen bool
 
 	layout     string
 	rows       string
@@ -103,6 +106,9 @@ func defaultSettingsDraft() settingsDraft {
 		language:        "English",
 		pauseBackground: true,
 		sponsorModes:    defaultSponsorModes(),
+		stayOnTop:       false,
+		startMaximized:  false,
+		startFullscreen: false,
 		layout:          "Auto Rows",
 		rows:            "3",
 		cols:            "3",
@@ -214,6 +220,13 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Pause videos when minimized"), func() {
 			ui.Checkbox(c, &d.pauseBackground, "Pause when the window loses focus")
+		})
+		ui.Field(c, "Window", func() {
+			ui.Column(c).Gap(4).Children(func() {
+				ui.Checkbox(c, &d.stayOnTop, "Always on top")
+				ui.Checkbox(c, &d.startMaximized, "Start maximized")
+				ui.Checkbox(c, &d.startFullscreen, "Start full screen")
+			})
 		})
 	})
 }
@@ -460,6 +473,9 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.loop = a.defaultLoop
 	d.language = i18n.Name(a.language)
 	d.pauseBackground = a.pauseBackground
+	d.stayOnTop = a.stayOnTop
+	d.startMaximized = a.startMaximized
+	d.startFullscreen = a.startFullscreen
 	d.sponsorEnabled = a.sponsorEnabled.Load()
 	a.sponsorMu.Lock()
 	for i, category := range sponsorblock.Categories {
@@ -539,6 +555,12 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.loadTranslator()
 	a.pauseBackground = d.pauseBackground
 	a.sponsorEnabled.Store(d.sponsorEnabled)
+	a.stayOnTop = d.stayOnTop
+	a.startMaximized = d.startMaximized
+	a.startFullscreen = d.startFullscreen
+	if a.win != nil {
+		a.win.SetAlwaysOnTop(a.stayOnTop)
+	}
 	if a.sponsorModes == nil {
 		a.sponsorModes = sponsorblock.DefaultModes()
 	}

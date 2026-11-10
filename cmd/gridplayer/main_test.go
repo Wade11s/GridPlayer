@@ -227,6 +227,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.pauseBackground = false
 	d.sponsorEnabled = true
 	d.sponsorModes[0] = "Show"
+	d.stayOnTop = true
+	d.startMaximized = true
+	d.startFullscreen = true
 	d.snap = false
 	d.overlap = false
 	d.view = "Fit (contain)"
@@ -251,6 +254,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if !a.sponsorEnabled.Load() || a.sponsorModes["sponsor"] != "show" {
 		t.Fatalf("sponsor settings %v %q", a.sponsorEnabled.Load(), a.sponsorModes["sponsor"])
+	}
+	if !a.stayOnTop || !a.startMaximized || !a.startFullscreen {
+		t.Fatalf("window settings %v %v %v", a.stayOnTop, a.startMaximized, a.startFullscreen)
 	}
 	if a.fill || a.stretch {
 		t.Fatalf("view fill=%v stretch=%v", a.fill, a.stretch)
