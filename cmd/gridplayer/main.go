@@ -80,7 +80,7 @@ type cell struct {
 	failStreak     int
 	netFailStreak  int
 	skipGen        uint64
-	sponsorSkipEnd int64
+	sponsorSkipEnd atomic.Int64
 	loop           bool
 	advancing      bool
 	endedGen       uint64
@@ -850,6 +850,18 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 	}()
 }
 
+func (a *app) resetSponsor(c *cell, raw string) {
+	if c == nil {
+		return
+	}
+	a.sponsorMu.Lock()
+	delete(a.sponsorSpans, c)
+	delete(a.sponsorLoading, c)
+	a.sponsorMu.Unlock()
+	c.sponsorSkipEnd.Store(0)
+	a.fetchSponsor(c, raw)
+}
+
 func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 	if c == nil || eng == nil || !a.sponsorEnabled.Load() || s.Phase != engine.Playing || s.Length <= 0 {
 		return
@@ -859,7 +871,7 @@ func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 	a.sponsorMu.Unlock()
 	span, ok := sponsorblock.SpanAt(spans, s.Time)
 	if !ok {
-		c.sponsorSkipEnd = 0
+		c.sponsorSkipEnd.Store(0)
 		return
 	}
 	if span.End-s.Time < sponsorblock.SkipMinMS {
@@ -869,10 +881,10 @@ func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 	if s.Length > 0 && span.End >= s.Length-sponsorblock.SkipEndMargin {
 		target = s.Length
 	}
-	if target == c.sponsorSkipEnd {
+	if target == c.sponsorSkipEnd.Load() {
 		return
 	}
-	c.sponsorSkipEnd = target
+	c.sponsorSkipEnd.Store(target)
 	eng.SeekTo(target)
 }
 
@@ -953,6 +965,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		}
 		c.eng, c.view, c.clip = eng, view, clip
 		go a.watch(c, eng)
+		a.fetchSponsor(c, c.path)
 		go a.autoReloadLoop(c, eng)
 	}
 	nativehost.SetFrame(c.clip, nativehost.ToMac(nativehost.DIP(r), h))
@@ -1151,7 +1164,7 @@ func (a *app) advanceList(c *cell) {
 	c.path = c.list[next]
 	c.startAt = 0
 	c.retries.Store(0)
-	c.sponsorSkipEnd = 0
+	a.resetSponsor(c, c.path)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {
@@ -1199,7 +1212,7 @@ func (a *app) previousList(c *cell) {
 	c.path = c.list[prev]
 	c.startAt = 0
 	c.retries.Store(0)
-	c.sponsorSkipEnd = 0
+	a.resetSponsor(c, c.path)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {
@@ -1408,6 +1421,7 @@ func (a *app) loadListIndex(c *cell, index int) {
 	c.path = c.list[index]
 	c.startAt = 0
 	c.retries.Store(0)
+	a.resetSponsor(c, c.path)
 	if c.eng != nil {
 		c.eng.SetStartPosition(0)
 		if err := c.eng.Load(c.path); err != nil {

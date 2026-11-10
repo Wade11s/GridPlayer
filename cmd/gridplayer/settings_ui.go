@@ -550,7 +550,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.sponsorLoading = map[*cell]bool{}
 	a.sponsorMu.Unlock()
 	for _, cell := range a.cells {
-		cell.sponsorSkipEnd = 0
+		cell.sponsorSkipEnd.Store(0)
 	}
 	for _, cell := range a.cells {
 		a.fetchSponsor(cell, cell.source)
