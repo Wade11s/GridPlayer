@@ -65,7 +65,7 @@ width=900
 height=532
 ```
 
-The app restores grid mode/size, Fill/Fit, default volume/mute, window
+The app restores grid mode/size, grid line visibility, Fill/Fit, default volume/mute, window
 bounds, window behavior, background pause, screensaver inhibition, language,
 network resolver options, SponsorBlock categories, and the recent list
 (`app/recent`, a JSON array). Unknown keys and sections survive a load/save.

@@ -1702,7 +1702,7 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	if active {
 		border = ui.RGB(90, 150, 255)
 	} else if a.showGridLines {
-		border = ui.RGBA(255, 255, 255, 40)
+		border = ui.RGBA(1, 1, 1, 0.16)
 	}
 	s := engine.Snapshot{Phase: engine.Idle}
 	if cell.eng != nil {
@@ -1724,7 +1724,10 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	el := base.Border(2, border).
 		Draw(func(p *ui.Painter, box ui.Rect) {
 			a.ensure(i, r)
-			p.Hole(box, [4]float32{0, 0, 0, 0})
+			if box.W > 4 && box.H > 4 {
+				inner := ui.Rect{X: box.X + 2, Y: box.Y + 2, W: box.W - 4, H: box.H - 4}
+				p.Hole(inner, [4]float32{4, 4, 4, 4})
+			}
 		}).
 		Children(func() {
 			badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)
