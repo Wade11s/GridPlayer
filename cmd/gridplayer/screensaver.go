@@ -2,7 +2,9 @@ package main
 
 import (
 	"log"
+	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 )
 
@@ -18,20 +20,27 @@ func (g *screensaverGuard) Enable(enabled bool) {
 	if enabled == g.active {
 		return
 	}
-	g.active = enabled
 	if !enabled {
 		if g.cmd != nil && g.cmd.Process != nil {
 			_ = g.cmd.Process.Kill()
 		}
 		g.cmd = nil
+		g.active = false
 		return
 	}
-	cmd := exec.Command("caffeinate", "-d", "-i")
+	path, err := exec.LookPath("caffeinate")
+	if err != nil {
+		path = "/usr/bin/caffeinate"
+	}
+	cmd := exec.Command(path, "-d", "-i", "-w", strconv.Itoa(os.Getpid()))
 	if err := cmd.Start(); err != nil {
 		log.Printf("screensaver: %v", err)
+		g.cmd = nil
+		g.active = false
 		return
 	}
 	g.cmd = cmd
+	g.active = true
 	go func() {
 		_ = cmd.Wait()
 	}()

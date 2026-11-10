@@ -224,7 +224,7 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 			ui.Checkbox(c, &d.pauseBackground, "Pause when the window loses focus")
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Disable screensaver while playing"), func() {
-			ui.Checkbox(c, &d.inhibitScreensaver, "Keep the display awake")
+			ui.Checkbox(c, &d.inhibitScreensaver, a.tr("SettingsDialog", "Keep the display awake"))
 		})
 		ui.Field(c, "Window", func() {
 			ui.Column(c).Gap(4).Children(func() {
