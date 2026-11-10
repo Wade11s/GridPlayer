@@ -34,8 +34,9 @@ Rules:
   app keep their data even where this build does not use it yet.
 - Writes are atomic (temp file + rename).
 - The app saves position, mute, volume, rate, view mode, playback state and
-  the grid subset. Bookmarks, lists, snapshots and the legacy
-  `#GRIDPLAYER` text format are later increments.
+  the grid subset. Per-video state also includes `audio_delay_ms`,
+  `subtitle_delay_ms`, `loop_start`, `loop_end`, `transform`, `end_action`,
+  `list_fail`, `list_fail_wait`, and `grid_template`.
 - `--playlist PATH` loads at startup; File → Open/Save/Save As manage the
   document. Closing with unsaved structural changes asks Save / Discard /
   Cancel; `--autoquit` skips the prompt for automation.
@@ -65,9 +66,11 @@ height=532
 ```
 
 The app restores grid mode/size, Fill/Fit, default volume/mute, window
-bounds and the recent list (`app/recent`, a JSON array). Unknown keys and
-sections survive a load/save. Settings are written atomically.
+bounds, window behavior, background pause, screensaver inhibition, language,
+network resolver options, SponsorBlock categories, and the recent list
+(`app/recent`, a JSON array). Unknown keys and sections survive a load/save.
+Settings are written atomically.
 
-Not implemented yet: the full settings dialog, per-setting UI, keymap
-overrides, tray/media-key options, and legacy key migrations beyond the
-ones this build reads.
+Not implemented yet: tray/close-to-tray behavior, videos-per-process,
+a selectable macOS driver, and legacy key migrations beyond the ones this
+build reads.
