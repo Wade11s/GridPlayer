@@ -88,6 +88,7 @@ type app struct {
 	cells               []*cell
 	active              int
 	cfg                 grid.Config
+	template            string
 	fill                bool
 	stretch             bool
 	single              bool
@@ -194,6 +195,10 @@ func (a *app) loadSettings() {
 		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
 		Rows: atoi(st.Get("playlist/grid_rows", "3"), 3),
 		Cols: atoi(st.Get("playlist/grid_cols", "3"), 3),
+	}
+	a.template = st.Get("playlist/grid_template", "")
+	if _, ok := grid.FindTemplate(a.template); !ok || a.cfg.Mode != grid.Fixed {
+		a.template = ""
 	}
 	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
 	a.free = st.Get("playlist/grid_free", "false") == "true"
@@ -382,6 +387,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_mode", modeName(a.cfg.Mode))
 	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
+	a.settings.Set("playlist/grid_template", a.template)
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
 	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snap))
@@ -1442,6 +1448,13 @@ func (a *app) view(c *ui.Context) {
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	a.freeArea = [2]float64{float64(w), float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
+	if a.template != "" {
+		if template, ok := grid.FindTemplate(a.template); ok {
+			if templateRects := grid.TemplateLayout(len(a.cells), area, 4, template); templateRects != nil {
+				rects = templateRects
+			}
+		}
+	}
 	if a.mosaic {
 		a.ensureMosaic()
 		tiles := a.mosaicTiles
@@ -2027,8 +2040,29 @@ func playableDirect(raw string) bool {
 
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
+	a.template = ""
 	a.dirty = true
 	a.saveSettings()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+func (a *app) setTemplate(name string) {
+	template, ok := grid.FindTemplate(name)
+	if !ok {
+		return
+	}
+	if len(a.cells) > len(template.Places()) {
+		a.status = "template has no room for all cells"
+		return
+	}
+	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols}
+	a.template = name
+	a.free, a.mosaic, a.single = false, false, false
+	a.dirty = true
+	a.saveSettings()
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -2230,6 +2264,13 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 	if mode, rows, cols := d.GridState(); mode != "" {
 		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
 	}
+	a.template = ""
+	var templateName string
+	if getRawSetting(d, "grid_template", &templateName) {
+		if _, ok := grid.FindTemplate(templateName); ok && a.cfg.Mode == grid.Fixed {
+			a.template = templateName
+		}
+	}
 	a.free, a.mosaic, a.single = false, false, false
 	a.singleShare = nil
 	layout := ""
@@ -2333,6 +2374,11 @@ func (a *app) document() *playlist.Document {
 		d.Videos[i] = v
 	}
 	d.SetGridState(modeName(a.cfg.Mode), a.cfg.Rows, a.cfg.Cols)
+	if a.template != "" {
+		setRawSetting(d, "grid_template", a.template)
+	} else {
+		delete(d.Settings, "grid_template")
+	}
 	setRawSetting(d, "grid_layout", a.layoutName())
 	if a.single {
 		setRawSetting(d, "single_side", stripSideName(a.singleSide))
@@ -2815,6 +2861,16 @@ func (a *app) menu() *mygo.Menu {
 		&mygo.MenuItem{Type: mygo.MenuItemSeparator},
 		&mygo.MenuItem{Label: "Delete", Submenu: snapshotRemove},
 	)
+	templateItems := make([]*mygo.MenuItem, 0, len(grid.Templates))
+	for _, template := range grid.Templates {
+		name := template.Name
+		templateItems = append(templateItems, &mygo.MenuItem{
+			Label:   name,
+			Checked: a.template == name,
+			Type:    mygo.MenuItemRadio,
+			Click:   func(*mygo.MenuItem, *mygo.Window) { a.setTemplate(name) },
+		})
+	}
 	return mygo.NewMenu([]*mygo.MenuItem{
 		{Role: mygo.RoleAppMenu},
 		{Label: a.tr("Actions", "File"), Submenu: []*mygo.MenuItem{
@@ -2946,6 +3002,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Fixed 4×4", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4})
 			}},
+			{Label: "Templates", Submenu: templateItems},
 			{Label: "Free Tiles", Type: mygo.MenuItemCheckbox, Checked: a.free, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.free = !a.free
 				if a.free {

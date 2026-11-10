@@ -539,6 +539,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		}
 	}
 	oldCfg, oldFree, oldMosaic, oldSingle := a.cfg, a.free, a.mosaic, a.single
+	a.template = ""
 	switch d.layout {
 	case "Auto Columns":
 		a.cfg = grid.Config{Mode: grid.AutoCols}
