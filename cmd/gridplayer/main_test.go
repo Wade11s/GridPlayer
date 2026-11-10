@@ -929,6 +929,25 @@ func TestDocumentPersistsListFail(t *testing.T) {
 	}
 }
 
+func TestDocumentPersistsGridTemplate(t *testing.T) {
+	a := &app{
+		cells:    []*cell{{path: "a.mp4"}},
+		cfg:      grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 3},
+		template: "1 + 2",
+	}
+	document := a.document()
+	var name string
+	if !getRawSetting(document, "grid_template", &name) || name != "1 + 2" {
+		t.Fatalf("template %q", name)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.setPlaylist([]string{"a.mp4"})
+	b.applyDocument(document, "")
+	if b.template != "1 + 2" || b.cfg.Mode != grid.Fixed || b.cfg.Rows != 2 || b.cfg.Cols != 3 {
+		t.Fatalf("restored template %q cfg %+v", b.template, b.cfg)
+	}
+}
+
 func TestFinishVideoSteps(t *testing.T) {
 	next := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 0, listEnd: "loop", endAction: endNext, path: "a.mp4"}
 	a := &app{cells: []*cell{next}}
