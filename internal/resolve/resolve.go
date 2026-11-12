@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -97,7 +98,7 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 		failures = append(failures, "yt-dlp: "+err.Error())
 	}
 	if u.Scheme != "file" && r.Streamlink != "" {
-		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw))
+		got, err := r.resolveStreamlink(ctx, u, raw)
 		if err == nil {
 			return got, nil
 		}
@@ -131,11 +132,68 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 	return append(args, "--", raw)
 }
 
-func (r *Resolver) streamlinkArgs(raw string) []string {
+// resolveStreamlink prefers streamlink's own cookies file handling, which lets
+// streamlink apply the jar's attributes and keeps cookie values off the
+// command line. Older streamlink releases lack the flag, so a failure that
+// names the option falls back to per-cookie arguments.
+func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
+	path := strings.TrimSpace(r.Cookies)
+	file := usableCookieFile(path)
+	cookies := cookiesForHost(path, u, time.Now())
+	if file == "" {
+		return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
+	}
+	// Streamlink loads the jar itself, so only the cookies its loader drops
+	// (session cookies) are passed separately.
+	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, file, sessionCookies(cookies)))
+	if err == nil {
+		return got, nil
+	}
+	if !unsupportedCookieFileOption(err) {
+		return got, err
+	}
+	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
+}
+
+// usableCookieFile returns path when it is a regular file of at most 4 MiB, so
+// a FIFO or device can never block the resolve and a huge file is not read.
+func usableCookieFile(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 4<<20 {
+		return ""
+	}
+	return path
+}
+
+// unsupportedCookieFileOption reports whether streamlink rejected the flag
+// itself, which is the only case a per-cookie retry can help with. A jar the
+// loader refuses stays a hard error.
+func unsupportedCookieFileOption(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	if !strings.Contains(message, "http-cookies-file") {
+		return false
+	}
+	return strings.Contains(message, "no such option") ||
+		strings.Contains(message, "unrecognized arguments") ||
+		strings.Contains(message, "unknown option")
+}
+
+func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
 	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
 	}
+	if cookieFile != "" {
+		args = append(args, "--http-cookies-file", cookieFile)
+	}
+	args = append(args, cookieArgs(cookies)...)
 	return append(args, "--", raw)
 }
 
