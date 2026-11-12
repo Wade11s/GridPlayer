@@ -137,72 +137,63 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 // command line. Older streamlink releases lack the flag, so a failure that
 // names the option falls back to per-cookie arguments.
 func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
-	cookieFile, cookies := inspectCookieJar(r.Cookies, u)
-	if cookieFile == "" {
-		return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies, false))
+	path := strings.TrimSpace(r.Cookies)
+	file := usableCookieFile(path)
+	cookies := cookiesForHost(path, u, time.Now())
+	if file == "" {
+		return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
 	}
-	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, cookieFile, cookies, true))
+	// Streamlink loads the jar itself, so only the cookies its loader drops
+	// (session cookies) are passed separately.
+	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, file, sessionCookies(cookies)))
 	if err == nil {
 		return got, nil
 	}
-	if len(cookies) == 0 || !cookieFileProblem(err) {
+	if !unsupportedCookieFileOption(err) {
 		return got, err
 	}
-	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, cookieFile, cookies, false))
+	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
 }
 
-// inspectCookieJar returns a path streamlink can safely load, plus the cookies
-// our own parser found for this URL. A path is only returned when the file
-// starts with the Netscape magic line and holds at least one usable cookie,
-// because streamlink treats a bad jar as a fatal error rather than ignoring it.
-func inspectCookieJar(path string, u *url.URL) (string, []cookiePair) {
+// usableCookieFile returns path when it is a regular file of at most 4 MiB, so
+// a FIFO or device can never block the resolve and a huge file is not read.
+func usableCookieFile(path string) string {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return "", nil
+		return ""
 	}
 	info, err := os.Stat(path)
-	if err != nil || info.IsDir() || info.Size() > 4<<20 {
-		return "", nil
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 4<<20 {
+		return ""
 	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", nil
-	}
-	now := time.Now()
-	lenient := parseCookies(data, u, now)
-	persistent, ok := parseStrict(data, u, now)
-	if !ok || len(persistent) == 0 {
-		// The jar cannot be handed to streamlink, but the lenient parse can
-		// still feed per-cookie arguments (this is how session cookies reach
-		// the fallback path).
-		return "", lenient
-	}
-	return path, lenient
+	return path
 }
 
-// cookieFileProblem reports whether a streamlink failure is about the cookies
-// file rather than the stream itself, so a retry with per-cookie arguments can
-// help.
-func cookieFileProblem(err error) bool {
+// unsupportedCookieFileOption reports whether streamlink rejected the flag
+// itself, which is the only case a per-cookie retry can help with. A jar the
+// loader refuses stays a hard error.
+func unsupportedCookieFileOption(err error) bool {
 	if err == nil {
 		return false
 	}
 	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "cookie")
+	if !strings.Contains(message, "http-cookies-file") {
+		return false
+	}
+	return strings.Contains(message, "no such option") ||
+		strings.Contains(message, "unrecognized arguments") ||
+		strings.Contains(message, "unknown option")
 }
 
-func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair, useFile bool) []string {
+func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
 	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
 	}
 	if cookieFile != "" {
-		if useFile {
-			args = append(args, "--http-cookies-file", cookieFile)
-		} else {
-			args = append(args, cookieArgs(cookies)...)
-		}
+		args = append(args, "--http-cookies-file", cookieFile)
 	}
+	args = append(args, cookieArgs(cookies)...)
 	return append(args, "--", raw)
 }
 
