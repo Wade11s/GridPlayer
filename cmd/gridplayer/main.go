@@ -124,6 +124,7 @@ type app struct {
 	scale               float64
 	crop                string
 	fillLimit           int
+	zoomToCursor        bool
 	pauseBackground     bool
 	backgroundPaused    map[*cell]bool
 	inhibitScreensaver  bool
@@ -228,6 +229,7 @@ func (a *app) loadSettings() {
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
 	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
+	a.zoomToCursor = st.Get("player/zoom_to_cursor", "false") == "true"
 	a.inhibitScreensaver = st.Get("player/inhibit_screensaver", "true") == "true"
 	a.screensaver.Enable(a.inhibitScreensaver)
 	a.stayOnTop = st.Get("player/stay_on_top", "false") == "true"
@@ -503,6 +505,7 @@ func (a *app) saveSettings() {
 	}
 	a.settings.Set("video_defaults/crop_ratio", a.crop)
 	a.settings.Set("video_defaults/fill_limit", fmt.Sprint(a.fillLimit))
+	a.settings.Set("player/zoom_to_cursor", fmt.Sprint(a.zoomToCursor))
 	a.settings.Set("video_defaults/volume", fmt.Sprintf("%.2f", float64(a.defaultVolume)/100))
 	a.settings.Set("video_defaults/muted", fmt.Sprint(a.defaultMuted))
 	a.settings.Set("video_defaults/rate", fmt.Sprintf("%g", a.defaultRate))
@@ -1022,12 +1025,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		}
 		c.eng.SetScale(a.scale)
 	}
-	shape := videoShape{W: float64(s.Width), H: float64(s.Height)}
-	crop := c.cropMargins.combined(parseCropRatio(a.crop, shape))
-	crop = transformCrop(crop, c.transform)
-	if isSideTransform(c.transform) {
-		shape.W, shape.H = shape.H, shape.W
-	}
+	shape, crop := a.cellShape(c, s)
 	place := placePicture(shape,
 		r.W, r.H, fill, stretch, viewZoom{Scale: c.zoom, Crop: crop, FillLimit: a.fillLimit, AnchorX: c.anchorX, AnchorY: c.anchorY, ShiftX: c.shiftX, ShiftY: c.shiftY})
 	nativehost.SetFrame(c.view, nativehost.ToMac(
@@ -1745,6 +1743,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 				inner := ui.Rect{X: box.X + 2, Y: box.Y + 2, W: box.W - 4, H: box.H - 4}
 				p.Hole(inner, [4]float32{4, 4, 4, 4})
 			}
+		}).
+		HandleInput(func(ev ui.InputEvent) bool {
+			return a.zoomInput(i, ev, r, s)
 		}).
 		Children(func() {
 			badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)
