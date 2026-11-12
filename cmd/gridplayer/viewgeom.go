@@ -190,37 +190,7 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 	if rw <= 0 || rh <= 0 || cellW <= 0 || cellH <= 0 {
 		return picturePlace{W: cellW, H: cellH}
 	}
-	// Size the kept region inside the cell.
-	vw, vh := cellW, cellH
-	if !stretch {
-		picAspect := rw / rh
-		cellAspect := cellW / cellH
-		if fill && v.FillLimit < 100 {
-			fitX := cellW / rw
-			fitY := cellH / rh
-			cut := 1 - math.Min(fitX, fitY)/math.Max(fitX, fitY)
-			if cut*100 > float64(v.FillLimit)+1e-9 {
-				fill = false
-			}
-		}
-		if fill {
-			if cellAspect > picAspect {
-				vw, vh = cellW, cellW/picAspect
-			} else {
-				vh, vw = cellH, cellH*picAspect
-			}
-		} else {
-			if cellAspect > picAspect {
-				vh, vw = cellH, cellH*picAspect
-			} else {
-				vw, vh = cellW, cellW/picAspect
-			}
-		}
-		if v.Scale > 0 {
-			vw *= v.Scale
-			vh *= v.Scale
-		}
-	}
+	vw, vh := keptSize(rw, rh, cellW, cellH, fill, stretch, v.FillLimit, v.Scale)
 	ax, ay := v.AnchorX, v.AnchorY
 	if v.Scale <= 0 {
 		ax, ay = 0.5, 0.5
@@ -247,7 +217,44 @@ func placePicture(video videoShape, cellW, cellH float64, fill, stretch bool, v 
 	}
 }
 
-// clampZoom clamps a zoom to the range the app offers: 0.25x to 4x.
+// keptSize sizes the cropped region inside the cell before the anchor and
+// shift place it.
+func keptSize(rw, rh, cellW, cellH float64, fill, stretch bool, fillLimit int, scale float64) (float64, float64) {
+	// Size the kept region inside the cell.
+	vw, vh := cellW, cellH
+	if !stretch {
+		picAspect := rw / rh
+		cellAspect := cellW / cellH
+		if fill && fillLimit < 100 {
+			fitX := cellW / rw
+			fitY := cellH / rh
+			cut := 1 - math.Min(fitX, fitY)/math.Max(fitX, fitY)
+			if cut*100 > float64(fillLimit)+1e-9 {
+				fill = false
+			}
+		}
+		if fill {
+			if cellAspect > picAspect {
+				vw, vh = cellW, cellW/picAspect
+			} else {
+				vh, vw = cellH, cellH*picAspect
+			}
+		} else {
+			if cellAspect > picAspect {
+				vh, vw = cellH, cellH*picAspect
+			} else {
+				vw, vh = cellW, cellW/picAspect
+			}
+		}
+		if scale > 0 {
+			vw *= scale
+			vh *= scale
+		}
+	}
+	return vw, vh
+}
+
+// clampZoom clamps a zoom to the range the app offers: 1x to 10x.
 func clampZoom(scale float64) float64 {
 	return clampFrozenZoom(scale)
 }

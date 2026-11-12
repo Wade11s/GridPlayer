@@ -45,12 +45,13 @@ type settingsDraft struct {
 	showGridLines bool
 	singleSide    string
 
-	view      string
-	aspect    string
-	scale     string
-	crop      string
-	fillLimit string
-	transform string
+	view         string
+	aspect       string
+	scale        string
+	crop         string
+	fillLimit    string
+	transform    string
+	zoomToCursor bool
 
 	subFont         string
 	subSize         string
@@ -125,6 +126,7 @@ func defaultSettingsDraft() settingsDraft {
 		crop:               "None",
 		fillLimit:          "Off",
 		transform:          "None",
+		zoomToCursor:       false,
 		subOutline:         "None",
 		subOpacity:         100,
 		subEncoding:        "Auto",
@@ -330,6 +332,9 @@ func (a *app) settingsVideo(c *ui.Context, d *settingsDraft) {
 		ui.Field(c, a.tr("SettingsDialog", "Transform"), func() {
 			ui.Select(c, &d.transform, transformOptions)
 		})
+		ui.Field(c, a.tr("SettingsDialog", "Zoom"), func() {
+			ui.Checkbox(c, &d.zoomToCursor, "Zoom toward the cursor with the wheel or a pinch")
+		})
 	})
 }
 
@@ -521,6 +526,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.scale = scaleName(a.scale)
 	d.crop = cropName(a.crop)
 	d.fillLimit = fillLimitName(a.fillLimit)
+	d.zoomToCursor = a.zoomToCursor
 	d.transform = transformName(a.defaultTransform)
 	if a.resolver != nil {
 		d.proxy = a.resolver.Proxy
@@ -569,6 +575,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.inhibitScreensaver = d.inhibitScreensaver
 	a.screensaver.Enable(a.inhibitScreensaver)
 	a.sponsorEnabled.Store(d.sponsorEnabled)
+	a.zoomToCursor = d.zoomToCursor
 	a.stayOnTop = d.stayOnTop
 	a.startMaximized = d.startMaximized
 	a.startFullscreen = d.startFullscreen
