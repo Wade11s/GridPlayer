@@ -97,7 +97,7 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 		failures = append(failures, "yt-dlp: "+err.Error())
 	}
 	if u.Scheme != "file" && r.Streamlink != "" {
-		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw))
+		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(u, raw))
 		if err == nil {
 			return got, nil
 		}
@@ -131,10 +131,13 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 	return append(args, "--", raw)
 }
 
-func (r *Resolver) streamlinkArgs(raw string) []string {
+func (r *Resolver) streamlinkArgs(u *url.URL, raw string) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
 	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
+	}
+	if cookies := strings.TrimSpace(r.Cookies); cookies != "" {
+		args = append(args, cookieArgs(cookiesForHost(cookies, u, time.Now()))...)
 	}
 	return append(args, "--", raw)
 }
