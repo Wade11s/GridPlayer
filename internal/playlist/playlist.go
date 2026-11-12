@@ -49,6 +49,8 @@ type Video struct {
 	LoopStart       int64                      `json:"loop_start,omitempty"`
 	LoopEnd         int64                      `json:"loop_end,omitempty"`
 	Transform       string                     `json:"transform,omitempty"`
+	SponsorMode     string                     `json:"sponsor_mode,omitempty"`
+	SponsorModes    map[string]string          `json:"sponsor_modes,omitempty"`
 	Extra           map[string]json.RawMessage `json:"-"`
 }
 
@@ -67,7 +69,8 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
 		"list_fail", "list_fail_wait", "end_action", "audio_delay_ms",
-		"subtitle_delay_ms", "loop_start", "loop_end", "transform"} {
+		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
+		"sponsor_mode", "sponsor_modes"} {
 		delete(all, k)
 	}
 	if len(all) > 0 {

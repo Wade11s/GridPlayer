@@ -421,6 +421,27 @@ func TestDocumentViewMode(t *testing.T) {
 	}
 }
 
+func TestDocumentPersistsSponsorOverrides(t *testing.T) {
+	disabled := false
+	a := &app{cells: []*cell{{
+		path:                   "a.mp4",
+		sponsorOverrideEnabled: &disabled,
+		sponsorOverrideModes:   map[string]string{"intro": "skip"},
+	}}}
+	d := a.document()
+	v := d.Videos[0]
+	if v.SponsorMode != "off" || v.SponsorModes["intro"] != "skip" {
+		t.Fatalf("video %+v", v)
+	}
+
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	c := b.cells[0]
+	if c.sponsorMode() != "off" || c.sponsorOverrideModes["intro"] != "skip" {
+		t.Fatalf("restored mode %q modes %+v", c.sponsorMode(), c.sponsorOverrideModes)
+	}
+}
+
 func TestDocumentPersistsFreeGrid(t *testing.T) {
 	a := &app{
 		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},

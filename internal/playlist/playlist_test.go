@@ -113,3 +113,32 @@ func TestListItemFieldsRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestSponsorOverridesRoundTrip(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"https://youtu.be/dQw4w9WgXcQ","sponsor_mode":"off",` +
+		`"sponsor_modes":{"intro":"skip","selfpromo":"off"}}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.SponsorMode != "off" {
+		t.Fatalf("mode %q", v.SponsorMode)
+	}
+	if v.SponsorModes["intro"] != "skip" || v.SponsorModes["selfpromo"] != "off" {
+		t.Fatalf("modes %+v", v.SponsorModes)
+	}
+	if len(v.Extra) != 0 {
+		t.Fatalf("known fields leaked into extra: %+v", v.Extra)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"sponsor_mode":"off"`, `"intro":"skip"`, `"selfpromo":"off"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+}

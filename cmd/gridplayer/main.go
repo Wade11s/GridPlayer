@@ -82,9 +82,13 @@ type cell struct {
 	skipGen         uint64
 	sponsorSkipEnd  atomic.Int64
 	sponsorFetchGen atomic.Uint64
-	loop            bool
-	advancing       bool
-	endedGen        uint64
+	// sponsorOverrideEnabled is nil when the cell follows the global toggle.
+	sponsorOverrideEnabled *bool
+	// sponsorOverrideModes holds per-category overrides for this cell.
+	sponsorOverrideModes map[string]string
+	loop                 bool
+	advancing            bool
+	endedGen             uint64
 }
 
 type app struct {
@@ -809,30 +813,8 @@ func (a *app) closeCell(c *cell) {
 	a.sponsorMu.Unlock()
 }
 
-func (a *app) sponsorCategories() []string {
-	a.sponsorMu.Lock()
-	defer a.sponsorMu.Unlock()
-	var categories []string
-	for _, category := range sponsorblock.Categories {
-		if a.sponsorModes[category.Name] != "off" {
-			categories = append(categories, category.Name)
-		}
-	}
-	return categories
-}
-
-func (a *app) sponsorModesCopy() map[string]string {
-	a.sponsorMu.Lock()
-	defer a.sponsorMu.Unlock()
-	modes := map[string]string{}
-	for name, mode := range a.sponsorModes {
-		modes[name] = mode
-	}
-	return modes
-}
-
 func (a *app) fetchSponsor(c *cell, raw string) {
-	if c == nil || !a.sponsorEnabled.Load() || a.sponsorClient == nil {
+	if c == nil || !a.sponsorEnabledFor(c) || a.sponsorClient == nil {
 		return
 	}
 	videoID, ok := sponsorblock.YouTubeID(raw)
@@ -847,14 +829,14 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 	a.sponsorLoading[c] = true
 	a.sponsorMu.Unlock()
 	gen := c.sponsorFetchGen.Add(1)
-	categories := a.sponsorCategories()
+	modes := a.sponsorModesFor(c)
+	categories := sponsorCategoriesFrom(modes)
 	if len(categories) == 0 {
 		a.sponsorMu.Lock()
 		delete(a.sponsorLoading, c)
 		a.sponsorMu.Unlock()
 		return
 	}
-	modes := a.sponsorModesCopy()
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
@@ -907,7 +889,7 @@ func (a *app) resetAllSponsor() {
 }
 
 func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
-	if c == nil || eng == nil || !a.sponsorEnabled.Load() || s.Phase != engine.Playing || s.Length <= 0 {
+	if c == nil || eng == nil || !a.sponsorEnabledFor(c) || s.Phase != engine.Playing || s.Length <= 0 {
 		return
 	}
 	a.sponsorMu.Lock()
@@ -2454,6 +2436,8 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.loopStart = v.LoopStart
 		c.loopEnd = v.LoopEnd
 		c.transform = normalizeTransform(v.Transform)
+		c.setSponsorMode(v.SponsorMode)
+		c.sponsorOverrideModes = normalizeSponsorOverrides(v.SponsorModes)
 		if c.eng != nil {
 			reload := c.path != oldPath
 			if reload {
@@ -2479,6 +2463,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				c.eng.Play()
 			}
 		}
+		a.resetSponsor(c, c.path)
 	}
 	if mode, rows, cols := d.GridState(); mode != "" {
 		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
@@ -2585,6 +2570,8 @@ func (a *app) document() *playlist.Document {
 			LoopStart:       c.loopStart,
 			LoopEnd:         c.loopEnd,
 			Transform:       c.transform,
+			SponsorMode:     c.sponsorMode(),
+			SponsorModes:    cloneSponsorOverrides(c.sponsorOverrideModes),
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -3382,6 +3369,7 @@ func (a *app) menu() *mygo.Menu {
 			{Type: mygo.MenuItemSeparator},
 		}, bookmarkItems...)},
 		{Label: a.tr("Actions", "Snapshots"), Submenu: snapshotMenu},
+		{Label: a.tr("Actions", "SponsorBlock"), Submenu: a.sponsorMenuItems()},
 		{Label: a.tr("Actions", "Tracks"), Submenu: []*mygo.MenuItem{
 			{Label: "Load Subtitle File…", Click: func(*mygo.MenuItem, *mygo.Window) { a.addTrack("subtitle") }},
 			{Label: "Load Audio File…", Click: func(*mygo.MenuItem, *mygo.Window) { a.addTrack("audio") }},
