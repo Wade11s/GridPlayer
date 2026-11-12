@@ -141,6 +141,7 @@ type app struct {
 	sponsorClient       *sponsorblock.Client
 	sponsorMu           sync.Mutex
 	sponsorSpans        map[*cell][]sponsorblock.Span
+	sponsorSegments     map[*cell][]sponsorblock.Segment
 	sponsorLoading      map[*cell]bool
 	subtitle            subtitleStyle
 	bookmarks           *bookmarks.Store
@@ -194,6 +195,7 @@ func newApp(paths []string) *app {
 		sponsorModes:       sponsorblock.DefaultModes(),
 		sponsorClient:      sponsorblock.New(),
 		sponsorSpans:       map[*cell][]sponsorblock.Span{},
+		sponsorSegments:    map[*cell][]sponsorblock.Segment{},
 		sponsorLoading:     map[*cell]bool{},
 		subtitle:           subtitleStyle{Opacity: 255},
 	}
@@ -802,6 +804,7 @@ func (a *app) closeCell(c *cell) {
 	c.sponsorFetchGen.Add(1)
 	a.sponsorMu.Lock()
 	delete(a.sponsorSpans, c)
+	delete(a.sponsorSegments, c)
 	delete(a.sponsorLoading, c)
 	a.sponsorMu.Unlock()
 }
@@ -811,7 +814,7 @@ func (a *app) sponsorCategories() []string {
 	defer a.sponsorMu.Unlock()
 	var categories []string
 	for _, category := range sponsorblock.Categories {
-		if a.sponsorModes[category.Name] == "skip" {
+		if a.sponsorModes[category.Name] != "off" {
 			categories = append(categories, category.Name)
 		}
 	}
@@ -837,7 +840,7 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 		return
 	}
 	a.sponsorMu.Lock()
-	if a.sponsorLoading[c] || a.sponsorSpans[c] != nil {
+	if a.sponsorLoading[c] || a.sponsorSpans[c] != nil || a.sponsorSegments[c] != nil {
 		a.sponsorMu.Unlock()
 		return
 	}
@@ -860,6 +863,7 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 		if c.sponsorFetchGen.Load() == gen {
 			delete(a.sponsorLoading, c)
 			if err == nil {
+				a.sponsorSegments[c] = segments
 				a.sponsorSpans[c] = sponsorblock.SkipSpans(segments, modes)
 			}
 		}
@@ -881,10 +885,25 @@ func (a *app) resetSponsor(c *cell, raw string) {
 	c.sponsorFetchGen.Add(1)
 	a.sponsorMu.Lock()
 	delete(a.sponsorSpans, c)
+	delete(a.sponsorSegments, c)
 	delete(a.sponsorLoading, c)
 	a.sponsorMu.Unlock()
 	c.sponsorSkipEnd.Store(0)
 	a.fetchSponsor(c, raw)
+}
+
+// resetAllSponsor drops every cell's spans and segments and fences off any
+// fetch still in flight, so a settings change cannot land stale results.
+func (a *app) resetAllSponsor() {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	for _, c := range a.cells {
+		c.sponsorFetchGen.Add(1)
+		c.sponsorSkipEnd.Store(0)
+	}
+	a.sponsorSpans = map[*cell][]sponsorblock.Span{}
+	a.sponsorSegments = map[*cell][]sponsorblock.Segment{}
+	a.sponsorLoading = map[*cell]bool{}
 }
 
 func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
@@ -1743,6 +1762,7 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 				ui.Text(c, " "+s.Err+" ").Absolute().Top(30).Left(6).FontSize(12).
 					Background(ui.RGBA(120, 0, 0, 210)).TextColor(ui.RGB(255, 255, 255))
 			}
+			a.seekBar(c, i, cell, s)
 			ui.Row(c).Absolute().Left(6).Bottom(6).Gap(4).Children(func() {
 				label := "Play"
 				if s.Phase == engine.Playing {
