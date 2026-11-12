@@ -128,5 +128,5 @@ func (a *app) setSponsorOverride(c *cell, apply func()) {
 	apply()
 	a.dirty = true
 	a.refreshMenu()
-	a.resetSponsor(c, c.source)
+	a.resetSponsor(c, c.path)
 }
