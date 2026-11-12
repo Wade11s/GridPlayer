@@ -138,8 +138,14 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 // names the option falls back to per-cookie arguments.
 func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
 	cookieFile, cookies := inspectCookieJar(r.Cookies, u)
+	if cookieFile == "" {
+		return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies, false))
+	}
 	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, cookieFile, cookies, true))
-	if err == nil || cookieFile == "" || !unsupportedStreamlinkOption(err) {
+	if err == nil {
+		return got, nil
+	}
+	if len(cookies) == 0 || !cookieFileProblem(err) {
 		return got, err
 	}
 	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, cookieFile, cookies, false))
@@ -154,31 +160,35 @@ func inspectCookieJar(path string, u *url.URL) (string, []cookiePair) {
 	if path == "" {
 		return "", nil
 	}
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() || info.Size() > 4<<20 {
+		return "", nil
+	}
 	data, err := os.ReadFile(path)
-	if err != nil || len(data) > 4<<20 {
+	if err != nil {
 		return "", nil
 	}
-	if !bytes.HasPrefix(data, []byte("# Netscape HTTP Cookie File")) {
-		return "", nil
+	now := time.Now()
+	lenient := parseCookies(data, u, now)
+	persistent, ok := parseStrict(data, u, now)
+	if !ok || len(persistent) == 0 {
+		// The jar cannot be handed to streamlink, but the lenient parse can
+		// still feed per-cookie arguments (this is how session cookies reach
+		// the fallback path).
+		return "", lenient
 	}
-	cookies := parseCookies(data, u, time.Now())
-	if len(cookies) == 0 {
-		return "", nil
-	}
-	return path, cookies
+	return path, lenient
 }
 
-func unsupportedStreamlinkOption(err error) bool {
+// cookieFileProblem reports whether a streamlink failure is about the cookies
+// file rather than the stream itself, so a retry with per-cookie arguments can
+// help.
+func cookieFileProblem(err error) bool {
 	if err == nil {
 		return false
 	}
 	message := strings.ToLower(err.Error())
-	if !strings.Contains(message, "http-cookies-file") {
-		return false
-	}
-	return strings.Contains(message, "no such option") ||
-		strings.Contains(message, "unrecognized arguments") ||
-		strings.Contains(message, "unknown option")
+	return strings.Contains(message, "cookie")
 }
 
 func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair, useFile bool) []string {

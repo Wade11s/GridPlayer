@@ -5,15 +5,21 @@ import (
 	"bytes"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 )
 
+// cookieMagic is the header CPython's MozillaCookieJar looks for. It accepts
+// "# Netscape HTTP Cookie File" and "# HTTP Cookie File" case-insensitively.
+var cookieMagic = regexp.MustCompile(`(?i)#( netscape)? http cookie file`)
+
 // cookiePair is one Netscape cookie ready for streamlink's --http-cookie.
 type cookiePair struct {
-	Name  string
-	Value string
+	Name       string
+	Value      string
+	Persistent bool
 }
 
 // cookiesForHost reads a Netscape cookies.txt and returns the cookies that
@@ -60,17 +66,89 @@ func parseCookies(data []byte, u *url.URL, now time.Time) []cookiePair {
 		if cookiePath := fields[2]; !cookiePathMatches(requestPath, cookiePath) {
 			continue
 		}
-		if expiry, err := strconv.ParseInt(fields[4], 10, 64); err == nil && expiry > 0 &&
-			time.Unix(expiry, 0).Before(now) {
+		expiry, err := strconv.ParseInt(fields[4], 10, 64)
+		if err == nil && expiry > 0 && time.Unix(expiry, 0).Before(now) {
 			continue
 		}
 		name, value := fields[5], fields[6]
 		if name == "" {
 			continue
 		}
-		cookies = append(cookies, cookiePair{Name: name, Value: value})
+		cookies = append(cookies, cookiePair{Name: name, Value: value, Persistent: expiry > 0})
 	}
 	return cookies
+}
+
+// parseStrict mirrors what CPython's MozillaCookieJar.load accepts, because
+// streamlink treats a rejected jar as fatal. It returns ok=false on the first
+// line the loader would refuse, and only reports the cookies that survive
+// load() with ignore_discard=false (persistent, unexpired, matching u).
+func parseStrict(data []byte, u *url.URL, now time.Time) (cookies []cookiePair, ok bool) {
+	if u == nil {
+		return nil, false
+	}
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
+	first := true
+	host := strings.ToLower(u.Hostname())
+	requestPath := u.EscapedPath()
+	if requestPath == "" {
+		requestPath = "/"
+	}
+	for scanner.Scan() {
+		raw := scanner.Text()
+		if first {
+			first = false
+			if !cookieMagic.MatchString(raw) {
+				return nil, false
+			}
+			continue
+		}
+		line := strings.TrimPrefix(raw, "#HttpOnly_")
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		fields := strings.Split(line, "\t")
+		if len(fields) != 7 {
+			return nil, false
+		}
+		domain := fields[0]
+		switch strings.ToUpper(fields[1]) {
+		case "TRUE":
+			if !strings.HasPrefix(domain, ".") {
+				return nil, false
+			}
+		case "FALSE":
+			if strings.HasPrefix(domain, ".") {
+				return nil, false
+			}
+		default:
+			return nil, false
+		}
+		session := fields[4] == ""
+		if session {
+			continue
+		}
+		expiry, err := strconv.ParseInt(fields[4], 10, 64)
+		if err != nil {
+			return nil, false
+		}
+		if expiry <= now.Unix() {
+			continue
+		}
+		bareDomain := strings.TrimPrefix(strings.ToLower(domain), ".")
+		if !cookieDomainMatches(host, bareDomain) {
+			continue
+		}
+		if !cookiePathMatches(requestPath, fields[2]) {
+			continue
+		}
+		if fields[5] == "" {
+			continue
+		}
+		cookies = append(cookies, cookiePair{Name: fields[5], Value: fields[6], Persistent: true})
+	}
+	return cookies, true
 }
 
 func cookieDomainMatches(host, domain string) bool {
