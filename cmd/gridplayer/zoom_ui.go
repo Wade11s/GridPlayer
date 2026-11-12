@@ -13,7 +13,7 @@ import (
 // cell's current transform.
 func (a *app) cellShape(c *cell, s engine.Snapshot) (videoShape, cropMargins) {
 	shape := videoShape{W: float64(s.Width), H: float64(s.Height)}
-	crop := c.cropMargins.combined(parseCropRatio(a.crop, shape))
+	crop := clampCropMargins(c.cropMargins, shape).combined(parseCropRatio(a.crop, shape))
 	crop = transformCrop(crop, c.transform)
 	if isSideTransform(c.transform) {
 		shape.W, shape.H = shape.H, shape.W

@@ -121,6 +121,58 @@ func (m cropMargins) combined(other cropMargins) cropMargins {
 	return other
 }
 
+// minCropKeep is the fraction of a frame side that cropping always leaves
+// visible, so a tile can never be cropped away entirely.
+const minCropKeep = 0.05
+
+// clampCropMargins keeps a cell's crop inside its own frame. Each axis must
+// keep at least minCropKeep of the picture; when the requested margins exceed
+// that, both sides are scaled back proportionally instead of one side winning.
+func clampCropMargins(m cropMargins, video videoShape) cropMargins {
+	m.Left = max(m.Left, 0)
+	m.Top = max(m.Top, 0)
+	m.Right = max(m.Right, 0)
+	m.Bottom = max(m.Bottom, 0)
+	if video.W <= 0 || video.H <= 0 {
+		return m
+	}
+	if room := video.W - max(1, video.W*minCropKeep); room <= 0 {
+		m.Left, m.Right = 0, 0
+	} else if sum := m.Left + m.Right; sum > room {
+		scale := room / sum
+		m.Left *= scale
+		m.Right *= scale
+	}
+	if room := video.H - max(1, video.H*minCropKeep); room <= 0 {
+		m.Top, m.Bottom = 0, 0
+	} else if sum := m.Top + m.Bottom; sum > room {
+		scale := room / sum
+		m.Top *= scale
+		m.Bottom *= scale
+	}
+	return m
+}
+
+// cropMarginsList stores margins in .gpls order: left, top, right, bottom.
+func cropMarginsList(m cropMargins) []float64 {
+	if m.empty() {
+		return nil
+	}
+	return []float64{m.Left, m.Top, m.Right, m.Bottom}
+}
+
+func cropMarginsFromList(values []float64) cropMargins {
+	if len(values) != 4 {
+		return cropMargins{}
+	}
+	return cropMargins{
+		Left:   max(values[0], 0),
+		Top:    max(values[1], 0),
+		Right:  max(values[2], 0),
+		Bottom: max(values[3], 0),
+	}
+}
+
 // parseCropRatio turns a crop shape such as "2.35:1" into margins in
 // frame pixels, taken evenly off the two sides it is too long between.
 func parseCropRatio(ratio string, video videoShape) cropMargins {

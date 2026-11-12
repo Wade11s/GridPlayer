@@ -1212,6 +1212,62 @@ func TestCropIsFoldedIntoPlacement(t *testing.T) {
 	}
 }
 
+func TestClampCropMarginsKeepsAPicture(t *testing.T) {
+	video := videoShape{W: 1000, H: 500}
+	m := clampCropMargins(cropMargins{Left: 900, Right: 900, Top: 400, Bottom: 400}, video)
+	if m.Left+m.Right > 950+1e-9 || m.Top+m.Bottom > 475+1e-9 {
+		t.Fatalf("crop not clamped: %+v", m)
+	}
+	if m.Left <= 0 || m.Right <= 0 || m.Top <= 0 || m.Bottom <= 0 {
+		t.Fatalf("both sides should survive: %+v", m)
+	}
+	if kept := video.W - m.Left - m.Right; kept < 50-1e-9 {
+		t.Fatalf("kept width %v", kept)
+	}
+	if kept := video.H - m.Top - m.Bottom; kept < 25-1e-9 {
+		t.Fatalf("kept height %v", kept)
+	}
+}
+
+func TestClampCropMarginsRejectsNegativeAndKeepsSmallCrops(t *testing.T) {
+	video := videoShape{W: 1000, H: 500}
+	m := clampCropMargins(cropMargins{Left: -20, Top: -5, Right: 100, Bottom: 50}, video)
+	if m.Left != 0 || m.Top != 0 || m.Right != 100 || m.Bottom != 50 {
+		t.Fatalf("valid crop changed: %+v", m)
+	}
+	if tiny := clampCropMargins(cropMargins{Left: 5, Right: 5}, videoShape{}); tiny.Left != 5 || tiny.Right != 5 {
+		t.Fatalf("unknown size should pass through: %+v", tiny)
+	}
+}
+
+func TestCellShapeClampsStoredCrop(t *testing.T) {
+	a := &app{fillLimit: 100}
+	c := &cell{cropMargins: cropMargins{Left: 900, Top: 400, Right: 900, Bottom: 400}}
+	_, crop := a.cellShape(c, engine.Snapshot{Width: 1000, Height: 500})
+	if crop.Left+crop.Right > 950+1e-9 || crop.Top+crop.Bottom > 475+1e-9 {
+		t.Fatalf("crop not clamped at render: %+v", crop)
+	}
+	if kept := 1000 - crop.Left - crop.Right; kept < 50-1e-9 {
+		t.Fatalf("kept width %v", kept)
+	}
+}
+
+func TestDocumentPersistsCropMargins(t *testing.T) {
+	a := &app{cells: []*cell{{
+		path:        "a.mp4",
+		cropMargins: cropMargins{Left: 10, Top: 20, Right: 30, Bottom: 40},
+	}}}
+	d := a.document()
+	if got := d.Videos[0].CropMargins; len(got) != 4 || got[0] != 10 || got[3] != 40 {
+		t.Fatalf("margins %+v", got)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if got := b.cells[0].cropMargins; got.Left != 10 || got.Top != 20 || got.Right != 30 || got.Bottom != 40 {
+		t.Fatalf("restored margins %+v", got)
+	}
+}
+
 func TestFillLimitFallsBackToFit(t *testing.T) {
 	video := videoShape{W: 100, H: 100}
 	fill := placePicture(video, 200, 100, true, false, viewZoom{Scale: 1, FillLimit: 100, AnchorX: 0.5, AnchorY: 0.5})
