@@ -1,35 +1,64 @@
 package main
 
 import (
+	"strings"
+
 	"gridplayer-go/internal/sponsorblock"
+)
+
+const (
+	sponsorInherit int32 = iota
+	sponsorForceOn
+	sponsorForceOff
 )
 
 // sponsorMode is the cell's override of the global SponsorBlock toggle.
 // "" means inherit.
 func (c *cell) sponsorMode() string {
-	if c == nil || c.sponsorOverrideEnabled == nil {
+	if c == nil {
 		return ""
 	}
-	if *c.sponsorOverrideEnabled {
+	switch c.sponsorOverrideState.Load() {
+	case sponsorForceOn:
 		return "on"
+	case sponsorForceOff:
+		return "off"
 	}
-	return "off"
+	return ""
 }
 
 func (c *cell) setSponsorMode(mode string) {
+	if c == nil {
+		return
+	}
 	switch mode {
 	case "on":
-		enabled := true
-		c.sponsorOverrideEnabled = &enabled
+		c.sponsorOverrideState.Store(sponsorForceOn)
 	case "off":
-		enabled := false
-		c.sponsorOverrideEnabled = &enabled
+		c.sponsorOverrideState.Store(sponsorForceOff)
 	default:
-		c.sponsorOverrideEnabled = nil
+		c.sponsorOverrideState.Store(sponsorInherit)
 	}
 }
 
-func (c *cell) setSponsorCategoryMode(name, mode string) {
+// sponsorLookup returns the URL SponsorBlock should key on: the original page
+// URL when the cell was opened from one, else the current source.
+func (c *cell) sponsorLookup() string {
+	if c == nil {
+		return ""
+	}
+	if c.sponsorSource != "" {
+		return c.sponsorSource
+	}
+	if c.path != "" {
+		return c.path
+	}
+	return c.source
+}
+
+func (a *app) setSponsorCategoryOverride(c *cell, name, mode string) {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
 	if mode == "" {
 		delete(c.sponsorOverrideModes, name)
 		if len(c.sponsorOverrideModes) == 0 {
@@ -41,6 +70,24 @@ func (c *cell) setSponsorCategoryMode(name, mode string) {
 		c.sponsorOverrideModes = map[string]string{}
 	}
 	c.sponsorOverrideModes[name] = mode
+}
+
+func (a *app) sponsorOverrideFor(c *cell, name string) string {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	return c.sponsorOverrideModes[name]
+}
+
+func (a *app) setSponsorOverrides(c *cell, modes map[string]string) {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	c.sponsorOverrideModes = modes
+}
+
+func (a *app) sponsorOverridesCopy(c *cell) map[string]string {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	return cloneSponsorOverrides(c.sponsorOverrideModes)
 }
 
 func sponsorModesValid(mode string) bool {
@@ -86,8 +133,13 @@ func cloneSponsorOverrides(modes map[string]string) map[string]string {
 
 // sponsorEnabledFor reports whether SponsorBlock applies to this cell.
 func (a *app) sponsorEnabledFor(c *cell) bool {
-	if c != nil && c.sponsorOverrideEnabled != nil {
-		return *c.sponsorOverrideEnabled
+	if c != nil {
+		switch c.sponsorOverrideState.Load() {
+		case sponsorForceOn:
+			return true
+		case sponsorForceOff:
+			return false
+		}
 	}
 	return a.sponsorEnabled.Load()
 }
@@ -128,5 +180,25 @@ func (a *app) setSponsorOverride(c *cell, apply func()) {
 	apply()
 	a.dirty = true
 	a.refreshMenu()
-	a.resetSponsor(c, c.path)
+	a.refetchSponsor(c)
+}
+
+// refetchSponsor clears this cell's SponsorBlock state and fetches again using
+// the original page URL when one is known.
+func (a *app) refetchSponsor(c *cell) {
+	if c == nil {
+		return
+	}
+	c.sponsorFetchGen.Add(1)
+	a.sponsorMu.Lock()
+	delete(a.sponsorSpans, c)
+	delete(a.sponsorSegments, c)
+	delete(a.sponsorLoading, c)
+	a.sponsorMu.Unlock()
+	c.sponsorSkipEnd.Store(0)
+	a.fetchSponsor(c, c.sponsorLookup())
+}
+
+func sponsorSpanIsSkip(modes map[string]string, span sponsorblock.Span) bool {
+	return strings.EqualFold(modes[span.Category], "skip")
 }

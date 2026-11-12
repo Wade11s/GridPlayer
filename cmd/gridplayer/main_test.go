@@ -422,16 +422,19 @@ func TestDocumentViewMode(t *testing.T) {
 }
 
 func TestDocumentPersistsSponsorOverrides(t *testing.T) {
-	disabled := false
-	a := &app{cells: []*cell{{
-		path:                   "a.mp4",
-		sponsorOverrideEnabled: &disabled,
-		sponsorOverrideModes:   map[string]string{"intro": "skip"},
-	}}}
+	c0 := &cell{path: "a.mp4"}
+	c0.setSponsorMode("off")
+	a := &app{cells: []*cell{{}}}
+	a.cells[0] = c0
+	a.setSponsorCategoryOverride(c0, "intro", "skip")
+	c0.sponsorSource = "https://youtu.be/dQw4w9WgXcQ"
 	d := a.document()
 	v := d.Videos[0]
 	if v.SponsorMode != "off" || v.SponsorModes["intro"] != "skip" {
 		t.Fatalf("video %+v", v)
+	}
+	if v.SponsorURL != c0.sponsorSource {
+		t.Fatalf("sponsor url %q", v.SponsorURL)
 	}
 
 	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
@@ -439,6 +442,9 @@ func TestDocumentPersistsSponsorOverrides(t *testing.T) {
 	c := b.cells[0]
 	if c.sponsorMode() != "off" || c.sponsorOverrideModes["intro"] != "skip" {
 		t.Fatalf("restored mode %q modes %+v", c.sponsorMode(), c.sponsorOverrideModes)
+	}
+	if c.sponsorSource != c0.sponsorSource {
+		t.Fatalf("restored sponsor url %q", c.sponsorSource)
 	}
 }
 

@@ -82,13 +82,18 @@ type cell struct {
 	skipGen         uint64
 	sponsorSkipEnd  atomic.Int64
 	sponsorFetchGen atomic.Uint64
-	// sponsorOverrideEnabled is nil when the cell follows the global toggle.
-	sponsorOverrideEnabled *bool
-	// sponsorOverrideModes holds per-category overrides for this cell.
+	// sponsorOverrideState is 0 to follow the global toggle, 1 for on, 2 for
+	// off. It is atomic because the watch goroutine reads it.
+	sponsorOverrideState atomic.Int32
+	// sponsorOverrideModes holds per-category overrides for this cell. It is
+	// guarded by app.sponsorMu.
 	sponsorOverrideModes map[string]string
-	loop                 bool
-	advancing            bool
-	endedGen             uint64
+	// sponsorSource keeps the original page URL when the cell plays a resolved
+	// direct URL, so SponsorBlock can still find the video.
+	sponsorSource string
+	loop          bool
+	advancing     bool
+	endedGen      uint64
 }
 
 type app struct {
@@ -814,11 +819,17 @@ func (a *app) closeCell(c *cell) {
 }
 
 func (a *app) fetchSponsor(c *cell, raw string) {
-	if c == nil || !a.sponsorEnabledFor(c) || a.sponsorClient == nil {
+	if c == nil {
 		return
 	}
 	videoID, ok := sponsorblock.YouTubeID(raw)
 	if !ok {
+		return
+	}
+	// Remember the page URL even when the fetch is off, so enabling
+	// SponsorBlock later still finds the video behind a resolved direct URL.
+	c.sponsorSource = raw
+	if !a.sponsorEnabledFor(c) || a.sponsorClient == nil {
 		return
 	}
 	a.sponsorMu.Lock()
@@ -864,6 +875,11 @@ func (a *app) resetSponsor(c *cell, raw string) {
 	if c == nil {
 		return
 	}
+	if _, ok := sponsorblock.YouTubeID(raw); ok {
+		c.sponsorSource = raw
+	} else if raw != "" {
+		c.sponsorSource = ""
+	}
 	c.sponsorFetchGen.Add(1)
 	a.sponsorMu.Lock()
 	delete(a.sponsorSpans, c)
@@ -896,7 +912,7 @@ func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 	spans := append([]sponsorblock.Span(nil), a.sponsorSpans[c]...)
 	a.sponsorMu.Unlock()
 	span, ok := sponsorblock.SpanAt(spans, s.Time)
-	if !ok {
+	if !ok || !sponsorSpanIsSkip(a.sponsorModesFor(c), span) {
 		c.sponsorSkipEnd.Store(0)
 		return
 	}
@@ -2437,7 +2453,9 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.loopEnd = v.LoopEnd
 		c.transform = normalizeTransform(v.Transform)
 		c.setSponsorMode(v.SponsorMode)
-		c.sponsorOverrideModes = normalizeSponsorOverrides(v.SponsorModes)
+		a.setSponsorOverrides(c, normalizeSponsorOverrides(v.SponsorModes))
+		c.sponsorSource = v.SponsorURL
+		a.refetchSponsor(c)
 		if c.eng != nil {
 			reload := c.path != oldPath
 			if reload {
@@ -2463,7 +2481,6 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				c.eng.Play()
 			}
 		}
-		a.resetSponsor(c, c.path)
 	}
 	if mode, rows, cols := d.GridState(); mode != "" {
 		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
@@ -2571,7 +2588,8 @@ func (a *app) document() *playlist.Document {
 			LoopEnd:         c.loopEnd,
 			Transform:       c.transform,
 			SponsorMode:     c.sponsorMode(),
-			SponsorModes:    cloneSponsorOverrides(c.sponsorOverrideModes),
+			SponsorModes:    a.sponsorOverridesCopy(c),
+			SponsorURL:      c.sponsorSource,
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID

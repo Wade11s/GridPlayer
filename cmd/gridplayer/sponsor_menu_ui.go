@@ -31,25 +31,25 @@ func (a *app) sponsorMenuItems() []*mygo.MenuItem {
 	}
 	for _, category := range sponsorblock.Categories {
 		name := category.Name
-		override := c.sponsorOverrideModes[name]
+		override := a.sponsorOverrideFor(c, name)
 		items = append(items, &mygo.MenuItem{
 			Label: name,
 			Submenu: []*mygo.MenuItem{
 				{Label: "Use Global", Type: mygo.MenuItemRadio, Checked: override == "",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.setSponsorOverride(c, func() { c.setSponsorCategoryMode(name, "") })
+						a.setSponsorOverride(c, func() { a.setSponsorCategoryOverride(c, name, "") })
 					}},
 				{Label: "Off", Type: mygo.MenuItemRadio, Checked: override == "off",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.setSponsorOverride(c, func() { c.setSponsorCategoryMode(name, "off") })
+						a.setSponsorOverride(c, func() { a.setSponsorCategoryOverride(c, name, "off") })
 					}},
 				{Label: "Show", Type: mygo.MenuItemRadio, Checked: override == "show",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.setSponsorOverride(c, func() { c.setSponsorCategoryMode(name, "show") })
+						a.setSponsorOverride(c, func() { a.setSponsorCategoryOverride(c, name, "show") })
 					}},
 				{Label: "Skip", Type: mygo.MenuItemRadio, Checked: override == "skip",
 					Click: func(*mygo.MenuItem, *mygo.Window) {
-						a.setSponsorOverride(c, func() { c.setSponsorCategoryMode(name, "skip") })
+						a.setSponsorOverride(c, func() { a.setSponsorCategoryOverride(c, name, "skip") })
 					}},
 			},
 		})
