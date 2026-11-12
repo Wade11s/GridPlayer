@@ -51,8 +51,7 @@ func cookiesForHost(path string, u *url.URL, now time.Time) []cookiePair {
 		if !cookieDomainMatches(host, domain) {
 			continue
 		}
-		if cookiePath := fields[2]; cookiePath != "" && cookiePath != "/" &&
-			!strings.HasPrefix(requestPath, cookiePath) {
+		if cookiePath := fields[2]; !cookiePathMatches(requestPath, cookiePath) {
 			continue
 		}
 		if expiry, err := strconv.ParseInt(fields[4], 10, 64); err == nil && expiry > 0 &&
@@ -73,6 +72,24 @@ func cookieDomainMatches(host, domain string) bool {
 		return false
 	}
 	return host == domain || strings.HasSuffix(host, "."+domain)
+}
+
+// cookiePathMatches follows RFC 6265 section 5.1.4: an identical path, a
+// cookie path ending in "/", or the next request character being "/".
+func cookiePathMatches(requestPath, cookiePath string) bool {
+	if cookiePath == "" {
+		return true
+	}
+	if requestPath == cookiePath {
+		return true
+	}
+	if !strings.HasPrefix(requestPath, cookiePath) {
+		return false
+	}
+	if strings.HasSuffix(cookiePath, "/") {
+		return true
+	}
+	return len(requestPath) > len(cookiePath) && requestPath[len(cookiePath)] == '/'
 }
 
 func cookieArgs(cookies []cookiePair) []string {

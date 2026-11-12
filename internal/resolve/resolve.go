@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -97,7 +98,7 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 		failures = append(failures, "yt-dlp: "+err.Error())
 	}
 	if u.Scheme != "file" && r.Streamlink != "" {
-		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(u, raw))
+		got, err := r.resolveStreamlink(ctx, u, raw)
 		if err == nil {
 			return got, nil
 		}
@@ -131,13 +132,53 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 	return append(args, "--", raw)
 }
 
-func (r *Resolver) streamlinkArgs(u *url.URL, raw string) []string {
+// resolveStreamlink prefers streamlink's own cookies file handling, which
+// honours domain, path, expiry and secure flags without putting cookie values
+// on the command line. Older streamlink releases lack the flag, so a failure
+// that names the option falls back to per-cookie arguments.
+func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
+	cookieFile := usableCookieFile(r.Cookies)
+	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(u, raw, cookieFile, true))
+	if err == nil || cookieFile == "" || !unsupportedStreamlinkOption(err) {
+		return got, err
+	}
+	return r.run(ctx, r.Streamlink, r.streamlinkArgs(u, raw, cookieFile, false))
+}
+
+func usableCookieFile(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return ""
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	file.Close()
+	return path
+}
+
+func unsupportedStreamlinkOption(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "no such option") ||
+		strings.Contains(message, "unrecognized arguments") ||
+		strings.Contains(message, "unknown option")
+}
+
+func (r *Resolver) streamlinkArgs(u *url.URL, raw, cookieFile string, cookiesFile bool) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
 	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
 	}
-	if cookies := strings.TrimSpace(r.Cookies); cookies != "" {
-		args = append(args, cookieArgs(cookiesForHost(cookies, u, time.Now()))...)
+	if cookieFile != "" {
+		if cookiesFile {
+			args = append(args, "--http-cookies-file", cookieFile)
+		} else {
+			args = append(args, cookieArgs(cookiesForHost(cookieFile, u, time.Now()))...)
+		}
 	}
 	return append(args, "--", raw)
 }

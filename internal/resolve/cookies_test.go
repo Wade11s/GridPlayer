@@ -1,6 +1,7 @@
 package resolve
 
 import (
+	"context"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -73,7 +74,7 @@ func TestStreamlinkArgsPassCookies(t *testing.T) {
 	path := writeCookieFile(t, cookieFile)
 	r := &Resolver{Streamlink: "/tmp/streamlink", Proxy: "http://127.0.0.1:8080", Cookies: path}
 	u, _ := url.Parse("https://example.com/watch")
-	args := r.streamlinkArgs(u, "https://example.com/watch")
+	args := r.streamlinkArgs(u, "https://example.com/watch", path, false)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
 		"--stream-url",
@@ -87,6 +88,65 @@ func TestStreamlinkArgsPassCookies(t *testing.T) {
 	}
 	if strings.Contains(joined, "foreign=no") {
 		t.Fatalf("foreign cookie leaked: %q", joined)
+	}
+}
+
+func TestStreamlinkArgsPreferCookiesFile(t *testing.T) {
+	path := writeCookieFile(t, cookieFile)
+	r := &Resolver{Streamlink: "/tmp/streamlink", Cookies: path}
+	u, _ := url.Parse("https://example.com/watch")
+	args := r.streamlinkArgs(u, "https://example.com/watch", path, true)
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--http-cookies-file "+path) {
+		t.Fatalf("missing cookies file in %q", joined)
+	}
+	if strings.Contains(joined, "--http-cookie ") {
+		t.Fatalf("cookie values leaked into args: %q", joined)
+	}
+}
+
+func TestCookiePathMatchesRFC6265(t *testing.T) {
+	cases := []struct {
+		request, cookie string
+		want            bool
+	}{
+		{"/private", "/private", true},
+		{"/private/page", "/private", true},
+		{"/privateer", "/private", false},
+		{"/privateX", "/private", false},
+		{"/anything", "/", true},
+		{"/a/b", "", true},
+		{"/a/b", "/a/", true},
+	}
+	for _, tc := range cases {
+		if got := cookiePathMatches(tc.request, tc.cookie); got != tc.want {
+			t.Fatalf("%s vs %s = %v, want %v", tc.request, tc.cookie, got, tc.want)
+		}
+	}
+}
+
+func TestResolveStreamlinkFallsBackToCookieArgs(t *testing.T) {
+	yt := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
+	argsFile := filepath.Join(t.TempDir(), "args")
+	t.Setenv("ARGS_FILE", argsFile)
+	sl := fakeTool(t, "streamlink", `
+for arg in "$@"; do
+  if [ "$arg" = "--http-cookies-file" ]; then
+    echo "Error: no such option: --http-cookies-file" >&2
+    exit 2
+  fi
+done
+printf '%s\n' "$@" > "$ARGS_FILE"
+echo "https://stream.example/live.m3u8"`)
+	cookies := writeCookieFile(t, ".example.com\tTRUE\t/\tFALSE\t0\tsession\tabc\n")
+	r := &Resolver{Path: yt, Streamlink: sl, Cookies: cookies}
+	got, err := r.Resolve(context.Background(), "https://example.com/live")
+	if err != nil || got != "https://stream.example/live.m3u8" {
+		t.Fatalf("resolve %q %v", got, err)
+	}
+	args := readArgs(t, argsFile)
+	if !strings.Contains(args, "--http-cookie") || !strings.Contains(args, "session=abc") {
+		t.Fatalf("fallback args missing cookies:\n%s", args)
 	}
 }
 
