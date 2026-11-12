@@ -147,3 +147,26 @@ func TestSponsorOverridesRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestCropMarginsRoundTrip(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"a.mp4","crop_margins":[10,20,30,40]}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if len(v.CropMargins) != 4 || v.CropMargins[0] != 10 || v.CropMargins[3] != 40 {
+		t.Fatalf("margins %+v", v.CropMargins)
+	}
+	if len(v.Extra) != 0 {
+		t.Fatalf("known field leaked into extra: %+v", v.Extra)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"crop_margins":[10,20,30,40]`) {
+		t.Fatalf("missing crop margins in %s", raw)
+	}
+}

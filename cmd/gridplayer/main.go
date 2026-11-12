@@ -2048,7 +2048,12 @@ func (a *app) resetZoom() {
 
 func (a *app) nudgeCrop(side string, delta float64) {
 	for _, c := range a.cells {
-		c.cropMargins = cropStep(c.cropMargins, side, delta)
+		shape := videoShape{}
+		if c.eng != nil {
+			s := c.eng.Snapshot()
+			shape = videoShape{W: float64(s.Width), H: float64(s.Height)}
+		}
+		c.cropMargins = clampCropMargins(cropStep(c.cropMargins, side, delta), shape)
 	}
 	a.dirty = true
 	if a.win != nil {
@@ -2452,6 +2457,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
 		c.loopStart = v.LoopStart
 		c.loopEnd = v.LoopEnd
+		c.cropMargins = cropMarginsFromList(v.CropMargins)
 		c.transform = normalizeTransform(v.Transform)
 		c.setSponsorMode(v.SponsorMode)
 		a.setSponsorOverrides(c, normalizeSponsorOverrides(v.SponsorModes))
@@ -2591,6 +2597,7 @@ func (a *app) document() *playlist.Document {
 			SponsorMode:     c.sponsorMode(),
 			SponsorModes:    a.sponsorOverridesCopy(c),
 			SponsorURL:      c.sponsorSource,
+			CropMargins:     cropMarginsList(c.cropMargins),
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
