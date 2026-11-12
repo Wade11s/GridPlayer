@@ -21,9 +21,13 @@ func (a *app) cellShape(c *cell, s engine.Snapshot) (videoShape, cropMargins) {
 	return shape, crop
 }
 
-// zoomCell applies a multiplicative zoom. With zoom-to-cursor it also moves the
-// anchor to the pointer and shifts the picture so the point under the cursor
-// stays there; otherwise the existing anchor and shift are kept.
+// zoomCell applies a multiplicative zoom. With zoom-to-cursor it moves the
+// picture so the point under the cursor stays there; otherwise the existing
+// anchor and shift are kept.
+//
+// The anchor is deliberately left alone. Retargeting it to the cursor and then
+// clamping the shift is not the same problem: the clamp depends on the anchor,
+// so a retargeted anchor can push a legal shift out of range and drift.
 func (a *app) zoomCell(c *cell, r grid.Rect, s engine.Snapshot, factor, cursorX, cursorY float64) {
 	if c == nil || s.Width <= 0 || s.Height <= 0 || r.W <= 0 || r.H <= 0 || factor <= 0 {
 		return
@@ -46,13 +50,10 @@ func (a *app) zoomCell(c *cell, r grid.Rect, s engine.Snapshot, factor, cursorX,
 			newW, newH := baseW*next, baseH*next
 			oldX := (r.W-oldW)*c.anchorX + clampShift(c.shiftX*r.W, r.W, oldW)
 			oldY := (r.H-oldH)*c.anchorY + clampShift(c.shiftY*r.H, r.H, oldH)
-			anchorX := clampUnit(cursorX / r.W)
-			anchorY := clampUnit(cursorY / r.H)
 			u := (cursorX - oldX) / oldW
 			v := (cursorY - oldY) / oldH
-			c.anchorX, c.anchorY = anchorX, anchorY
-			c.shiftX = clampFloat((cursorX-u*newW-(r.W-newW)*anchorX)/r.W, -1, 1)
-			c.shiftY = clampFloat((cursorY-v*newH-(r.H-newH)*anchorY)/r.H, -1, 1)
+			c.shiftX = clampShift(cursorX-u*newW-(r.W-newW)*c.anchorX, r.W, newW) / r.W
+			c.shiftY = clampShift(cursorY-v*newH-(r.H-newH)*c.anchorY, r.H, newH) / r.H
 		}
 	}
 	c.zoom = next
