@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"bufio"
+	"bytes"
 	"net/url"
 	"os"
 	"strconv"
@@ -24,19 +25,24 @@ func cookiesForHost(path string, u *url.URL, now time.Time) []cookiePair {
 	if path == "" || u == nil {
 		return nil
 	}
-	file, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
-	defer file.Close()
+	return parseCookies(data, u, now)
+}
 
+func parseCookies(data []byte, u *url.URL, now time.Time) []cookiePair {
+	if u == nil {
+		return nil
+	}
 	host := strings.ToLower(u.Hostname())
 	requestPath := u.EscapedPath()
 	if requestPath == "" {
 		requestPath = "/"
 	}
 	var cookies []cookiePair
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
 	scanner.Buffer(make([]byte, 0, 64<<10), 1<<20)
 	for scanner.Scan() {
 		line := strings.TrimPrefix(scanner.Text(), "#HttpOnly_")

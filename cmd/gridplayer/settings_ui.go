@@ -390,7 +390,7 @@ func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 					}
 				}
 			})
-		}).Description("Netscape cookies.txt — passed to yt-dlp, and matching cookies to streamlink")
+		}).Description("Netscape cookies.txt — passed to yt-dlp; streamlink loads it when its version supports that")
 		ui.Field(c, a.tr("SettingsDialog", "yt-dlp path"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &d.ytdlp)

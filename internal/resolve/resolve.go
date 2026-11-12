@@ -132,30 +132,40 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 	return append(args, "--", raw)
 }
 
-// resolveStreamlink prefers streamlink's own cookies file handling, which
-// honours domain, path, expiry and secure flags without putting cookie values
-// on the command line. Older streamlink releases lack the flag, so a failure
-// that names the option falls back to per-cookie arguments.
+// resolveStreamlink prefers streamlink's own cookies file handling, which lets
+// streamlink apply the jar's attributes and keeps cookie values off the
+// command line. Older streamlink releases lack the flag, so a failure that
+// names the option falls back to per-cookie arguments.
 func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
-	cookieFile := usableCookieFile(r.Cookies)
-	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(u, raw, cookieFile, true))
+	cookieFile, cookies := inspectCookieJar(r.Cookies, u)
+	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, cookieFile, cookies, true))
 	if err == nil || cookieFile == "" || !unsupportedStreamlinkOption(err) {
 		return got, err
 	}
-	return r.run(ctx, r.Streamlink, r.streamlinkArgs(u, raw, cookieFile, false))
+	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, cookieFile, cookies, false))
 }
 
-func usableCookieFile(path string) string {
+// inspectCookieJar returns a path streamlink can safely load, plus the cookies
+// our own parser found for this URL. A path is only returned when the file
+// starts with the Netscape magic line and holds at least one usable cookie,
+// because streamlink treats a bad jar as a fatal error rather than ignoring it.
+func inspectCookieJar(path string, u *url.URL) (string, []cookiePair) {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return ""
+		return "", nil
 	}
-	file, err := os.Open(path)
-	if err != nil {
-		return ""
+	data, err := os.ReadFile(path)
+	if err != nil || len(data) > 4<<20 {
+		return "", nil
 	}
-	file.Close()
-	return path
+	if !bytes.HasPrefix(data, []byte("# Netscape HTTP Cookie File")) {
+		return "", nil
+	}
+	cookies := parseCookies(data, u, time.Now())
+	if len(cookies) == 0 {
+		return "", nil
+	}
+	return path, cookies
 }
 
 func unsupportedStreamlinkOption(err error) bool {
@@ -163,21 +173,24 @@ func unsupportedStreamlinkOption(err error) bool {
 		return false
 	}
 	message := strings.ToLower(err.Error())
+	if !strings.Contains(message, "http-cookies-file") {
+		return false
+	}
 	return strings.Contains(message, "no such option") ||
 		strings.Contains(message, "unrecognized arguments") ||
 		strings.Contains(message, "unknown option")
 }
 
-func (r *Resolver) streamlinkArgs(u *url.URL, raw, cookieFile string, cookiesFile bool) []string {
+func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair, useFile bool) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
 	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
 	}
 	if cookieFile != "" {
-		if cookiesFile {
+		if useFile {
 			args = append(args, "--http-cookies-file", cookieFile)
 		} else {
-			args = append(args, cookieArgs(cookiesForHost(cookieFile, u, time.Now()))...)
+			args = append(args, cookieArgs(cookies)...)
 		}
 	}
 	return append(args, "--", raw)

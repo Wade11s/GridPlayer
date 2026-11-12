@@ -2,6 +2,7 @@ package resolve
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -74,7 +75,7 @@ func TestStreamlinkArgsPassCookies(t *testing.T) {
 	path := writeCookieFile(t, cookieFile)
 	r := &Resolver{Streamlink: "/tmp/streamlink", Proxy: "http://127.0.0.1:8080", Cookies: path}
 	u, _ := url.Parse("https://example.com/watch")
-	args := r.streamlinkArgs(u, "https://example.com/watch", path, false)
+	args := r.streamlinkArgs("https://example.com/watch", path, cookiesForHost(path, u, time.Unix(2_000_000_000, 0)), false)
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
 		"--stream-url",
@@ -95,7 +96,7 @@ func TestStreamlinkArgsPreferCookiesFile(t *testing.T) {
 	path := writeCookieFile(t, cookieFile)
 	r := &Resolver{Streamlink: "/tmp/streamlink", Cookies: path}
 	u, _ := url.Parse("https://example.com/watch")
-	args := r.streamlinkArgs(u, "https://example.com/watch", path, true)
+	args := r.streamlinkArgs("https://example.com/watch", path, cookiesForHost(path, u, time.Unix(2_000_000_000, 0)), true)
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "--http-cookies-file "+path) {
 		t.Fatalf("missing cookies file in %q", joined)
@@ -125,6 +126,55 @@ func TestCookiePathMatchesRFC6265(t *testing.T) {
 	}
 }
 
+func TestInspectCookieJarRejectsUnusableFiles(t *testing.T) {
+	u, _ := url.Parse("https://example.com/watch")
+	dir := t.TempDir()
+
+	empty := filepath.Join(dir, "empty.txt")
+	if err := os.WriteFile(empty, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	noMagic := filepath.Join(dir, "nomagic.txt")
+	if err := os.WriteFile(noMagic, []byte(".example.com\tTRUE\t/\tFALSE\t0\tsession\tabc\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	otherHost := filepath.Join(dir, "other.txt")
+	if err := os.WriteFile(otherHost, []byte("# Netscape HTTP Cookie File\n.other.com\tTRUE\t/\tFALSE\t0\tx\ty\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, path := range map[string]string{
+		"empty":      empty,
+		"no magic":   noMagic,
+		"other host": otherHost,
+		"directory":  dir,
+		"missing":    filepath.Join(dir, "nope.txt"),
+		"blank":      "",
+	} {
+		if got, cookies := inspectCookieJar(path, u); got != "" || cookies != nil {
+			t.Fatalf("%s: got path %q cookies %+v", name, got, cookies)
+		}
+	}
+}
+
+func TestUnsupportedStreamlinkOptionIsScopedToTheFlag(t *testing.T) {
+	cases := []struct {
+		message string
+		want    bool
+	}{
+		{"Error: no such option: --http-cookies-file", true},
+		{"error: unrecognized arguments: --http-cookies-file x", true},
+		{"error: unrecognized arguments: --some-other-option", false},
+		{"error: streamlink: unknown option --http-cookies-file", true},
+		{"network error", false},
+	}
+	for _, tc := range cases {
+		err := errors.New(tc.message)
+		if got := unsupportedStreamlinkOption(err); got != tc.want {
+			t.Fatalf("%q = %v", tc.message, got)
+		}
+	}
+}
+
 func TestResolveStreamlinkFallsBackToCookieArgs(t *testing.T) {
 	yt := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
 	argsFile := filepath.Join(t.TempDir(), "args")
@@ -138,7 +188,7 @@ for arg in "$@"; do
 done
 printf '%s\n' "$@" > "$ARGS_FILE"
 echo "https://stream.example/live.m3u8"`)
-	cookies := writeCookieFile(t, ".example.com\tTRUE\t/\tFALSE\t0\tsession\tabc\n")
+	cookies := writeCookieFile(t, "# Netscape HTTP Cookie File\n.example.com\tTRUE\t/\tFALSE\t0\tsession\tabc\n")
 	r := &Resolver{Path: yt, Streamlink: sl, Cookies: cookies}
 	got, err := r.Resolve(context.Background(), "https://example.com/live")
 	if err != nil || got != "https://stream.example/live.m3u8" {
