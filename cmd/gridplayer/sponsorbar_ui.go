@@ -97,17 +97,21 @@ func sponsorMarkRects(box ui.Rect, length int64, marks []sponsorblock.Segment) [
 // current category modes.
 func (a *app) sponsorMarks(c *cell) []sponsorblock.Segment {
 	a.sponsorMu.Lock()
-	defer a.sponsorMu.Unlock()
-	return visibleSponsorMarks(a.sponsorSegments[c], a.sponsorModes)
+	segments := a.sponsorSegments[c]
+	a.sponsorMu.Unlock()
+	return visibleSponsorMarks(segments, a.sponsorModesFor(c))
 }
 
 // seekBar draws the cell scrubber with SponsorBlock marks and seeks on click.
 // It is a no-op until libVLC reports a length.
 func (a *app) seekBar(c *ui.Context, i int, cell *cell, s engine.Snapshot) {
-	if s.Length <= 0 || !a.sponsorEnabled.Load() {
+	if s.Length <= 0 {
 		return
 	}
-	marks := a.sponsorMarks(cell)
+	var marks []sponsorblock.Segment
+	if a.sponsorEnabledFor(cell) {
+		marks = a.sponsorMarks(cell)
+	}
 	length := float32(s.Length)
 	played := clampFraction(float32(s.Time) / length)
 	el := ui.Box(c.Key(fmt.Sprintf("seek-%d", i))).

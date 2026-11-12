@@ -585,7 +585,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.sponsorMu.Unlock()
 	a.resetAllSponsor()
 	for _, cell := range a.cells {
-		a.fetchSponsor(cell, cell.source)
+		a.fetchSponsor(cell, cell.sponsorLookup())
 	}
 	a.defaultEnd = endActionValue(d.endAction)
 	if a.defaultEnd == endLoop && !d.loop {
