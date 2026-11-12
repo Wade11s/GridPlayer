@@ -67,6 +67,29 @@ func TestSeekTargetForX(t *testing.T) {
 	}
 }
 
+func TestResetAllSponsorClearsStateAndFencesFetches(t *testing.T) {
+	stale := &cell{}
+	stale.sponsorFetchGen.Store(7)
+	stale.sponsorSkipEnd.Store(4200)
+	a := &app{
+		cells:           []*cell{stale},
+		sponsorSpans:    map[*cell][]sponsorblock.Span{stale: {{Start: 1, End: 2}}},
+		sponsorSegments: map[*cell][]sponsorblock.Segment{stale: {{Start: 1, End: 2}}},
+		sponsorLoading:  map[*cell]bool{stale: true},
+	}
+	a.resetAllSponsor()
+	if got := stale.sponsorFetchGen.Load(); got != 8 {
+		t.Fatalf("generation %d, want 8", got)
+	}
+	if got := stale.sponsorSkipEnd.Load(); got != 0 {
+		t.Fatalf("skip end %d, want 0", got)
+	}
+	if len(a.sponsorSpans) != 0 || len(a.sponsorSegments) != 0 || len(a.sponsorLoading) != 0 {
+		t.Fatalf("state not cleared: %d %d %d",
+			len(a.sponsorSpans), len(a.sponsorSegments), len(a.sponsorLoading))
+	}
+}
+
 func TestSponsorMarkRectsMapsTimeToBar(t *testing.T) {
 	box := ui.Rect{X: 100, Y: 50, W: 1000, H: 10}
 	marks := []sponsorblock.Segment{

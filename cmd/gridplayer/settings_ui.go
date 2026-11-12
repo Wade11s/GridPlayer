@@ -582,12 +582,8 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	for i, category := range sponsorblock.Categories {
 		a.sponsorModes[category.Name] = sponsorModeValue(d.sponsorModes[i])
 	}
-	a.sponsorSpans = map[*cell][]sponsorblock.Span{}
-	a.sponsorLoading = map[*cell]bool{}
 	a.sponsorMu.Unlock()
-	for _, cell := range a.cells {
-		cell.sponsorSkipEnd.Store(0)
-	}
+	a.resetAllSponsor()
 	for _, cell := range a.cells {
 		a.fetchSponsor(cell, cell.source)
 	}

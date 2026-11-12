@@ -840,7 +840,7 @@ func (a *app) fetchSponsor(c *cell, raw string) {
 		return
 	}
 	a.sponsorMu.Lock()
-	if a.sponsorLoading[c] || a.sponsorSpans[c] != nil {
+	if a.sponsorLoading[c] || a.sponsorSpans[c] != nil || a.sponsorSegments[c] != nil {
 		a.sponsorMu.Unlock()
 		return
 	}
@@ -890,6 +890,20 @@ func (a *app) resetSponsor(c *cell, raw string) {
 	a.sponsorMu.Unlock()
 	c.sponsorSkipEnd.Store(0)
 	a.fetchSponsor(c, raw)
+}
+
+// resetAllSponsor drops every cell's spans and segments and fences off any
+// fetch still in flight, so a settings change cannot land stale results.
+func (a *app) resetAllSponsor() {
+	a.sponsorMu.Lock()
+	defer a.sponsorMu.Unlock()
+	for _, c := range a.cells {
+		c.sponsorFetchGen.Add(1)
+		c.sponsorSkipEnd.Store(0)
+	}
+	a.sponsorSpans = map[*cell][]sponsorblock.Span{}
+	a.sponsorSegments = map[*cell][]sponsorblock.Segment{}
+	a.sponsorLoading = map[*cell]bool{}
 }
 
 func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {

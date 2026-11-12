@@ -104,7 +104,7 @@ func (a *app) sponsorMarks(c *cell) []sponsorblock.Segment {
 // seekBar draws the cell scrubber with SponsorBlock marks and seeks on click.
 // It is a no-op until libVLC reports a length.
 func (a *app) seekBar(c *ui.Context, i int, cell *cell, s engine.Snapshot) {
-	if s.Length <= 0 {
+	if s.Length <= 0 || !a.sponsorEnabled.Load() {
 		return
 	}
 	marks := a.sponsorMarks(cell)
