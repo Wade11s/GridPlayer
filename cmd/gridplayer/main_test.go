@@ -1705,3 +1705,55 @@ func TestFrozenStepConstants(t *testing.T) {
 
 func ptrString(s string) *string  { return &s }
 func ptrFloat(v float64) *float64 { return &v }
+
+func TestFitShapesModeRoundTrip(t *testing.T) {
+	if modeName(grid.Shapes) != "fit_shapes" || parseMode("fit_shapes") != grid.Shapes {
+		t.Fatalf("mode name %q parse %v", modeName(grid.Shapes), parseMode("fit_shapes"))
+	}
+	a := &app{cfg: grid.Config{Mode: grid.Shapes}, cells: []*cell{{}, {}}}
+	d := a.currentSettingsDraft()
+	if d.layout != "Fit Shapes" {
+		t.Fatalf("draft layout %q", d.layout)
+	}
+	b := &app{cells: []*cell{{}, {}}}
+	b.applySettingsDraft(d)
+	if b.cfg.Mode != grid.Shapes || b.free || b.mosaic || b.single {
+		t.Fatalf("applied grid %+v free=%v mosaic=%v single=%v", b.cfg, b.free, b.mosaic, b.single)
+	}
+}
+
+func TestSetGridClearsFreeMosaicSingle(t *testing.T) {
+	a := &app{free: true, mosaic: true, single: true, cells: []*cell{{}}}
+	a.setGrid(grid.Config{Mode: grid.Shapes})
+	if a.cfg.Mode != grid.Shapes || a.free || a.mosaic || a.single {
+		t.Fatalf("grid %+v free=%v mosaic=%v single=%v", a.cfg, a.free, a.mosaic, a.single)
+	}
+}
+
+func TestPictureShapeUsesAspectCropAndTransform(t *testing.T) {
+	a := &app{}
+	s := engine.Snapshot{Width: 1920, Height: 1080}
+	c := &cell{}
+	if got := a.pictureShape(c, s); got != 1920.0/1080.0 {
+		t.Fatalf("own shape %v", got)
+	}
+	c.aspect = "4:3"
+	if got := a.pictureShape(c, s); got != 4.0/3.0 {
+		t.Fatalf("aspect shape %v", got)
+	}
+	c.crop = "1:1"
+	if got := a.pictureShape(c, s); got != 1 {
+		t.Fatalf("crop ratio shape %v", got)
+	}
+	c.crop = ""
+	c.aspect = ""
+	c.cropMargins = cropMargins{Left: 100, Right: 100}
+	if got := a.pictureShape(c, s); got != 1720.0/1080.0 {
+		t.Fatalf("crop margins shape %v", got)
+	}
+	c.cropMargins = cropMargins{}
+	c.transform = "90"
+	if got := a.pictureShape(c, s); got != 1080.0/1920.0 {
+		t.Fatalf("turned shape %v", got)
+	}
+}

@@ -78,6 +78,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - Single Mode uses `internal/grid.SingleLayout`: one active cell big, the
   others in a strip (Auto/Right/Left/Bottom/Top), share clamped 5%..40%,
   tiles centered along the strip. Clicking a strip cell makes it big.
+- Fit Shapes (`grid.Shapes`, `grid.FitShapes`): upstream AUTO_SHAPES. Each
+  cell's engine shape (16:9 until known) drives a justified layout: lines end
+  flush, rows or columns are chosen by the split score, and the whole group is
+  centred with the 4-DIP gap. The split search mirrors upstream's `justified.py`
+  without the size/reorder controls this build does not expose yet.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per

@@ -1653,6 +1653,15 @@ func (a *app) view(c *ui.Context) {
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	a.freeArea = [2]float64{float64(w), float64(h)}
 	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
+	if a.cfg.Mode == grid.Shapes && !a.free && !a.mosaic && !a.single {
+		shapes := make([]float64, len(a.cells))
+		for i, c := range a.cells {
+			if c.eng != nil {
+				shapes[i] = a.pictureShape(c, c.eng.Snapshot())
+			}
+		}
+		rects = grid.FitShapes(len(a.cells), area, 4, shapes)
+	}
 	if a.template != "" {
 		if template, ok := grid.FindTemplate(a.template); ok {
 			if templateRects := grid.TemplateLayout(len(a.cells), area, 4, template); templateRects != nil {
@@ -2273,6 +2282,7 @@ func playableDirect(raw string) bool {
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
 	a.template = ""
+	a.free, a.mosaic, a.single = false, false, false
 	a.dirty = true
 	a.saveSettings()
 	if a.win != nil {
@@ -2308,12 +2318,49 @@ func (a *app) setSingleSide(side grid.StripSide) {
 	}
 }
 
+// pictureShape is the shape of the picture as shown: the decoded frame turned
+// by the cell transform, cropped by margins, then overridden by crop_ratio or
+// aspect_ratio (crop first, as upstream's picture_shape does). Zero means the
+// shape is not known yet and Fit Shapes takes 16:9.
+func (a *app) pictureShape(c *cell, s engine.Snapshot) float64 {
+	if c == nil || s.Width <= 0 || s.Height <= 0 {
+		return 0
+	}
+	shape, crop := a.cellShape(c, s)
+	if ratio := ratioValue(c.crop); ratio > 0 {
+		return ratio
+	}
+	if ratio := ratioValue(c.aspect); ratio > 0 {
+		return ratio
+	}
+	w := shape.W - crop.Left - crop.Right
+	h := shape.H - crop.Top - crop.Bottom
+	if w <= 0 || h <= 0 {
+		return 0
+	}
+	return w / h
+}
+
+// ratioValue parses "16:9" into 16/9. An empty or malformed value is 0.
+func ratioValue(ratio string) float64 {
+	if i := indexByteColon(ratio); i > 0 {
+		w, err1 := strconv.ParseFloat(ratio[:i], 64)
+		h, err2 := strconv.ParseFloat(ratio[i+1:], 64)
+		if err1 == nil && err2 == nil && w > 0 && h > 0 {
+			return w / h
+		}
+	}
+	return 0
+}
+
 func modeName(m grid.Mode) string {
 	switch m {
 	case grid.AutoCols:
 		return "auto_cols"
 	case grid.Fixed:
 		return "fixed"
+	case grid.Shapes:
+		return "fit_shapes"
 	default:
 		return "auto_rows"
 	}
@@ -2325,6 +2372,8 @@ func parseMode(s string) grid.Mode {
 		return grid.AutoCols
 	case "fixed":
 		return grid.Fixed
+	case "fit_shapes":
+		return grid.Shapes
 	default:
 		return grid.AutoRows
 	}
@@ -3340,6 +3389,7 @@ func (a *app) menu() *mygo.Menu {
 		{Label: a.tr("Actions", "Grid"), Submenu: []*mygo.MenuItem{
 			{Label: "Auto Rows", Click: func(*mygo.MenuItem, *mygo.Window) { a.setGrid(grid.Config{Mode: grid.AutoRows}) }},
 			{Label: "Auto Columns", Click: func(*mygo.MenuItem, *mygo.Window) { a.setGrid(grid.Config{Mode: grid.AutoCols}) }},
+			{Label: "Fit Shapes", Click: func(*mygo.MenuItem, *mygo.Window) { a.setGrid(grid.Config{Mode: grid.Shapes}) }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Fixed 2×2", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})

@@ -13,6 +13,8 @@ const (
 	AutoRows Mode = iota
 	AutoCols
 	Fixed
+	// Shapes is Fit Shapes: every video in a tile of its own shape.
+	Shapes
 )
 
 // Config is the requested grid.
