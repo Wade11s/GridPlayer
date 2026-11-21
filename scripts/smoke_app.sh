@@ -8,8 +8,9 @@ APP="dist/darwin-arm64/GridPlayer.app"
 
 SMOKE=/tmp/GridPlayer-smoke.app
 FIX=/tmp/gridplayer-smoke-fixtures
+DATA=/tmp/gridplayer-smoke-data
 LOG=/tmp/gridplayer-smoke-vlc.log
-rm -rf "$SMOKE" "$FIX"
+rm -rf "$SMOKE" "$FIX" "$DATA"
 rm -f "$LOG"
 mkdir -p "$FIX"
 cp -R "$APP" "$SMOKE"
@@ -31,11 +32,15 @@ fi
 
 open -n -W -a "$SMOKE" --args \
   --files "$FIX/plane-a.mp4,$FIX/plane-b.mp4,$FIX/plane-c.mp4,$FIX/plane-d.mp4" \
-  --autoquit 8 --log "$LOG"
+  --user-data-dir "$DATA" --autoquit 8 --log "$LOG"
 
 [ -s "$LOG" ] || { echo "FAIL: no libVLC log" >&2; exit 1; }
 hw=$(grep -c "Using Video Toolbox" "$LOG" || true)
 echo "VideoToolbox decode lines: $hw"
+if [ ! -f "$DATA/settings.ini" ]; then
+  echo "FAIL: isolated data dir was not used" >&2
+  exit 1
+fi
 [ "$hw" -ge 4 ] || { echo "FAIL: expected 4 hardware decode lines" >&2; exit 1; }
 if ps -axo command | grep -F "$SMOKE/Contents/MacOS/GridPlayer" | grep -v grep >/dev/null; then
   echo "FAIL: app process still running" >&2
