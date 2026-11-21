@@ -2486,7 +2486,16 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
 		c.loopStart = v.LoopStart
 		c.loopEnd = v.LoopEnd
-		c.cropMargins = cropMarginsFromList(v.CropMargins)
+		if v.Anchor != "" {
+			c.anchorX, c.anchorY = parseAnchor(v.Anchor)
+		} else {
+			c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
+		}
+		if len(v.Crop) == 4 {
+			c.cropMargins = cropMarginsFromList(v.Crop)
+		} else {
+			c.cropMargins = cropMarginsFromList(v.CropMargins)
+		}
 		c.transform = normalizeTransform(v.Transform)
 		c.setSponsorMode(v.SponsorMode)
 		a.setSponsorOverrides(c, normalizeSponsorOverrides(v.SponsorModes))
@@ -2639,6 +2648,8 @@ func (a *app) document() *playlist.Document {
 			SponsorMode:     c.sponsorMode(),
 			SponsorModes:    a.sponsorOverridesCopy(c),
 			SponsorURL:      c.sponsorSource,
+			Anchor:          anchorName(c.anchorX, c.anchorY),
+			Crop:            cropMarginsList(c.cropMargins),
 			CropMargins:     cropMarginsList(c.cropMargins),
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
@@ -2848,12 +2859,12 @@ func (a *app) setZoom(scale float64) {
 }
 
 func (a *app) setAnchor(name string) {
-	a.defaultAnchor = name
-	x, y := parseAnchor(name)
-	for _, c := range a.cells {
-		c.anchorX, c.anchorY = x, y
+	c := a.activeCell()
+	if c == nil {
+		return
 	}
-	a.saveSettings()
+	c.anchorX, c.anchorY = parseAnchor(name)
+	a.dirty = true
 	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()

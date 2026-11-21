@@ -36,8 +36,8 @@ Rules:
 - The app saves position, mute, volume, rate, view mode, playback state and
   the grid subset. Per-video state also includes `audio_delay_ms`,
   `subtitle_delay_ms`, `loop_start`, `loop_end`, `transform`, `end_action`,
-  `list_fail`, `list_fail_wait`, `crop_margins`, `aspect_ratio`, `scale`,
-  `crop_ratio`, and `grid_template`.
+  `list_fail`, `list_fail_wait`, `crop`, `crop_margins`, `aspect_ratio`,
+  `scale`, `crop_ratio`, `anchor`, and `grid_template`.
 - Per-video view shape follows the upstream field names and is written
   explicitly: `aspect_ratio` (`""` is the video's own shape; `"own"` is accepted
   and treated the same), `scale` (`0` means fit; it is written only when it
@@ -45,9 +45,14 @@ Rules:
   `crop_ratio` (`""` leaves the margins
   alone; `"none"` is accepted and treated as no ratio crop). A field missing on
   load resets that cell to the current default, so a reused cell cannot leak a
-  previous file's choice. The View menu's Aspect Ratio, Scale and Crop items
-  change only the active cell and mark the playlist dirty; Settings → Video
-  changes the defaults and applies them to every cell.
+  previous file's choice. `anchor` uses the upstream names (`center`, `top`,
+  `bottom`, `left`, `right`, and the four corners), and `crop` is the upstream
+  `[left, top, right, bottom]` margin array; `crop_margins` is still written for
+  older Go builds and is the fallback when `crop` is absent. A missing `anchor`
+  or crop on load resets that cell to the current default. The View menu's
+  Aspect Ratio, Scale, Crop and Anchor items change only the active cell and
+  mark the playlist dirty; Settings → Video changes the defaults and applies
+  them to every cell.
 - `--playlist PATH` loads at startup; File → Open/Save/Save As manage the
   document. Closing with unsaved structural changes asks Save / Discard /
   Cancel; `--autoquit` skips the prompt for automation.

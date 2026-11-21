@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"strconv"
+	"strings"
 )
 
 // Aspect of a source video, in the same arbitrary units as a cell size.
@@ -35,14 +36,14 @@ var (
 		"bottom":       {0.5, 1},
 		"left":         {0, 0.5},
 		"right":        {1, 0.5},
-		"top-left":     {0, 0},
-		"top-right":    {1, 0},
-		"bottom-left":  {0, 1},
-		"bottom-right": {1, 1},
+		"top_left":     {0, 0},
+		"top_right":    {1, 0},
+		"bottom_left":  {0, 1},
+		"bottom_right": {1, 1},
 	}
 	anchorList = []string{
 		"center", "top", "bottom", "left", "right",
-		"top-left", "top-right", "bottom-left", "bottom-right",
+		"top_left", "top_right", "bottom_left", "bottom_right",
 	}
 )
 
@@ -88,6 +89,7 @@ func transformCrop(m cropMargins, transform string) cropMargins {
 
 // parseAnchor turns a stored anchor name into its cell fraction.
 func parseAnchor(name string) (float64, float64) {
+	name = strings.ReplaceAll(name, "-", "_")
 	if p, ok := anchorNames[name]; ok {
 		return p[0], p[1]
 	}

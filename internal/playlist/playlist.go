@@ -55,6 +55,8 @@ type Video struct {
 	SponsorMode     string                     `json:"sponsor_mode,omitempty"`
 	SponsorModes    map[string]string          `json:"sponsor_modes,omitempty"`
 	SponsorURL      string                     `json:"sponsor_url,omitempty"`
+	Anchor          string                     `json:"anchor,omitempty"`
+	Crop            []float64                  `json:"crop,omitempty"`
 	CropMargins     []float64                  `json:"crop_margins,omitempty"`
 	Extra           map[string]json.RawMessage `json:"-"`
 }
@@ -76,7 +78,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 		"aspect_ratio", "scale", "crop_ratio",
 		"list_fail", "list_fail_wait", "end_action", "audio_delay_ms",
 		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
-		"sponsor_mode", "sponsor_modes", "sponsor_url", "crop_margins"} {
+		"sponsor_mode", "sponsor_modes", "sponsor_url", "anchor", "crop", "crop_margins"} {
 		delete(all, k)
 	}
 	if len(all) > 0 {
