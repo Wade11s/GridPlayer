@@ -561,6 +561,55 @@ func TestEnginePassesTransformToFactory(t *testing.T) {
 	}
 }
 
+func TestSetTransformSerializesWithLoad(t *testing.T) {
+	f := newFake()
+	transforms := make(chan string, 4)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	first := true
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
+		transforms <- transform
+		if first {
+			first = false
+			close(started)
+			<-release
+		}
+		return f, nil
+	})
+	defer e.Close()
+
+	go func() { _ = e.Load("a.mp4") }()
+	<-started
+	changed := make(chan struct{})
+	go func() {
+		e.SetTransform("90")
+		close(changed)
+	}()
+	select {
+	case <-changed:
+		t.Fatal("SetTransform returned while Load held the load lock")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-changed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SetTransform did not return after Load")
+	}
+	if err := e.Reload(); err != nil {
+		t.Fatal(err)
+	}
+	<-transforms // first Load
+	got := <-transforms
+	for got != "90" {
+		select {
+		case got = <-transforms:
+		case <-time.After(time.Second):
+			t.Fatalf("factory saw %q, want 90", got)
+		}
+	}
+}
+
 func TestAudioDelayClampAndNudge(t *testing.T) {
 	if ClampAudioDelay(-70000) != MinAudioDelayMS || ClampAudioDelay(70000) != MaxAudioDelayMS {
 		t.Fatal("clamp")

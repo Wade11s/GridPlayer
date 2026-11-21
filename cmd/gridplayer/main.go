@@ -2460,6 +2460,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.startPaused = strings.EqualFold(v.PlaybackState, "paused") ||
 			strings.EqualFold(v.PlaybackState, "stopped")
 		oldPath := c.path
+		oldTransform := normalizeTransform(c.transform)
 		if len(c.list) > 0 {
 			if v.ListIndex >= 0 && v.ListIndex < len(c.list) {
 				c.listIndex = v.ListIndex
@@ -2502,8 +2503,11 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		c.sponsorSource = v.SponsorURL
 		a.refetchSponsor(c)
 		if c.eng != nil {
-			reload := c.path != oldPath
+			// The transform is an instance option, so a changed transform
+			// needs a new libVLC instance even when the path is unchanged.
+			reload := c.path != oldPath || c.transform != oldTransform
 			if reload {
+				c.eng.SetTransform(c.transform)
 				c.eng.SetStartPosition(int64(c.startAt))
 				if err := c.eng.Load(c.path); err != nil {
 					a.status = err.Error()
@@ -2516,7 +2520,6 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			c.eng.SetRate(c.rate)
 			c.eng.SetAudioDelay(c.audioDelay)
 			c.eng.SetSubtitleDelay(c.subDelay)
-			c.eng.SetTransform(c.transform)
 			c.eng.SetLoop(c.loop)
 			if c.startPaused {
 				c.pauseOnPlay.Store(true)

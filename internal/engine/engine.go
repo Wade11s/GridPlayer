@@ -626,7 +626,16 @@ func (e *Engine) AudioDelay() int64 {
 
 // SetTransform changes the libVLC transform filter for the next load.
 func (e *Engine) SetTransform(transform string) {
+	// Serialize with Load: otherwise Load can copy the old transform and
+	// create its instance after this call, leaving the new value stored but
+	// not applied. The caller reloads when the instance option must change.
+	e.loadMu.Lock()
+	defer e.loadMu.Unlock()
 	e.mu.Lock()
+	if e.transform == transform {
+		e.mu.Unlock()
+		return
+	}
 	e.transform = transform
 	be := e.be
 	e.mu.Unlock()

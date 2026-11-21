@@ -103,7 +103,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   the other libVLC transform names) to `libvlc_new` for that cell. Media
   options added after `set_media` do not take effect on the native surface, so
   a transform change reloads the cell through a new instance; the player's
-  `SetTransform` is only the backend signature.
+  `SetTransform` is only the backend signature. `Engine.SetTransform`
+  serializes with `Load`, and a live cell whose document transform differs is
+  reloaded even when its path is unchanged, so a saved rotate/flip cannot be
+  dropped.
 - Bookmarks are keyed by the current file (`cell.path`), so playlist items have
   their own positions rather than sharing the list source. A second window
   lists the active file's bookmarks with jump/rename/delete/clear; the menu and
