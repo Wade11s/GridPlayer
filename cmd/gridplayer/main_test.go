@@ -10,6 +10,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"gridplayer-go/internal/bookmarks"
+	"gridplayer-go/internal/dummy"
 	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/keymap"
@@ -535,6 +536,39 @@ func TestApplyDocumentExplicitEmptyOverridesDefaults(t *testing.T) {
 	c := a.cells[0]
 	if c.aspect != "" || c.scale != 0 || c.crop != "" {
 		t.Fatalf("explicit empty/zero did not override defaults: aspect=%q scale=%v crop=%q", c.aspect, c.scale, c.crop)
+	}
+}
+
+func TestApplyDocumentReloadsForTransformChange(t *testing.T) {
+	var got []string
+	f := dummy.New()
+	e := engine.New(func(path string, loop bool, transform string) (engine.Backend, error) {
+		got = append(got, transform)
+		return f, nil
+	})
+	defer e.Close()
+	e.SetTransform("none")
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{
+		defaultVolume: 80,
+		defaultRate:   1,
+		defaultLoop:   true,
+		resolver:      resolve.New(),
+		cells:         []*cell{{path: "a.mp4", eng: e}},
+	}
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4", Transform: "rotate_90"}},
+	}
+	a.applyDocument(d, "")
+	if len(got) < 2 || got[len(got)-1] != "90" {
+		t.Fatalf("factory calls %v", got)
+	}
+	if e.Snapshot().Phase == engine.Failed {
+		t.Fatalf("reload failed: %+v", e.Snapshot())
 	}
 }
 

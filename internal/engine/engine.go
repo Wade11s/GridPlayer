@@ -150,7 +150,7 @@ type Backend interface {
 // Factory builds a backend for one media path. The engine calls it once per
 // load; the factory must bind any native surface before the first play.
 // loop is fixed for the life of that media (libVLC's input-repeat).
-type Factory func(path string, loop bool) (Backend, error)
+type Factory func(path string, loop bool, transform string) (Backend, error)
 
 // ErrClosed is returned by commands after Close.
 var ErrClosed = errors.New("engine: closed")
@@ -249,6 +249,7 @@ func (e *Engine) loadLocked(path string) error {
 	e.quit = make(chan struct{})
 	quit := e.quit
 	loop := e.loop
+	transform := e.transform
 	e.snap = Snapshot{
 		Gen: gen, Phase: Loading, Rate: e.rate, Volume: e.volume,
 		Muted: e.muted, Loop: loop, AspectRatio: e.aspect, Scale: e.scale, Crop: e.crop,
@@ -263,7 +264,7 @@ func (e *Engine) loadLocked(path string) error {
 		old.Close()
 	}
 
-	be, err := e.factory(path, loop)
+	be, err := e.factory(path, loop, transform)
 	if err != nil {
 		e.mu.Lock()
 		if gen == e.gen && !e.closed {
@@ -285,7 +286,6 @@ func (e *Engine) loadLocked(path string) error {
 	rate, volume, muted, loop := e.rate, e.volume, e.muted, e.loop
 	delay := e.audioDelay
 	subDelay := e.subDelay
-	transform := e.transform
 	aspect, scale, crop := e.aspect, e.scale, e.crop
 	subs := append([]string(nil), e.subtitles...)
 	audios := append([]string(nil), e.audioFiles...)
@@ -626,7 +626,16 @@ func (e *Engine) AudioDelay() int64 {
 
 // SetTransform changes the libVLC transform filter for the next load.
 func (e *Engine) SetTransform(transform string) {
+	// Serialize with Load: otherwise Load can copy the old transform and
+	// create its instance after this call, leaving the new value stored but
+	// not applied. The caller reloads when the instance option must change.
+	e.loadMu.Lock()
+	defer e.loadMu.Unlock()
 	e.mu.Lock()
+	if e.transform == transform {
+		e.mu.Unlock()
+		return
+	}
 	e.transform = transform
 	be := e.be
 	e.mu.Unlock()
