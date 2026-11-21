@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -203,8 +204,24 @@ func TestUnsupportedCookieFileOption(t *testing.T) {
 	}
 	for _, tc := range cases {
 		if got := unsupportedCookieFileOption(errors.New(tc.message)); got != tc.want {
-			t.Fatalf("%q = %v", tc.message, got)
+			t.Fatalf("%q = %v", tc.message, tc.want)
 		}
+	}
+
+	// The displayed message keeps only 400 bytes, but classification must
+	// see the diagnostic that follows a realistic argparse usage block.
+	long := &commandError{
+		err:    errors.New("exit status 2"),
+		stderr: strings.Repeat("usage: streamlink [--very-long-option VALUE] ...\n", 80) + "Error: no such option: --http-cookies-file\n",
+	}
+	if len(long.Error()) > 500 {
+		t.Fatalf("display message must stay bounded: %d", len(long.Error()))
+	}
+	if !unsupportedCookieFileOption(long) {
+		t.Fatal("long usage preamble hid the option error")
+	}
+	if got := unsupportedCookieFileOption(fmt.Errorf("resolve: %w", long)); !got {
+		t.Fatal("wrapped option error not recognised")
 	}
 }
 
@@ -230,6 +247,102 @@ echo "https://stream.example/live.m3u8"`)
 	args := readArgs(t, argsFile)
 	if !strings.Contains(args, "--http-cookie") || !strings.Contains(args, "session=abc") {
 		t.Fatalf("fallback args missing cookies:\n%s", args)
+	}
+}
+
+func TestResolveStreamlinkFallsBackOnLongArgparsePreamble(t *testing.T) {
+	yt := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
+	argsFile := filepath.Join(t.TempDir(), "args")
+	t.Setenv("ARGS_FILE", argsFile)
+	sl := fakeTool(t, "streamlink", `
+for arg in "$@"; do
+  if [ "$arg" = "--http-cookies-file" ]; then
+    i=0
+    while [ "$i" -lt 120 ]; do
+      echo "usage: streamlink [--very-long-option-$i VALUE] ..." >&2
+      i=$((i+1))
+    done
+    echo "Error: no such option: --http-cookies-file" >&2
+    exit 2
+  fi
+done
+printf '%s\n' "$@" > "$ARGS_FILE"
+echo "https://stream.example/live.m3u8"`)
+	cookies := writeCookieFile(t, mixedCookieFile)
+	r := &Resolver{Path: yt, Streamlink: sl, Cookies: cookies}
+	got, err := r.Resolve(context.Background(), "https://example.com/live")
+	if err != nil || got != "https://stream.example/live.m3u8" {
+		t.Fatalf("resolve %q %v", got, err)
+	}
+	args := readArgs(t, argsFile)
+	if strings.Contains(args, "--http-cookies-file") {
+		t.Fatalf("fallback kept the file flag:\n%s", args)
+	}
+	for _, want := range []string{"--http-cookie", "session=abc", "persistent=def"} {
+		if !strings.Contains(args, want) {
+			t.Fatalf("fallback args missing %q:\n%s", want, args)
+		}
+	}
+}
+
+func TestResolveStreamlinkPrefersCookieFile(t *testing.T) {
+	yt := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
+	argsFile := filepath.Join(t.TempDir(), "args")
+	t.Setenv("ARGS_FILE", argsFile)
+	sl := fakeTool(t, "streamlink", `printf '%s\n' "$@" > "$ARGS_FILE"; echo "https://stream.example/live.m3u8"`)
+	cookies := writeCookieFile(t, mixedCookieFile)
+	r := &Resolver{Path: yt, Streamlink: sl, Cookies: cookies}
+	got, err := r.Resolve(context.Background(), "https://example.com/live")
+	if err != nil || got != "https://stream.example/live.m3u8" {
+		t.Fatalf("resolve %q %v", got, err)
+	}
+	args := readArgs(t, argsFile)
+	if !strings.Contains(args, "--http-cookies-file") || !strings.Contains(args, cookies) {
+		t.Fatalf("preferred args missing the jar:\n%s", args)
+	}
+	if !strings.Contains(args, "session=abc") {
+		t.Fatalf("session cookie missing:\n%s", args)
+	}
+	if strings.Contains(args, "persistent=def") {
+		t.Fatalf("persistent value leaked into argv:\n%s", args)
+	}
+}
+
+func TestResolveStreamlinkDoesNotFallBackOnJarLoadError(t *testing.T) {
+	yt := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
+	argsFile := filepath.Join(t.TempDir(), "args")
+	t.Setenv("ARGS_FILE", argsFile)
+	sl := fakeTool(t, "streamlink", `echo "OSError: Error while loading cookies from file" >&2; exit 2`)
+	cookies := writeCookieFile(t, mixedCookieFile)
+	r := &Resolver{Path: yt, Streamlink: sl, Cookies: cookies}
+	if _, err := r.Resolve(context.Background(), "https://example.com/live"); err == nil {
+		t.Fatal("jar load failure was swallowed")
+	}
+	if _, err := os.Stat(argsFile); !os.IsNotExist(err) {
+		t.Fatalf("unexpected fallback invocation: %v", err)
+	}
+}
+
+func TestCookieExpiryBoundaryAndMalformedExpiry(t *testing.T) {
+	body := "# Netscape HTTP Cookie File\n" +
+		".example.com\tTRUE\t/\tFALSE\t2000000000\tboundary\tv\n" +
+		".example.com\tTRUE\t/\tFALSE\tsoon\tmalformed\tv\n" +
+		".example.com\tTRUE\t/\tFALSE\t\tempty\tv\n"
+	path := writeCookieFile(t, body)
+	u, _ := url.Parse("https://example.com/")
+	now := time.Unix(2_000_000_000, 0)
+	seen := map[string]bool{}
+	for _, cookie := range cookiesForHost(path, u, now) {
+		seen[cookie.Name] = true
+	}
+	if seen["boundary"] {
+		t.Fatal("cookie expiring exactly now was retained")
+	}
+	if seen["malformed"] {
+		t.Fatal("malformed expiry was reinterpreted as a session cookie")
+	}
+	if !seen["empty"] {
+		t.Fatal("empty expiry should be a session cookie")
 	}
 }
 

@@ -88,8 +88,16 @@ func parseCookies(data []byte, u *url.URL, now time.Time) []cookiePair {
 		if cookiePath := fields[2]; !cookiePathMatches(requestPath, cookiePath) {
 			continue
 		}
-		expiry, err := strconv.ParseInt(fields[4], 10, 64)
-		if err == nil && expiry > 0 && time.Unix(expiry, 0).Before(now) {
+		rawExpiry := strings.TrimSpace(fields[4])
+		var expiry int64
+		if rawExpiry != "" {
+			parsed, err := strconv.ParseInt(rawExpiry, 10, 64)
+			if err != nil {
+				continue // malformed expiry: drop the cookie
+			}
+			expiry = parsed
+		}
+		if expiry > 0 && !time.Unix(expiry, 0).After(now) {
 			continue
 		}
 		name, value := fields[5], fields[6]

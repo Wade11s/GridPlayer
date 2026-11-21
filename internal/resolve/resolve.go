@@ -34,6 +34,26 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// commandError keeps the complete captured stderr for classification while its
+// message stays bounded for display.
+type commandError struct {
+	err    error
+	stderr string
+}
+
+func (e *commandError) Error() string {
+	msg := strings.TrimSpace(e.stderr)
+	if len(msg) > 400 {
+		msg = msg[:400]
+	}
+	if msg == "" {
+		return e.err.Error()
+	}
+	return fmt.Sprintf("%v: %s", e.err, msg)
+}
+
+func (e *commandError) Unwrap() error { return e.err }
+
 func (b *limitedBuffer) String() string { return b.buf.String() }
 func (b *limitedBuffer) Len() int       { return b.buf.Len() }
 
@@ -166,7 +186,16 @@ func unsupportedCookieFileOption(err error) bool {
 	if err == nil {
 		return false
 	}
-	message := strings.ToLower(err.Error())
+	// Argparse prints its usage block before the diagnostic, and the
+	// returned message only keeps the first 400 bytes. Classify against the
+	// complete captured stderr so a long preamble cannot hide the option
+	// error.
+	message := err.Error()
+	var cmdErr *commandError
+	if errors.As(err, &cmdErr) {
+		message = cmdErr.stderr
+	}
+	message = strings.ToLower(message)
 	if !strings.Contains(message, "http-cookies-file") {
 		return false
 	}
@@ -203,11 +232,7 @@ func (r *Resolver) run(ctx context.Context, path string, args []string) (string,
 		if cctx.Err() != nil {
 			return "", fmt.Errorf("timed out after %s", timeout)
 		}
-		msg := strings.TrimSpace(stderr.String())
-		if len(msg) > 400 {
-			msg = msg[:400]
-		}
-		return "", fmt.Errorf("%v: %s", err, msg)
+		return "", &commandError{err: err, stderr: stderr.String()}
 	}
 	for _, line := range strings.Split(stdout.String(), "\n") {
 		line = strings.TrimSpace(line)
