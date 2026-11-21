@@ -46,6 +46,27 @@ func (c *cell) finishAction() string {
 	return endStop
 }
 
+// upstreamEndAction renders the internal action using upstream's AutoName
+// spelling. An unset action stays empty (inherit).
+func upstreamEndAction(action string) string {
+	switch normalizeEndAction(action) {
+	case endLoop:
+		return "loop_file"
+	case endNext:
+		return "next_file"
+	case endPrevious:
+		return "previous_file"
+	case endShuffle:
+		return "shuffle_file"
+	case endPause:
+		return "pause"
+	case endStop:
+		return "stop"
+	default:
+		return ""
+	}
+}
+
 func endActionName(action string) string {
 	switch normalizeEndAction(action) {
 	case endNext:

@@ -670,6 +670,53 @@ func TestSetAnchorOnlyChangesTheActiveCell(t *testing.T) {
 	}
 }
 
+func TestDocumentUsesUpstreamEnumSpellings(t *testing.T) {
+	a := &app{cells: []*cell{{
+		path:      "a.mp4",
+		transform: "90",
+		endAction: endNext,
+	}}}
+	v := a.document().Videos[0]
+	if v.Transform != "rotate_90" {
+		t.Fatalf("transform %q", v.Transform)
+	}
+	if v.EndAction != "next_file" {
+		t.Fatalf("end action %q", v.EndAction)
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(&playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4", Transform: "rotate_270", EndAction: "previous_file"}},
+	}, "")
+	c := b.cells[0]
+	if c.transform != "270" || c.endAction != endPrevious {
+		t.Fatalf("restored transform=%q action=%q", c.transform, c.endAction)
+	}
+}
+
+func TestUpstreamEndActionMapping(t *testing.T) {
+	cases := map[string]string{
+		endLoop:     "loop_file",
+		endNext:     "next_file",
+		endPrevious: "previous_file",
+		endShuffle:  "shuffle_file",
+		endPause:    "pause",
+		endStop:     "stop",
+		"":          "",
+	}
+	for internal, upstream := range cases {
+		if got := upstreamEndAction(internal); got != upstream {
+			t.Fatalf("%q -> %q, want %q", internal, got, upstream)
+		}
+	}
+	for _, upstream := range []string{"loop_file", "next_file", "previous_file", "shuffle_file", "pause", "stop"} {
+		if normalizeEndAction(upstream) == "" {
+			t.Fatalf("upstream %q not accepted", upstream)
+		}
+	}
+}
+
 func TestDocumentPersistsSponsorOverrides(t *testing.T) {
 	c0 := &cell{path: "a.mp4"}
 	c0.setSponsorMode("off")
@@ -1541,7 +1588,12 @@ func TestFillLimitFallsBackToFit(t *testing.T) {
 }
 
 func TestTransformHelpers(t *testing.T) {
-	if normalizeTransform("90") != "90" || normalizeTransform("bad") != "none" {
+	if normalizeTransform("90") != "90" || normalizeTransform("rotate_90") != "90" ||
+		normalizeTransform("bad") != "none" {
+		t.Fatalf("normalize transform")
+	}
+	if upstreamTransform("90") != "rotate_90" || upstreamTransform("hflip") != "hflip" ||
+		upstreamTransform("rotate_270") != "rotate_270" {
 		t.Fatal("normalize transform")
 	}
 	if !isSideTransform("90") || !isSideTransform("transpose") || isSideTransform("hflip") {
