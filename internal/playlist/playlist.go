@@ -38,6 +38,9 @@ type Video struct {
 	Volume          float64                    `json:"volume,omitempty"`
 	Rate            float64                    `json:"rate,omitempty"`
 	CellViewMode    string                     `json:"cell_view_mode,omitempty"`
+	AspectRatio     *string                    `json:"aspect_ratio,omitempty"`
+	Scale           *float64                   `json:"scale,omitempty"`
+	CropRatio       *string                    `json:"crop_ratio,omitempty"`
 	PlaybackState   string                     `json:"playback_state,omitempty"`
 	ListIndex       int                        `json:"list_index,omitempty"`
 	ListEnd         string                     `json:"list_end,omitempty"`
@@ -70,6 +73,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	}
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
+		"aspect_ratio", "scale", "crop_ratio",
 		"list_fail", "list_fail_wait", "end_action", "audio_delay_ms",
 		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
 		"sponsor_mode", "sponsor_modes", "sponsor_url", "crop_margins"} {

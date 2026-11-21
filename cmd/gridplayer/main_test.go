@@ -273,6 +273,11 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	if a.aspect != "4:3" || a.scale != 1.5 || a.crop != "16:9" {
 		t.Fatalf("video aspect=%q scale=%v crop=%q", a.aspect, a.scale, a.crop)
 	}
+	for _, c := range a.cells {
+		if c.aspect != "4:3" || c.scale != 1.5 || c.crop != "16:9" {
+			t.Fatalf("cell view shape %+v", c)
+		}
+	}
 	if a.singleSide != grid.StripLeft {
 		t.Fatalf("side=%v", a.singleSide)
 	}
@@ -382,6 +387,9 @@ func TestLoadPlaylistItemSettings(t *testing.T) {
 			Volume:          0.5,
 			Rate:            1.5,
 			CellViewMode:    "stretch",
+			AspectRatio:     ptrString("4:3"),
+			Scale:           ptrFloat(1.5),
+			CropRatio:       ptrString("2.35:1"),
 			PlaybackState:   "paused",
 			ListIndex:       1,
 			ListEnd:         "next",
@@ -395,7 +403,10 @@ func TestLoadPlaylistItemSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := a.cells[0]
-	if c.viewMode != "stretch" || !c.startPaused || c.listEnd != "next" ||
+	if c.viewMode != "stretch" || c.aspect != "4:3" || c.scale != 1.5 || c.crop != "2.35:1" {
+		t.Fatalf("view shape: %+v", c)
+	}
+	if !c.startPaused || c.listEnd != "next" ||
 		c.listIndex != 1 || c.path != filepath.Join(dir, "b.mp4") {
 		t.Fatalf("cell state: %+v", c)
 	}
@@ -408,6 +419,9 @@ func TestDocumentViewMode(t *testing.T) {
 	a := &app{cells: []*cell{{
 		path:      "a.mp4",
 		viewMode:  "stretch",
+		aspect:    "4:3",
+		scale:     1.5,
+		crop:      "2.35:1",
 		listIndex: 2,
 		listEnd:   "stop",
 	}}}
@@ -416,8 +430,148 @@ func TestDocumentViewMode(t *testing.T) {
 		t.Fatalf("videos=%d", len(d.Videos))
 	}
 	v := d.Videos[0]
-	if v.CellViewMode != "stretch" || v.ListIndex != 2 || v.ListEnd != "stop" {
+	if v.CellViewMode != "stretch" || v.AspectRatio == nil || *v.AspectRatio != "4:3" ||
+		v.Scale == nil || *v.Scale != 1.5 || v.CropRatio == nil || *v.CropRatio != "2.35:1" ||
+		v.ListIndex != 2 || v.ListEnd != "stop" {
 		t.Fatalf("video %+v", v)
+	}
+}
+
+func TestViewActionsApplyToTheActiveCell(t *testing.T) {
+	a := &app{
+		aspect: "",
+		scale:  0,
+		crop:   "",
+		cells: []*cell{
+			{path: "a.mp4", viewMode: "fit"},
+			{path: "b.mp4", viewMode: "fit"},
+		},
+	}
+	a.setAspect("4:3")
+	a.setScale(1.5)
+	a.setCrop("2.35:1")
+	a.setViewMode(true, false)
+	c := a.cells[0]
+	if c.aspect != "4:3" || c.scale != 1.5 || c.crop != "2.35:1" || c.viewMode != "fill" {
+		t.Fatalf("active cell %+v", c)
+	}
+	other := a.cells[1]
+	if other.aspect != "" || other.scale != 0 || other.crop != "" || other.viewMode != "fit" {
+		t.Fatalf("inactive cell %+v", other)
+	}
+	if a.aspect != "" || a.scale != 0 || a.crop != "" || a.fill || a.stretch {
+		t.Fatalf("defaults changed: %q %v %q fill=%v stretch=%v", a.aspect, a.scale, a.crop, a.fill, a.stretch)
+	}
+	if !a.dirty {
+		t.Fatal("per-item view change should mark the playlist dirty")
+	}
+}
+
+func TestDocumentKeepsExplicitEmptyViewShape(t *testing.T) {
+	a := &app{
+		aspect: "16:9",
+		scale:  2,
+		crop:   "4:3",
+		cells:  []*cell{{path: "a.mp4", aspect: "", scale: 0, crop: ""}},
+	}
+	d := a.document()
+	v := d.Videos[0]
+	if v.AspectRatio == nil || *v.AspectRatio != "" ||
+		v.Scale == nil || *v.Scale != 0 ||
+		v.CropRatio == nil || *v.CropRatio != "" {
+		t.Fatalf("explicit empty/zero not encoded: %+v", v)
+	}
+	b := &app{aspect: "16:9", scale: 2, crop: "4:3", defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	b.applyDocument(d, "")
+	if c := b.cells[0]; c.aspect != "" || c.scale != 0 || c.crop != "" {
+		t.Fatalf("round trip lost explicit empty/zero: aspect=%q scale=%v crop=%q", c.aspect, c.scale, c.crop)
+	}
+}
+
+func TestDocumentOmitsFitScaleUnderZeroDefault(t *testing.T) {
+	a := &app{cells: []*cell{{path: "a.mp4", scale: 0}}}
+	if v := a.document().Videos[0]; v.Scale != nil {
+		t.Fatalf("plain fit scale should stay absent: %+v", v.Scale)
+	}
+	a.scale = 2
+	if v := a.document().Videos[0]; v.Scale == nil || *v.Scale != 0 {
+		t.Fatalf("explicit fit against a non-zero default must be written: %+v", v.Scale)
+	}
+}
+
+func TestApplyDocumentExplicitEmptyOverridesDefaults(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{{
+			URI:         "a.mp4",
+			AspectRatio: ptrString(""),
+			Scale:       ptrFloat(0),
+			CropRatio:   ptrString(""),
+		}},
+	}
+	a := &app{aspect: "16:9", scale: 2, crop: "4:3", defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.applyDocument(d, "")
+	c := a.cells[0]
+	if c.aspect != "" || c.scale != 0 || c.crop != "" {
+		t.Fatalf("explicit empty/zero did not override defaults: aspect=%q scale=%v crop=%q", c.aspect, c.scale, c.crop)
+	}
+}
+
+func TestApplyDocumentAbsentViewShapeResetsDefaults(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4"}},
+	}
+	a := &app{
+		aspect:        "16:9",
+		scale:         2,
+		crop:          "4:3",
+		defaultVolume: 80,
+		defaultRate:   1,
+		defaultLoop:   true,
+		resolver:      resolve.New(),
+		cells: []*cell{{
+			path:   "a.mp4",
+			aspect: "4:3",
+			scale:  1.5,
+			crop:   "2.35:1",
+		}},
+	}
+	a.applyDocument(d, "")
+	c := a.cells[0]
+	if c.aspect != "16:9" || c.scale != 2 || c.crop != "4:3" {
+		t.Fatalf("absent fields did not reset to defaults: aspect=%q scale=%v crop=%q", c.aspect, c.scale, c.crop)
+	}
+}
+
+func TestNudgeCropOnlyChangesTheActiveCell(t *testing.T) {
+	a := &app{cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}}}
+	a.nudgeCrop("left", 10)
+	if a.cells[0].cropMargins.Left == 0 {
+		t.Fatalf("active crop unchanged: %+v", a.cells[0].cropMargins)
+	}
+	if other := a.cells[1].cropMargins; other != (cropMargins{}) {
+		t.Fatalf("inactive crop changed: %+v", other)
+	}
+}
+
+func TestApplyDocumentNormalizesOwnAndNoCrop(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{{
+			URI:         "a.mp4",
+			AspectRatio: ptrString("own"),
+			CropRatio:   ptrString("none"),
+		}},
+	}
+	a := &app{aspect: "16:9", crop: "4:3", defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.applyDocument(d, "")
+	c := a.cells[0]
+	if c.aspect != "" || c.crop != "" {
+		t.Fatalf("own/none not normalized: aspect=%q crop=%q", c.aspect, c.crop)
 	}
 }
 
@@ -1364,3 +1518,6 @@ func TestFrozenStepConstants(t *testing.T) {
 		t.Fatal("crop step")
 	}
 }
+
+func ptrString(s string) *string  { return &s }
+func ptrFloat(v float64) *float64 { return &v }
