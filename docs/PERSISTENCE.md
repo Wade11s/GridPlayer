@@ -45,8 +45,12 @@ Rules:
   `crop_ratio` (`""` leaves the margins
   alone; `"none"` is accepted and treated as no ratio crop). A field missing on
   load resets that cell to the current default, so a reused cell cannot leak a
-  previous file's choice. `anchor` uses the upstream names (`center`, `top`,
-  `bottom`, `left`, `right`, and the four corners), and `crop` is the upstream
+  previous file's choice. `transform` and `end_action` use the upstream
+  `AutoName` spellings (`rotate_90`, `rotate_180`, `rotate_270`, `loop_file`,
+  `next_file`, `previous_file`, `shuffle_file`, `pause`, `stop`); the older
+  short internal names are still accepted on load. `anchor` uses the upstream
+  names (`center`, `top`, `bottom`, `left`, `right`, and the four corners), and
+  `crop` is the upstream
   `[left, top, right, bottom]` margin array; `crop_margins` is still written for
   older Go builds and is the fallback when `crop` is absent. A missing `anchor`
   or crop on load resets that cell to the current default. The View menu's

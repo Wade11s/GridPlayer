@@ -53,10 +53,33 @@ var transforms = map[string]bool{
 }
 
 func normalizeTransform(name string) string {
+	switch name {
+	case "rotate_90":
+		name = "90"
+	case "rotate_180":
+		name = "180"
+	case "rotate_270":
+		name = "270"
+	}
 	if transforms[name] {
 		return name
 	}
 	return "none"
+}
+
+// upstreamTransform renders the internal VLC filter name using upstream's
+// AutoName spelling (rotate_90 rather than 90).
+func upstreamTransform(name string) string {
+	switch normalizeTransform(name) {
+	case "90":
+		return "rotate_90"
+	case "180":
+		return "rotate_180"
+	case "270":
+		return "rotate_270"
+	default:
+		return normalizeTransform(name)
+	}
 }
 
 func isSideTransform(name string) bool {

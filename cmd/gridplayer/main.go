@@ -2469,10 +2469,6 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			case "loop", "stop", "next":
 				c.listEnd = v.ListEnd
 			}
-			if action := normalizeEndAction(v.EndAction); action != "" {
-				c.endAction = action
-				c.loop = action == endLoop
-			}
 			switch v.ListFail {
 			case listFailPlayNext, listFailShowError:
 				c.listFail = v.ListFail
@@ -2481,6 +2477,10 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				wait := *v.ListFailWait
 				c.listFailWait = &wait
 			}
+		}
+		if action := normalizeEndAction(v.EndAction); action != "" {
+			c.endAction = action
+			c.loop = action == endLoop
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
@@ -2637,14 +2637,14 @@ func (a *app) document() *playlist.Document {
 			CropRatio:       &cropRatio,
 			ListIndex:       c.listIndex,
 			ListEnd:         c.listEnd,
-			EndAction:       c.endAction,
+			EndAction:       upstreamEndAction(c.endAction),
 			ListFail:        c.listFail,
 			ListFailWait:    cloneWait(c.listFailWait),
 			AudioDelay:      c.audioDelay,
 			SubtitleDelay:   c.subDelay,
 			LoopStart:       c.loopStart,
 			LoopEnd:         c.loopEnd,
-			Transform:       c.transform,
+			Transform:       upstreamTransform(c.transform),
 			SponsorMode:     c.sponsorMode(),
 			SponsorModes:    a.sponsorOverridesCopy(c),
 			SponsorURL:      c.sponsorSource,
