@@ -447,7 +447,7 @@ func TestDocumentViewMode(t *testing.T) {
 		v.ListIndex != 2 || v.ListEnd != "stop" {
 		t.Fatalf("video %+v", v)
 	}
-	if v.Anchor != "top-right" {
+	if v.Anchor != "top_right" {
 		t.Fatalf("anchor %q", v.Anchor)
 	}
 	for _, margins := range [][]float64{v.Crop, v.CropMargins} {
@@ -1395,8 +1395,11 @@ func TestParseAnchor(t *testing.T) {
 	if x, y := parseAnchor("wat"); x != 0.5 || y != 0.5 {
 		t.Fatalf("unknown %v %v", x, y)
 	}
-	if anchorName(0, 1) != "bottom-left" {
+	if anchorName(0, 1) != "bottom_left" {
 		t.Fatal("name")
+	}
+	if x, y := parseAnchor("top_left"); x != 0 || y != 0 {
+		t.Fatalf("upstream top_left %v %v", x, y)
 	}
 }
 

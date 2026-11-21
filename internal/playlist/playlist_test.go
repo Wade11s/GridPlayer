@@ -227,14 +227,15 @@ func TestExplicitEmptyViewShapeSurvivesJSON(t *testing.T) {
 }
 
 func TestAnchorAndCropRoundTrip(t *testing.T) {
+	// Upstream AutoName serializes TOP_LEFT as top_left.
 	src := `{"format":"gridplayer-playlist","videos":[{` +
-		`"uri":"a.mp4","anchor":"top-left","crop":[10,20,30,40],"crop_margins":[1,2,3,4]}]}`
+		`"uri":"a.mp4","anchor":"top_left","crop":[10,20,30,40],"crop_margins":[1,2,3,4]}]}`
 	d, err := Parse([]byte(src), "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	v := d.Videos[0]
-	if v.Anchor != "top-left" {
+	if v.Anchor != "top_left" {
 		t.Fatalf("anchor %q", v.Anchor)
 	}
 	if len(v.Crop) != 4 || v.Crop[0] != 10 || v.Crop[3] != 40 {
@@ -250,7 +251,7 @@ func TestAnchorAndCropRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"anchor":"top-left"`, `"crop":[10,20,30,40]`, `"crop_margins":[1,2,3,4]`} {
+	for _, want := range []string{`"anchor":"top_left"`, `"crop":[10,20,30,40]`, `"crop_margins":[1,2,3,4]`} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("missing %s in %s", want, raw)
 		}
