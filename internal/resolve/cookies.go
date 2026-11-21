@@ -3,12 +3,16 @@ package resolve
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
+
+const maxCookieFile = 4 << 20
 
 // cookiePair is one Netscape cookie ready for streamlink's --http-cookie.
 type cookiePair struct {
@@ -22,15 +26,38 @@ type cookiePair struct {
 // malformed file yields no cookies rather than an error, matching yt-dlp's
 // tolerant behaviour.
 func cookiesForHost(path string, u *url.URL, now time.Time) []cookiePair {
-	path = strings.TrimSpace(path)
-	if path == "" || u == nil {
-		return nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
+	data, ok := readCookieFile(path)
+	if !ok || u == nil {
 		return nil
 	}
 	return parseCookies(data, u, now)
+}
+
+// readCookieFile reads a user-supplied cookie jar without ever blocking on a
+// FIFO or slurping a huge file: it opens once, checks the opened handle, and
+// reads at most maxCookieFile bytes plus one to detect an oversized file.
+func readCookieFile(path string) ([]byte, bool) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, false
+	}
+	// O_NONBLOCK makes opening a FIFO or device return instead of waiting
+	// for a peer; non-regular files are rejected below. For regular files
+	// the flag has no effect on reads.
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		return nil, false
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxCookieFile {
+		return nil, false
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxCookieFile+1))
+	if err != nil || int64(len(data)) > maxCookieFile {
+		return nil, false
+	}
+	return data, true
 }
 
 func parseCookies(data []byte, u *url.URL, now time.Time) []cookiePair {

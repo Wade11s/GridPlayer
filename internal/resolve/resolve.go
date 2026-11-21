@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -138,8 +137,13 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 // names the option falls back to per-cookie arguments.
 func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
 	path := strings.TrimSpace(r.Cookies)
-	file := usableCookieFile(path)
-	cookies := cookiesForHost(path, u, time.Now())
+	data, ok := readCookieFile(path)
+	var file string
+	var cookies []cookiePair
+	if ok {
+		file = path
+		cookies = parseCookies(data, u, time.Now())
+	}
 	if file == "" {
 		return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
 	}
@@ -153,20 +157,6 @@ func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string
 		return got, err
 	}
 	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
-}
-
-// usableCookieFile returns path when it is a regular file of at most 4 MiB, so
-// a FIFO or device can never block the resolve and a huge file is not read.
-func usableCookieFile(path string) string {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return ""
-	}
-	info, err := os.Stat(path)
-	if err != nil || !info.Mode().IsRegular() || info.Size() > 4<<20 {
-		return ""
-	}
-	return path
 }
 
 // unsupportedCookieFileOption reports whether streamlink rejected the flag

@@ -1,12 +1,14 @@
 package resolve
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -19,8 +21,9 @@ const cookieFile = `# Netscape HTTP Cookie File
 .example.com	TRUE	/	FALSE	1000000000	expired	old
 `
 
-const persistentCookieFile = `# Netscape HTTP Cookie File
-.example.com	TRUE	/	FALSE	4102444800	persistent	abc
+const mixedCookieFile = `# Netscape HTTP Cookie File
+.example.com	TRUE	/	FALSE	0	session	abc
+.example.com	TRUE	/	FALSE	4102444800	persistent	def
 `
 
 func writeCookieFile(t *testing.T, body string) string {
@@ -113,7 +116,7 @@ func TestStreamlinkArgsPassCookiesOnFallback(t *testing.T) {
 }
 
 func TestStreamlinkArgsPreferCookiesFileAndKeepSessionCookies(t *testing.T) {
-	path := writeCookieFile(t, cookieFile)
+	path := writeCookieFile(t, mixedCookieFile)
 	r := &Resolver{Streamlink: "/tmp/streamlink", Cookies: path}
 	u, _ := url.Parse("https://example.com/watch")
 	all := cookiesForHost(path, u, time.Unix(2_000_000_000, 0))
@@ -125,7 +128,7 @@ func TestStreamlinkArgsPreferCookiesFileAndKeepSessionCookies(t *testing.T) {
 	if !strings.Contains(joined, "--http-cookie session=abc") {
 		t.Fatalf("session cookie missing from the file path: %q", joined)
 	}
-	if strings.Contains(joined, "persistent=") || strings.Contains(joined, "expired=old") {
+	if strings.Contains(joined, "persistent=def") {
 		t.Fatalf("persistent cookies must stay in the jar: %q", joined)
 	}
 }
@@ -150,23 +153,39 @@ func TestCookiePathMatchesRFC6265(t *testing.T) {
 	}
 }
 
-func TestUsableCookieFile(t *testing.T) {
+func TestReadCookieFile(t *testing.T) {
 	dir := t.TempDir()
 	file := filepath.Join(dir, "cookies.txt")
 	if err := os.WriteFile(file, []byte(cookieFile), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if got := usableCookieFile(file); got != file {
-		t.Fatalf("regular file %q", got)
+	if data, ok := readCookieFile(file); !ok || !strings.Contains(string(data), "session") {
+		t.Fatalf("regular file not read: ok=%v", ok)
 	}
 	for name, path := range map[string]string{
 		"directory": dir,
 		"missing":   filepath.Join(dir, "nope.txt"),
 		"blank":     "",
 	} {
-		if got := usableCookieFile(path); got != "" {
-			t.Fatalf("%s: %q", name, got)
+		if _, ok := readCookieFile(path); ok {
+			t.Fatalf("%s: read", name)
 		}
+	}
+
+	large := filepath.Join(dir, "large.txt")
+	if err := os.WriteFile(large, bytes.Repeat([]byte("a"), maxCookieFile+2), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := readCookieFile(large); ok {
+		t.Fatal("oversized file read")
+	}
+
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0o600); err != nil {
+		t.Skipf("mkfifo: %v", err)
+	}
+	if _, ok := readCookieFile(fifo); ok {
+		t.Fatal("fifo read")
 	}
 }
 
