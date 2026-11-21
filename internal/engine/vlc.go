@@ -19,8 +19,12 @@ type VLCOptions struct {
 
 // NewVLCFactory returns a Factory backed by libVLC.
 func NewVLCFactory(opts VLCOptions) Factory {
-	return func(path string, loop bool) (Backend, error) {
-		inst, err := vlcmac.NewInstanceArgs(opts.Verbose, opts.Args)
+	return func(path string, loop bool, transform string) (Backend, error) {
+		args := append([]string(nil), opts.Args...)
+		if transform != "" && transform != "none" {
+			args = append(args, "--video-filter=transform{type='"+transform+"'}")
+		}
+		inst, err := vlcmac.NewInstanceArgs(opts.Verbose, args)
 		if err != nil {
 			return nil, err
 		}

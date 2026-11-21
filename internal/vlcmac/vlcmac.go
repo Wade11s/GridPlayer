@@ -484,27 +484,18 @@ func (p *Player) SetMedia(path string, loop bool) error {
 	return nil
 }
 
-// SetTransform applies libVLC's transform filter to the current media.
-// Call after SetMedia and before Play; "none" removes the filter.
+// SetTransform keeps the backend signature. The transform is an instance
+// option: the engine passes it when it creates this player's libVLC
+// instance, and a transform change reloads through a new instance with the
+// new option. Adding it to an existing media after set_media does not take
+// effect on the native surface, so there is nothing left to do here.
 func (p *Player) SetTransform(transform string) bool {
 	if p == nil {
 		return false
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.released || p.md == nil {
-		return false
-	}
-	if transform == "" || transform == "none" {
-		return true
-	}
-	filter := C.CString(":video-filter=transform")
-	defer C.free(unsafe.Pointer(filter))
-	C.libvlc_media_add_option(p.md, filter)
-	kind := C.CString(":transform-type=" + transform)
-	defer C.free(unsafe.Pointer(kind))
-	C.libvlc_media_add_option(p.md, kind)
-	return true
+	return !p.released && p.md != nil
 }
 
 func (p *Player) with(fn func(mp *C.libvlc_media_player_t)) bool {

@@ -38,7 +38,7 @@ func TestClockRunsAndLoop(t *testing.T) {
 
 func TestDummyEngineLoad(t *testing.T) {
 	f := New()
-	e := engine.New(func(path string, loop bool) (engine.Backend, error) {
+	e := engine.New(func(path string, loop bool, transform string) (engine.Backend, error) {
 		return f, nil
 	})
 	defer e.Close()

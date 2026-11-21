@@ -237,7 +237,7 @@ func TestLifecycleCommandsAndSnapshot(t *testing.T) {
 	f.subs = []Track{{ID: -1, Name: "Disable"}, {ID: 3, Name: "English"}}
 	f.chapters = []Chapter{{Index: 0, Name: "Intro"}, {Index: 1, Name: "Part One"}}
 	f.audioID, f.videoID, f.subID, f.chapter = 1, 1, -1, 0
-	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	e := New(func(path string, loop bool, transform string) (Backend, error) { return f, nil })
 	defer e.Close()
 
 	if err := e.Load("a.mp4"); err != nil {
@@ -291,7 +291,7 @@ func TestReloadFencesStaleEvents(t *testing.T) {
 	second := newFake()
 	var mu sync.Mutex
 	next := 0
-	e := New(func(path string, loop bool) (Backend, error) {
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		next++
@@ -325,7 +325,7 @@ func TestReloadFencesStaleEvents(t *testing.T) {
 }
 
 func TestLoadFailureAndCloseIdempotent(t *testing.T) {
-	e := New(func(path string, loop bool) (Backend, error) {
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
 		return nil, errors.New("boom")
 	})
 	if err := e.Load("bad"); err == nil {
@@ -340,7 +340,7 @@ func TestLoadFailureAndCloseIdempotent(t *testing.T) {
 
 func TestFailedSurvivesStopped(t *testing.T) {
 	f := newFake()
-	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	e := New(func(path string, loop bool, transform string) (Backend, error) { return f, nil })
 	defer e.Close()
 	if err := e.Load("bad.mp4"); err != nil {
 		t.Fatal(err)
@@ -356,7 +356,7 @@ func TestFailedSurvivesStopped(t *testing.T) {
 
 func TestReloadIfFailedHonorsGeneration(t *testing.T) {
 	calls := 0
-	e := New(func(path string, loop bool) (Backend, error) {
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
 		calls++
 		f := newFake()
 		f.emit(Event{Kind: EventFailed})
@@ -394,7 +394,7 @@ func TestReloadIfFailedHonorsGeneration(t *testing.T) {
 
 func TestToggleReloadsFailed(t *testing.T) {
 	calls := 0
-	e := New(func(path string, loop bool) (Backend, error) {
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
 		calls++
 		if calls == 1 {
 			return nil, errors.New("boom")
@@ -414,7 +414,7 @@ func TestToggleReloadsFailed(t *testing.T) {
 func TestLoopCarriedIntoFactoryAndEnded(t *testing.T) {
 	f := newFake()
 	var gotLoop bool
-	e := New(func(path string, loop bool) (Backend, error) {
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
 		gotLoop = loop
 		return f, nil
 	})
@@ -438,7 +438,7 @@ func TestLoopCarriedIntoFactoryAndEnded(t *testing.T) {
 
 func TestStartPositionSeeksOnFirstPlaying(t *testing.T) {
 	f := newFake()
-	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	e := New(func(path string, loop bool, transform string) (Backend, error) { return f, nil })
 	defer e.Close()
 	e.SetStartPosition(3000)
 	if err := e.Load("resume.mp4"); err != nil {
@@ -455,7 +455,7 @@ func TestStartPositionSeeksOnFirstPlaying(t *testing.T) {
 func TestViewSettingsAndExternalTracks(t *testing.T) {
 	f := newFake()
 	seenLoop := false
-	e := New(func(path string, loop bool) (Backend, error) {
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
 		seenLoop = loop
 		return f, nil
 	})
@@ -510,7 +510,7 @@ func TestFrameStepBack(t *testing.T) {
 func TestEngineStepsFrames(t *testing.T) {
 	f := newFake()
 	f.time = 1000
-	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	e := New(func(path string, loop bool, transform string) (Backend, error) { return f, nil })
 	defer e.Close()
 	if err := e.Load("a.mp4"); err != nil {
 		t.Fatal(err)
@@ -530,7 +530,7 @@ func TestEngineStepsFrames(t *testing.T) {
 
 func TestEngineStoresTransform(t *testing.T) {
 	f := newFake()
-	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	e := New(func(path string, loop bool, transform string) (Backend, error) { return f, nil })
 	defer e.Close()
 	e.SetTransform("90")
 	if err := e.Load("a.mp4"); err != nil {
@@ -544,12 +544,29 @@ func TestEngineStoresTransform(t *testing.T) {
 	}
 }
 
+func TestEnginePassesTransformToFactory(t *testing.T) {
+	f := newFake()
+	var got string
+	e := New(func(path string, loop bool, transform string) (Backend, error) {
+		got = transform
+		return f, nil
+	})
+	defer e.Close()
+	e.SetTransform("90")
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if got != "90" {
+		t.Fatalf("factory transform %q", got)
+	}
+}
+
 func TestAudioDelayClampAndNudge(t *testing.T) {
 	if ClampAudioDelay(-70000) != MinAudioDelayMS || ClampAudioDelay(70000) != MaxAudioDelayMS {
 		t.Fatal("clamp")
 	}
 	f := newFake()
-	e := New(func(path string, loop bool) (Backend, error) { return f, nil })
+	e := New(func(path string, loop bool, transform string) (Backend, error) { return f, nil })
 	defer e.Close()
 	if err := e.Load("a.mp4"); err != nil {
 		t.Fatal(err)
