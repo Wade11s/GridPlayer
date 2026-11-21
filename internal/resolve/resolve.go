@@ -34,6 +34,26 @@ func (b *limitedBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// commandError keeps the complete captured stderr for classification while its
+// message stays bounded for display.
+type commandError struct {
+	err    error
+	stderr string
+}
+
+func (e *commandError) Error() string {
+	msg := strings.TrimSpace(e.stderr)
+	if len(msg) > 400 {
+		msg = msg[:400]
+	}
+	if msg == "" {
+		return e.err.Error()
+	}
+	return fmt.Sprintf("%v: %s", e.err, msg)
+}
+
+func (e *commandError) Unwrap() error { return e.err }
+
 func (b *limitedBuffer) String() string { return b.buf.String() }
 func (b *limitedBuffer) Len() int       { return b.buf.Len() }
 
@@ -97,7 +117,7 @@ func (r *Resolver) Resolve(ctx context.Context, raw string) (string, error) {
 		failures = append(failures, "yt-dlp: "+err.Error())
 	}
 	if u.Scheme != "file" && r.Streamlink != "" {
-		got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw))
+		got, err := r.resolveStreamlink(ctx, u, raw)
 		if err == nil {
 			return got, nil
 		}
@@ -131,11 +151,68 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 	return append(args, "--", raw)
 }
 
-func (r *Resolver) streamlinkArgs(raw string) []string {
+// resolveStreamlink prefers streamlink's own cookies file handling, which lets
+// streamlink apply the jar's attributes and keeps cookie values off the
+// command line. Older streamlink releases lack the flag, so a failure that
+// names the option falls back to per-cookie arguments.
+func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string) (string, error) {
+	path := strings.TrimSpace(r.Cookies)
+	data, ok := readCookieFile(path)
+	var file string
+	var cookies []cookiePair
+	if ok {
+		file = path
+		cookies = parseCookies(data, u, time.Now())
+	}
+	if file == "" {
+		return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
+	}
+	// Streamlink loads the jar itself, so only the cookies its loader drops
+	// (session cookies) are passed separately.
+	got, err := r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, file, sessionCookies(cookies)))
+	if err == nil {
+		return got, nil
+	}
+	if !unsupportedCookieFileOption(err) {
+		return got, err
+	}
+	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
+}
+
+// unsupportedCookieFileOption reports whether streamlink rejected the flag
+// itself, which is the only case a per-cookie retry can help with. A jar the
+// loader refuses stays a hard error.
+func unsupportedCookieFileOption(err error) bool {
+	if err == nil {
+		return false
+	}
+	// Argparse prints its usage block before the diagnostic, and the
+	// returned message only keeps the first 400 bytes. Classify against the
+	// complete captured stderr so a long preamble cannot hide the option
+	// error.
+	message := err.Error()
+	var cmdErr *commandError
+	if errors.As(err, &cmdErr) {
+		message = cmdErr.stderr
+	}
+	message = strings.ToLower(message)
+	if !strings.Contains(message, "http-cookies-file") {
+		return false
+	}
+	return strings.Contains(message, "no such option") ||
+		strings.Contains(message, "unrecognized arguments") ||
+		strings.Contains(message, "unknown option")
+}
+
+func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
 	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
 	}
+	if cookieFile != "" {
+		args = append(args, "--http-cookies-file", cookieFile)
+	}
+	args = append(args, cookieArgs(cookies)...)
 	return append(args, "--", raw)
 }
 
@@ -155,11 +232,7 @@ func (r *Resolver) run(ctx context.Context, path string, args []string) (string,
 		if cctx.Err() != nil {
 			return "", fmt.Errorf("timed out after %s", timeout)
 		}
-		msg := strings.TrimSpace(stderr.String())
-		if len(msg) > 400 {
-			msg = msg[:400]
-		}
-		return "", fmt.Errorf("%v: %s", err, msg)
+		return "", &commandError{err: err, stderr: stderr.String()}
 	}
 	for _, line := range strings.Split(stdout.String(), "\n") {
 		line = strings.TrimSpace(line)
