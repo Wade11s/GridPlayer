@@ -82,7 +82,7 @@ type settingsDraft struct {
 }
 
 var (
-	layoutOptions      = []string{"Auto Rows", "Auto Columns", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
+	layoutOptions      = []string{"Auto Rows", "Auto Columns", "Fit Shapes", "Fixed", "Free Tiles", "Mosaic", "Single Mode"}
 	sizeOptions        = []string{"1", "2", "3", "4", "5", "6", "7", "8"}
 	sideOptions        = []string{"Auto", "Right", "Left", "Bottom", "Top"}
 	viewOptions        = []string{"Fill (cover)", "Fit (contain)", "Stretch"}
@@ -516,6 +516,8 @@ func (a *app) currentSettingsDraft() settingsDraft {
 			d.layout = "Auto Columns"
 		case grid.Fixed:
 			d.layout = "Fixed"
+		case grid.Shapes:
+			d.layout = "Fit Shapes"
 		default:
 			d.layout = "Auto Rows"
 		}
@@ -651,6 +653,9 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	switch d.layout {
 	case "Auto Columns":
 		a.cfg = grid.Config{Mode: grid.AutoCols}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Fit Shapes":
+		a.cfg = grid.Config{Mode: grid.Shapes}
 		a.free, a.mosaic, a.single = false, false, false
 	case "Fixed":
 		a.cfg = grid.Config{Mode: grid.Fixed, Rows: atoi(d.rows, 3), Cols: atoi(d.cols, 3)}

@@ -1705,3 +1705,27 @@ func TestFrozenStepConstants(t *testing.T) {
 
 func ptrString(s string) *string  { return &s }
 func ptrFloat(v float64) *float64 { return &v }
+
+func TestFitShapesModeRoundTrip(t *testing.T) {
+	if modeName(grid.Shapes) != "fit_shapes" || parseMode("fit_shapes") != grid.Shapes {
+		t.Fatalf("mode name %q parse %v", modeName(grid.Shapes), parseMode("fit_shapes"))
+	}
+	a := &app{cfg: grid.Config{Mode: grid.Shapes}, cells: []*cell{{}, {}}}
+	d := a.currentSettingsDraft()
+	if d.layout != "Fit Shapes" {
+		t.Fatalf("draft layout %q", d.layout)
+	}
+	b := &app{cells: []*cell{{}, {}}}
+	b.applySettingsDraft(d)
+	if b.cfg.Mode != grid.Shapes || b.free || b.mosaic || b.single {
+		t.Fatalf("applied grid %+v free=%v mosaic=%v single=%v", b.cfg, b.free, b.mosaic, b.single)
+	}
+}
+
+func TestSetGridClearsFreeMosaicSingle(t *testing.T) {
+	a := &app{free: true, mosaic: true, single: true, cells: []*cell{{}}}
+	a.setGrid(grid.Config{Mode: grid.Shapes})
+	if a.cfg.Mode != grid.Shapes || a.free || a.mosaic || a.single {
+		t.Fatalf("grid %+v free=%v mosaic=%v single=%v", a.cfg, a.free, a.mosaic, a.single)
+	}
+}
