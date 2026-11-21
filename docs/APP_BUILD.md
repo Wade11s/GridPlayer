@@ -37,9 +37,11 @@ The CLI is pinned in `go.mod` as `tool github.com/egoist/mygo/cmd/mygo`.
 
 It copies the app to `/tmp` (outside the TCC-protected Desktop), checks the
 bundled libs/plugins and the `@executable_path/../Frameworks` rpath, opens
-four fixtures with `open`, waits for the app to quit, and requires four
-VideoToolbox decode lines in the log. A screenshot is taken by the caller
-when a GUI session is available.
+four fixtures with `open` under an isolated `--user-data-dir`
+(`/tmp/gridplayer-smoke-data`, so the user's real settings are never read or
+written), waits for the app to quit, and requires four VideoToolbox decode
+lines in the log plus the isolated `settings.ini`. A screenshot is taken by
+the caller when a GUI session is available.
 
 ## Notes
 
