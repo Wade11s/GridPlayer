@@ -14,6 +14,8 @@ import (
 const (
 	fitHeightStep    = 0.01
 	fitDefaultAspect = 16.0 / 9.0
+	fitMinAspect     = 0.05
+	fitMaxAspect     = 20.0
 )
 
 type fitSplit struct {
@@ -60,10 +62,16 @@ func bestFitSplits(weights []float64) []fitSplit {
 			}
 		}
 		sort.SliceStable(found, func(i, j int) bool {
-			if found[i].height == found[j].height {
+			if found[i].height != found[j].height {
+				return found[i].height < found[j].height
+			}
+			if found[i].lessLog != found[j].lessLog {
 				return found[i].lessLog < found[j].lessLog
 			}
-			return found[i].height < found[j].height
+			if found[i].start != found[j].start {
+				return found[i].start < found[j].start
+			}
+			return found[i].prevIndex < found[j].prevIndex
 		})
 		var kept []fitState
 		stepHeight := 0.0
@@ -124,9 +132,8 @@ func fitScore(split fitSplit, weights []float64, width, height float64) float64 
 	logWidth, logHeight := math.Log(width), math.Log(height)
 	logLinesHeight := math.Log(split.height)
 	shownWidth := math.Min(logWidth, logHeight-logLinesHeight)
-	shown := logWeights + 2*split.logHeights + 2*count*shownWidth
-	logLeftover := math.Abs(logHeight - logLinesHeight - logWidth)
-	return shown + 0.5*count*logLeftover
+	// With no crop, upstream's stretch term is min(abs(leftover), 0) = 0.
+	return logWeights + 2*split.logHeights + 2*count*shownWidth
 }
 
 type fitChoice struct {
@@ -204,6 +211,12 @@ func FitShapes(n int, area Rect, gap float64, shapes []float64) []Rect {
 		weights[i] = fitDefaultAspect
 		if i < len(shapes) && shapes[i] > 0 && !math.IsInf(shapes[i], 0) && !math.IsNaN(shapes[i]) {
 			weights[i] = shapes[i]
+		}
+		if weights[i] < fitMinAspect {
+			weights[i] = fitMinAspect
+		}
+		if weights[i] > fitMaxAspect {
+			weights[i] = fitMaxAspect
 		}
 	}
 	choice := bestFit(weights, area)

@@ -132,3 +132,34 @@ func TestFitShapesInsetByGap(t *testing.T) {
 		}
 	}
 }
+
+func TestFitShapesUpstreamGoldenScore(t *testing.T) {
+	area := Rect{W: 800, H: 1080}
+	shapes := []float64{16.0 / 9.0, 4.0 / 3.0, 2.35, 9.0 / 16.0, 2.35}
+	rects := FitShapes(len(shapes), area, 0, shapes)
+	checkFitRects(t, rects, area, shapes)
+	// Upstream's split_scorer with crop=0 gives its best split this score
+	// for these shapes and area. Several splits can tie; any of them is
+	// optimal by the same picture-area measure.
+	choice := bestFit(shapes, area)
+	if math.Abs(choice.score-58.317832342207836) > 1e-9 {
+		t.Fatalf("best score %v, want upstream 58.317832342207836 (lengths %v)", choice.score, choice.split.lengths)
+	}
+	if len(choice.split.lengths) < 2 {
+		t.Fatalf("expected a multi-line split, got %v", choice.split.lengths)
+	}
+}
+
+func TestFitShapesExtremeShapeStaysVisible(t *testing.T) {
+	area := Rect{W: 1200, H: 800}
+	rects := FitShapes(2, area, 0, []float64{1e-12, 1e12})
+	if len(rects) != 2 {
+		t.Fatalf("rects %d", len(rects))
+	}
+	for i, r := range rects {
+		if r.W <= 0 || r.H <= 0 {
+			t.Fatalf("rect %d has no area: %+v", i, r)
+		}
+	}
+	checkFitRects(t, rects, area, nil)
+}

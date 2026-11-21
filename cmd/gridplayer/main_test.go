@@ -1729,3 +1729,31 @@ func TestSetGridClearsFreeMosaicSingle(t *testing.T) {
 		t.Fatalf("grid %+v free=%v mosaic=%v single=%v", a.cfg, a.free, a.mosaic, a.single)
 	}
 }
+
+func TestPictureShapeUsesAspectCropAndTransform(t *testing.T) {
+	a := &app{}
+	s := engine.Snapshot{Width: 1920, Height: 1080}
+	c := &cell{}
+	if got := a.pictureShape(c, s); got != 1920.0/1080.0 {
+		t.Fatalf("own shape %v", got)
+	}
+	c.aspect = "4:3"
+	if got := a.pictureShape(c, s); got != 4.0/3.0 {
+		t.Fatalf("aspect shape %v", got)
+	}
+	c.crop = "1:1"
+	if got := a.pictureShape(c, s); got != 1 {
+		t.Fatalf("crop ratio shape %v", got)
+	}
+	c.crop = ""
+	c.aspect = ""
+	c.cropMargins = cropMargins{Left: 100, Right: 100}
+	if got := a.pictureShape(c, s); got != 1720.0/1080.0 {
+		t.Fatalf("crop margins shape %v", got)
+	}
+	c.cropMargins = cropMargins{}
+	c.transform = "90"
+	if got := a.pictureShape(c, s); got != 1080.0/1920.0 {
+		t.Fatalf("turned shape %v", got)
+	}
+}

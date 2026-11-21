@@ -1657,10 +1657,7 @@ func (a *app) view(c *ui.Context) {
 		shapes := make([]float64, len(a.cells))
 		for i, c := range a.cells {
 			if c.eng != nil {
-				s := c.eng.Snapshot()
-				if s.Width > 0 && s.Height > 0 {
-					shapes[i] = float64(s.Width) / float64(s.Height)
-				}
+				shapes[i] = a.pictureShape(c, c.eng.Snapshot())
 			}
 		}
 		rects = grid.FitShapes(len(a.cells), area, 4, shapes)
@@ -2319,6 +2316,41 @@ func (a *app) setSingleSide(side grid.StripSide) {
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+}
+
+// pictureShape is the shape of the picture as shown: the decoded frame turned
+// by the cell transform, cropped by margins, then overridden by crop_ratio or
+// aspect_ratio (crop first, as upstream's picture_shape does). Zero means the
+// shape is not known yet and Fit Shapes takes 16:9.
+func (a *app) pictureShape(c *cell, s engine.Snapshot) float64 {
+	if c == nil || s.Width <= 0 || s.Height <= 0 {
+		return 0
+	}
+	shape, crop := a.cellShape(c, s)
+	if ratio := ratioValue(c.crop); ratio > 0 {
+		return ratio
+	}
+	if ratio := ratioValue(c.aspect); ratio > 0 {
+		return ratio
+	}
+	w := shape.W - crop.Left - crop.Right
+	h := shape.H - crop.Top - crop.Bottom
+	if w <= 0 || h <= 0 {
+		return 0
+	}
+	return w / h
+}
+
+// ratioValue parses "16:9" into 16/9. An empty or malformed value is 0.
+func ratioValue(ratio string) float64 {
+	if i := indexByteColon(ratio); i > 0 {
+		w, err1 := strconv.ParseFloat(ratio[:i], 64)
+		h, err2 := strconv.ParseFloat(ratio[i+1:], 64)
+		if err1 == nil && err2 == nil && w > 0 && h > 0 {
+			return w / h
+		}
+	}
+	return 0
 }
 
 func modeName(m grid.Mode) string {
