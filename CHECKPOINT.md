@@ -9,11 +9,15 @@ VLC 3.0.24 at `/Applications/VLC.app`, target `Wade11s/GridPlayer`.
 Gates now in force:
 - `main` is protected: required `vet-build-test`, `strict: true`,
   `enforce_admins: true`, no force pushes/deletions, conversation resolution.
-- Every change since #41 is PR-first with a fresh-context review bound to the
-  exact head and local `.app` smoke evidence; the smoke uses
-  `/tmp/gridplayer-smoke-data` and never reads the real settings directory.
-- Hosted CI is Ubuntu + libVLC (`go vet`, `go build ./...`, race tests); no
-  macOS runner and no paid CI.
+- Every code or media-changing change since #41 is PR-first with a
+  fresh-context review bound to the exact head and local `.app` smoke evidence;
+  docs-only PRs say “not run” explicitly and are not counted as smoke passes.
+  The smoke uses `/tmp/gridplayer-smoke-data` and never reads the real settings
+  directory.
+- Hosted CI is Ubuntu + libVLC and runs `scripts/ci.sh` (`go vet ./...`,
+  `go test ./...`, `go build ./...`, no `-race`). Local PR evidence adds
+  `go test ./... -race` and the macOS `.app` smoke; there is no macOS runner
+  and no paid CI.
 
 Merged through 2026-11-21 (main `669d39d`):
 - #41–#63: list-fail policy, audio delay, end actions, frame stepping,
