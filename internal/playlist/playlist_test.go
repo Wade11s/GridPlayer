@@ -148,6 +148,33 @@ func TestSponsorOverridesRoundTrip(t *testing.T) {
 	}
 }
 
+func TestViewShapeFieldsRoundTrip(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"a.mp4","aspect_ratio":"4:3","scale":1.5,"crop_ratio":"2.35:1"}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.AspectRatio == nil || *v.AspectRatio != "4:3" ||
+		v.Scale == nil || *v.Scale != 1.5 ||
+		v.CropRatio == nil || *v.CropRatio != "2.35:1" {
+		t.Fatalf("view shape %+v", v)
+	}
+	if len(v.Extra) != 0 {
+		t.Fatalf("known fields leaked into extra: %+v", v.Extra)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"aspect_ratio":"4:3"`, `"scale":1.5`, `"crop_ratio":"2.35:1"`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+}
+
 func TestCropMarginsRoundTrip(t *testing.T) {
 	src := `{"format":"gridplayer-playlist","videos":[{` +
 		`"uri":"a.mp4","crop_margins":[10,20,30,40]}]}`
@@ -168,5 +195,33 @@ func TestCropMarginsRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"crop_margins":[10,20,30,40]`) {
 		t.Fatalf("missing crop margins in %s", raw)
+	}
+}
+
+func TestExplicitEmptyViewShapeSurvivesJSON(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"a.mp4","aspect_ratio":"","scale":0,"crop_ratio":""}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.AspectRatio == nil || *v.AspectRatio != "" {
+		t.Fatalf("aspect presence lost: %+v", v.AspectRatio)
+	}
+	if v.Scale == nil || *v.Scale != 0 {
+		t.Fatalf("scale presence lost: %+v", v.Scale)
+	}
+	if v.CropRatio == nil || *v.CropRatio != "" {
+		t.Fatalf("crop presence lost: %+v", v.CropRatio)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"aspect_ratio":""`, `"scale":0`, `"crop_ratio":""`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("explicit field missing %s in %s", want, raw)
+		}
 	}
 }

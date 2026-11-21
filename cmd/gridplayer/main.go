@@ -64,6 +64,9 @@ type cell struct {
 	pauseOnPlay      atomic.Bool
 	retries          atomic.Int32
 	viewMode         string
+	aspect           string
+	scale            float64
+	crop             string
 	zoom             float64
 	anchorX, anchorY float64
 	shiftX, shiftY   float64
@@ -357,6 +360,9 @@ func (a *app) loadSettings() {
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 		c.transform = a.defaultTransform
 		c.viewMode = viewModeName(a.fill, a.stretch)
+		c.aspect = a.aspect
+		c.scale = a.scale
+		c.crop = a.crop
 		a.fetchSponsor(c, c.source)
 	}
 	if raw := st.Get("app/recent", ""); raw != "" {
@@ -690,6 +696,9 @@ func (a *app) newCell(i int, p string) *cell {
 		rate:      a.defaultRate,
 		loop:      a.defaultLoop,
 		viewMode:  viewModeName(a.fill, a.stretch),
+		aspect:    a.aspect,
+		scale:     a.scale,
+		crop:      a.crop,
 		zoom:      a.defaultZoom,
 		transform: a.defaultTransform,
 	}
@@ -1021,9 +1030,9 @@ func (a *app) ensure(i int, r grid.Rect) {
 		if stretch {
 			c.eng.SetAspectRatio(fmt.Sprintf("%.0f:%.0f", r.W, r.H))
 		} else {
-			c.eng.SetAspectRatio(a.aspect)
+			c.eng.SetAspectRatio(c.aspect)
 		}
-		c.eng.SetScale(a.scale)
+		c.eng.SetScale(c.scale)
 	}
 	shape, crop := a.cellShape(c, s)
 	place := placePicture(shape,
@@ -1946,7 +1955,7 @@ func (a *app) shortcuts(c *ui.Context) {
 		}
 	}
 	if a.shortcut(c, "crop_reset") {
-		for _, cell := range a.cells {
+		if cell := a.activeCell(); cell != nil {
 			cell.cropMargins = cropMargins{}
 		}
 		a.setCrop("")
@@ -1995,7 +2004,7 @@ func (a *app) shortcuts(c *ui.Context) {
 		}
 	}
 	if a.shortcut(c, "crop_off") {
-		for _, cell := range a.cells {
+		if cell := a.activeCell(); cell != nil {
 			cell.cropMargins = cropMargins{}
 		}
 		a.setCrop("")
@@ -2047,14 +2056,16 @@ func (a *app) resetZoom() {
 }
 
 func (a *app) nudgeCrop(side string, delta float64) {
-	for _, c := range a.cells {
-		shape := videoShape{}
-		if c.eng != nil {
-			s := c.eng.Snapshot()
-			shape = videoShape{W: float64(s.Width), H: float64(s.Height)}
-		}
-		c.cropMargins = clampCropMargins(cropStep(c.cropMargins, side, delta), shape)
+	c := a.activeCell()
+	if c == nil {
+		return
 	}
+	shape := videoShape{}
+	if c.eng != nil {
+		s := c.eng.Snapshot()
+		shape = videoShape{W: float64(s.Width), H: float64(s.Height)}
+	}
+	c.cropMargins = clampCropMargins(cropStep(c.cropMargins, side, delta), shape)
 	a.dirty = true
 	if a.win != nil {
 		a.win.Invalidate()
@@ -2428,6 +2439,24 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		case "fill", "fit", "stretch":
 			c.viewMode = v.CellViewMode
 		}
+		if v.AspectRatio != nil {
+			c.aspect = normalizeAspectRatio(*v.AspectRatio)
+		} else {
+			c.aspect = a.aspect
+		}
+		if v.Scale != nil {
+			c.scale = *v.Scale
+			if c.scale < 0 {
+				c.scale = 0
+			}
+		} else {
+			c.scale = a.scale
+		}
+		if v.CropRatio != nil {
+			c.crop = normalizeCropRatio(*v.CropRatio)
+		} else {
+			c.crop = a.crop
+		}
 		c.startPaused = strings.EqualFold(v.PlaybackState, "paused") ||
 			strings.EqualFold(v.PlaybackState, "stopped")
 		oldPath := c.path
@@ -2576,6 +2605,16 @@ func (a *app) document() *playlist.Document {
 		if source == "" {
 			source = c.path
 		}
+		aspectRatio := c.aspect
+		cropRatio := c.crop
+		// Upstream's model requires scale >= 1.0, so 0 is only written when
+		// it carries information (an explicit Fit against a non-zero
+		// default). A plain 0 default is left absent.
+		var scale *float64
+		if c.scale != 0 || a.scale != 0 {
+			s := c.scale
+			scale = &s
+		}
 		v := playlist.Video{
 			URI:             source,
 			CurrentPosition: int(s.Time),
@@ -2584,6 +2623,9 @@ func (a *app) document() *playlist.Document {
 			Rate:            s.Rate,
 			PlaybackState:   s.Phase.String(),
 			CellViewMode:    a.cellViewMode(c),
+			AspectRatio:     &aspectRatio,
+			Scale:           scale,
+			CropRatio:       &cropRatio,
 			ListIndex:       c.listIndex,
 			ListEnd:         c.listEnd,
 			EndAction:       c.endAction,
@@ -2776,13 +2818,21 @@ func (a *app) cycleAudio() {
 }
 
 func (a *app) setAspect(aspect string) {
-	a.aspect = aspect
-	for _, c := range a.cells {
-		if c.eng != nil {
-			c.eng.SetAspectRatio(aspect)
+	c := a.activeCell()
+	if c == nil {
+		return
+	}
+	c.aspect = normalizeAspectRatio(aspect)
+	if c.eng != nil {
+		if _, stretch := viewModeFlags(a.cellViewMode(c)); !stretch {
+			c.eng.SetAspectRatio(c.aspect)
 		}
 	}
-	a.saveSettings()
+	a.dirty = true
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) setZoom(scale float64) {
@@ -2823,18 +2873,31 @@ func (a *app) shiftPicture(dx, dy float64) {
 }
 
 func (a *app) setScale(scale float64) {
-	a.scale = scale
-	for _, c := range a.cells {
-		if c.eng != nil {
-			c.eng.SetScale(scale)
-		}
+	c := a.activeCell()
+	if c == nil {
+		return
 	}
-	a.saveSettings()
+	if scale < 0 {
+		scale = 0
+	}
+	c.scale = scale
+	if c.eng != nil {
+		c.eng.SetScale(scale)
+	}
+	a.dirty = true
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
 }
 
 func (a *app) setCrop(crop string) {
-	a.crop = crop
-	a.saveSettings()
+	c := a.activeCell()
+	if c == nil {
+		return
+	}
+	c.crop = normalizeCropRatio(crop)
+	a.dirty = true
 	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
@@ -2859,16 +2922,35 @@ func (a *app) setTransform(transform string) {
 }
 
 func (a *app) setViewMode(fill bool, stretch bool) {
-	a.fill = fill
-	a.stretch = stretch
-	mode := viewModeName(fill, stretch)
-	for _, c := range a.cells {
-		c.viewMode = mode
+	c := a.activeCell()
+	if c == nil {
+		return
 	}
-	a.saveSettings()
+	c.viewMode = viewModeName(fill, stretch)
+	a.dirty = true
 	if a.win != nil {
 		a.win.Invalidate()
 	}
+}
+
+// normalizeAspectRatio maps upstream's explicit own-shape sentinel to this
+// build's empty string and trims the value.
+func normalizeAspectRatio(aspect string) string {
+	aspect = strings.TrimSpace(aspect)
+	if aspect == "own" {
+		return ""
+	}
+	return aspect
+}
+
+// normalizeCropRatio maps upstream's explicit no-crop sentinel to this
+// build's empty string.
+func normalizeCropRatio(crop string) string {
+	crop = strings.TrimSpace(crop)
+	if crop == "none" {
+		return ""
+	}
+	return crop
 }
 
 func (a *app) refreshMenu() {
@@ -3087,11 +3169,13 @@ func (a *app) menu() *mygo.Menu {
 		bookmarkItems = append(bookmarkItems, &mygo.MenuItem{Label: "No Bookmarks", Disabled: true})
 	}
 	fill, stretch := a.activeViewFlags()
+	aspect, scale, crop := a.aspect, a.scale, a.crop
 	listEnd := "loop"
 	listFail := listFailPlayNext
 	endAction := endLoop
 	hasList := false
 	if c := a.activeCell(); c != nil {
+		aspect, scale, crop = c.aspect, c.scale, c.crop
 		endAction = c.finishAction()
 		if len(c.list) > 0 {
 			hasList = true
@@ -3334,17 +3418,17 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Aspect Ratio"), Submenu: []*mygo.MenuItem{
-				{Label: "Auto", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("") }},
-				{Label: "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("16:9") }},
-				{Label: "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("4:3") }},
-				{Label: "1:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("1:1") }},
-				{Label: "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("2.35:1") }},
+				{Label: "Auto", Type: mygo.MenuItemCheckbox, Checked: aspect == "", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("") }},
+				{Label: "16:9", Type: mygo.MenuItemCheckbox, Checked: aspect == "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("16:9") }},
+				{Label: "4:3", Type: mygo.MenuItemCheckbox, Checked: aspect == "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("4:3") }},
+				{Label: "1:1", Type: mygo.MenuItemCheckbox, Checked: aspect == "1:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("1:1") }},
+				{Label: "2.35:1", Type: mygo.MenuItemCheckbox, Checked: aspect == "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setAspect("2.35:1") }},
 			}},
 			{Label: a.tr("Actions", "Scale"), Submenu: []*mygo.MenuItem{
-				{Label: "Fit", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(0) }},
-				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1) }},
-				{Label: "1.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1.5) }},
-				{Label: "2x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(2) }},
+				{Label: "Fit", Type: mygo.MenuItemCheckbox, Checked: scale == 0, Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(0) }},
+				{Label: "1x", Type: mygo.MenuItemCheckbox, Checked: scale == 1, Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1) }},
+				{Label: "1.5x", Type: mygo.MenuItemCheckbox, Checked: scale == 1.5, Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(1.5) }},
+				{Label: "2x", Type: mygo.MenuItemCheckbox, Checked: scale == 2, Click: func(*mygo.MenuItem, *mygo.Window) { a.setScale(2) }},
 			}},
 			{Label: a.tr("Actions", "Zoom"), Submenu: []*mygo.MenuItem{
 				{Label: "Reset 1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setZoom(1) }},
@@ -3372,10 +3456,10 @@ func (a *app) menu() *mygo.Menu {
 				{Label: "Center", Click: func(*mygo.MenuItem, *mygo.Window) { a.shiftPicture(-1, -1) }},
 			}},
 			{Label: a.tr("Actions", "Crop"), Submenu: []*mygo.MenuItem{
-				{Label: "None", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("") }},
-				{Label: "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("16:9") }},
-				{Label: "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("4:3") }},
-				{Label: "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("2.35:1") }},
+				{Label: "None", Type: mygo.MenuItemCheckbox, Checked: crop == "", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("") }},
+				{Label: "16:9", Type: mygo.MenuItemCheckbox, Checked: crop == "16:9", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("16:9") }},
+				{Label: "4:3", Type: mygo.MenuItemCheckbox, Checked: crop == "4:3", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("4:3") }},
+				{Label: "2.35:1", Type: mygo.MenuItemCheckbox, Checked: crop == "2.35:1", Click: func(*mygo.MenuItem, *mygo.Window) { a.setCrop("2.35:1") }},
 			}},
 			{Label: "Transform", Submenu: []*mygo.MenuItem{
 				{Label: "None", Click: func(*mygo.MenuItem, *mygo.Window) { a.setTransform("none") }},

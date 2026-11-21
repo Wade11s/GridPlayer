@@ -668,6 +668,9 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	}
 	for _, c := range a.cells {
 		c.viewMode = viewModeName(a.fill, a.stretch)
+		c.aspect = a.aspect
+		c.scale = a.scale
+		c.crop = a.crop
 		if c.eng != nil {
 			c.eng.SetAspectRatio(a.aspect)
 			c.eng.SetScale(a.scale)
