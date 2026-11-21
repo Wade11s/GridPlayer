@@ -390,6 +390,8 @@ func TestLoadPlaylistItemSettings(t *testing.T) {
 			AspectRatio:     ptrString("4:3"),
 			Scale:           ptrFloat(1.5),
 			CropRatio:       ptrString("2.35:1"),
+			Anchor:          "top-left",
+			Crop:            []float64{10, 20, 30, 40},
 			PlaybackState:   "paused",
 			ListIndex:       1,
 			ListEnd:         "next",
@@ -406,6 +408,13 @@ func TestLoadPlaylistItemSettings(t *testing.T) {
 	if c.viewMode != "stretch" || c.aspect != "4:3" || c.scale != 1.5 || c.crop != "2.35:1" {
 		t.Fatalf("view shape: %+v", c)
 	}
+	if c.anchorX != 0 || c.anchorY != 0 {
+		t.Fatalf("anchor: %+v", c)
+	}
+	if c.cropMargins.Left != 10 || c.cropMargins.Top != 20 ||
+		c.cropMargins.Right != 30 || c.cropMargins.Bottom != 40 {
+		t.Fatalf("crop margins: %+v", c.cropMargins)
+	}
 	if !c.startPaused || c.listEnd != "next" ||
 		c.listIndex != 1 || c.path != filepath.Join(dir, "b.mp4") {
 		t.Fatalf("cell state: %+v", c)
@@ -417,13 +426,16 @@ func TestLoadPlaylistItemSettings(t *testing.T) {
 
 func TestDocumentViewMode(t *testing.T) {
 	a := &app{cells: []*cell{{
-		path:      "a.mp4",
-		viewMode:  "stretch",
-		aspect:    "4:3",
-		scale:     1.5,
-		crop:      "2.35:1",
-		listIndex: 2,
-		listEnd:   "stop",
+		path:        "a.mp4",
+		viewMode:    "stretch",
+		aspect:      "4:3",
+		scale:       1.5,
+		crop:        "2.35:1",
+		anchorX:     1,
+		anchorY:     0,
+		cropMargins: cropMargins{Left: 10, Top: 20, Right: 30, Bottom: 40},
+		listIndex:   2,
+		listEnd:     "stop",
 	}}}
 	d := a.document()
 	if len(d.Videos) != 1 {
@@ -434,6 +446,14 @@ func TestDocumentViewMode(t *testing.T) {
 		v.Scale == nil || *v.Scale != 1.5 || v.CropRatio == nil || *v.CropRatio != "2.35:1" ||
 		v.ListIndex != 2 || v.ListEnd != "stop" {
 		t.Fatalf("video %+v", v)
+	}
+	if v.Anchor != "top-right" {
+		t.Fatalf("anchor %q", v.Anchor)
+	}
+	for _, margins := range [][]float64{v.Crop, v.CropMargins} {
+		if len(margins) != 4 || margins[0] != 10 || margins[3] != 40 {
+			t.Fatalf("crop margins %+v", margins)
+		}
 	}
 }
 
@@ -572,6 +592,81 @@ func TestApplyDocumentNormalizesOwnAndNoCrop(t *testing.T) {
 	c := a.cells[0]
 	if c.aspect != "" || c.crop != "" {
 		t.Fatalf("own/none not normalized: aspect=%q crop=%q", c.aspect, c.crop)
+	}
+}
+
+func TestApplyDocumentPrefersUpstreamCropAndRestoresAnchor(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos: []playlist.Video{{
+			URI:         "a.mp4",
+			Anchor:      "bottom-right",
+			Crop:        []float64{10, 20, 30, 40},
+			CropMargins: []float64{1, 2, 3, 4},
+		}},
+	}
+	a := &app{defaultAnchor: "center", defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.applyDocument(d, "")
+	c := a.cells[0]
+	if c.anchorX != 1 || c.anchorY != 1 {
+		t.Fatalf("anchor: %+v", c)
+	}
+	if c.cropMargins.Left != 10 || c.cropMargins.Top != 20 ||
+		c.cropMargins.Right != 30 || c.cropMargins.Bottom != 40 {
+		t.Fatalf("upstream crop not preferred: %+v", c.cropMargins)
+	}
+}
+
+func TestApplyDocumentFallsBackToCropMargins(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4", CropMargins: []float64{5, 6, 7, 8}}},
+	}
+	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
+	a.applyDocument(d, "")
+	c := a.cells[0]
+	if c.cropMargins.Left != 5 || c.cropMargins.Bottom != 8 {
+		t.Fatalf("crop_margins fallback: %+v", c.cropMargins)
+	}
+}
+
+func TestApplyDocumentAbsentAnchorResetsDefault(t *testing.T) {
+	d := &playlist.Document{
+		Format:  playlist.FormatID,
+		Version: 1,
+		Videos:  []playlist.Video{{URI: "a.mp4"}},
+	}
+	a := &app{
+		defaultAnchor: "top",
+		defaultVolume: 80,
+		defaultRate:   1,
+		defaultLoop:   true,
+		resolver:      resolve.New(),
+		cells:         []*cell{{path: "a.mp4", anchorX: 1, anchorY: 1, cropMargins: cropMargins{Left: 9}}},
+	}
+	a.applyDocument(d, "")
+	c := a.cells[0]
+	if c.anchorX != 0.5 || c.anchorY != 0 {
+		t.Fatalf("anchor not reset to default: %+v", c)
+	}
+	if c.cropMargins != (cropMargins{}) {
+		t.Fatalf("crop not reset: %+v", c.cropMargins)
+	}
+}
+
+func TestSetAnchorOnlyChangesTheActiveCell(t *testing.T) {
+	a := &app{cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}}}
+	a.setAnchor("bottom-right")
+	if a.cells[0].anchorX != 1 || a.cells[0].anchorY != 1 {
+		t.Fatalf("active anchor: %+v", a.cells[0])
+	}
+	if a.cells[1].anchorX != 0 || a.cells[1].anchorY != 0 {
+		t.Fatalf("inactive anchor: %+v", a.cells[1])
+	}
+	if !a.dirty {
+		t.Fatal("anchor change should mark the playlist dirty")
 	}
 }
 
