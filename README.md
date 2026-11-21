@@ -6,20 +6,42 @@ macOS/arm64 is the first (and currently only) platform.
 
 ## Status
 
-Working locally:
+Working locally (macOS/arm64):
 
-- 1→4+ native libVLC panes in one MyGo window, hardware decode via
-  VideoToolbox, per-cell engine with generation fencing.
-- Play/pause, seek, rate, volume, mute, loop, audio/subtitle track and
-  chapter selection, per-cell overlay controls, active-cell border.
-- Auto rows / auto columns / fixed grids, Fill (cover) and Fit (contain).
-- File open/add (native dialog), playback/grid/view/tracks menus, keyboard
-  shortcuts (Space, arrows, M, L, B/N, `[`/`]`).
-- Local `.app` build with `mygo build` (ad-hoc signed).
+- 1–16 native libVLC panes in one MyGo window, hardware decode via
+  VideoToolbox, one engine per cell with generation fencing.
+- Play/pause, seek, rate, volume, mute, loop, per-cell end and list actions,
+  audio/subtitle tracks and chapters, audio/subtitle delay, frame stepping,
+  screenshots, bookmarks with a manager window.
+- SponsorBlock: skip/show/off categories, seek-bar marks, cache/dedupe,
+  per-video enable and category overrides.
+- Grid modes: auto rows, auto columns, fixed (incl. six built-in templates),
+  Fit Shapes (justified per-video shapes), Free Tiles (drag/resize, snapping,
+  optional overlap), Mosaic (lock/arrange), Single Mode.
+- Per-cell view state persists in `.gpls`: view mode, aspect, scale, crop,
+  anchor, upstream crop margins, transform, audio/subtitle delay, loop points,
+  end/list actions, SponsorBlock overrides.
+- Playlists: m3u/pls/xspf/folder expansion, `.gpls` v1 save/load, snapshots,
+  Settings INI, editable keymap, 19 bundled locales.
+- Streams: yt-dlp then streamlink, proxy/cookies/format settings, HLS and
+  local RTSP tests, Open URL.
+- Local `.app` bundles libVLC and plugins; the smoke test runs from `/tmp`
+  with an isolated data directory.
 
-Still open (tracked in Issues #2–#5): drag/reorder, free tiles, mosaic,
-single mode, playlist/settings persistence, external A/V slaves, stream
-resolver/cookies, full settings UI, bundled VLC, complete media matrix.
+Still open:
+
+- Grid editor: manual lines/weights, user templates; Fit Shapes size steps,
+  reorder and crop share; "match shapes" for Auto Rows/Columns.
+- Free/mosaic: PUSH overlap, z-order, optimizer/reorder-to-fit, equal-gap and
+  video-shape snap.
+- Playlist parity: list-end pause/close and upstream `list_end_action`/
+  `list_fail_action`/`list_fail_wait_sec` names; external audio/subtitle file
+  persistence; track/device/deinterlace/color/header fields; adaptive stream
+  quality.
+- F11: videos-per-process does not exist on macOS (HW_SP is forced); a
+  selectable driver is not exposed. Tray/close-to-tray stay out of macOS scope.
+- F13: full menu/option translation coverage.
+- F1: frozen performance/media matrix evidence and final acceptance run.
 
 ## Build and run
 
