@@ -103,7 +103,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - Keymap: `internal/keymap` parses and validates bindings such as `space`,
   `left`, `m`, `cmd+shift+p` or `none`; Settings > Keymap edits the
   `keymap/*` settings, and both the shortcuts and menu accelerators use the
-  same map.
+  same map. Schema 2 migrates old Go defaults once: Space toggles all cells,
+  Ctrl+Space the active cell, Shift+PgUp/PgDn steps every list, and arrows/
+  brackets provide frozen percent seeks. Cell focus-subtree registration
+  prevents a focused overlay button from consuming Space first. Printable
+  `+`/`*` bindings translate to MyGo's physical Shift+=/Shift+8 keys.
 - Subtitles: Settings > Subtitles maps font, size, colors, outline, bold,
   opacity, encoding and autodetect to libVLC `--freetype-*`/`--subsdec-*`
   options. Apply recreates live engines at their current position so the

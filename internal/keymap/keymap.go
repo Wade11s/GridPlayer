@@ -77,6 +77,9 @@ func Parse(s string) (Binding, error) {
 	if s == "" {
 		return Binding{}, errors.New("empty shortcut")
 	}
+	if s == "+" {
+		return Binding{Key: "+"}, nil
+	}
 	if s == "none" {
 		return Binding{}, nil
 	}
@@ -165,7 +168,7 @@ func normalizeKey(s string) (string, bool) {
 	if len(s) == 1 {
 		c := s[0]
 		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-			strings.ContainsRune("[]-=,./;'\\`", rune(c)) {
+			strings.ContainsRune("[]-=,./;'\\`*", rune(c)) {
 			return s, true
 		}
 	}

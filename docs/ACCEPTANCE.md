@@ -75,5 +75,18 @@ Changes need a new review; thresholds never relax in-implementation.
   Both app runs used isolated data, generated fixtures, and VideoToolbox;
   their logs name both external files. This verifies persistence/attachment
   paths, **not sample-level external-audio output or full GUI acceptance**.
+- 2026-11-23, F10 candidate: `TestSpaceAllWorksWithFocusedCellButton` passed
+  with MyGo input (Tab-focused button, no double toggle). Agent-desktop runs
+  verified real two-pane Space-all pause, focused Tab+Space all-cell pause,
+  and an editable F12 active-cell key. Corrected `/tmp` runs
+  `/tmp/gridplayer-f10-real-tmp/` and `/tmp/gridplayer-f10-focused-tmp/`
+  used VideoToolbox and exited cleanly by autoquit with no residual process.
+  Default Ctrl+Space produced no state change under the current macOS
+  input-source setup; Ctrl+Right was delivered. Earlier attempts mistakenly
+  opened generated fixtures through their Desktop paths: a stack sample
+  showed libVLC blocked in `open` while teardown waited in `input_Close`.
+  Those runs failed and their known isolated PIDs required SIGKILL; they are
+  not passes. No system keyboard or security setting was changed. The final
+  exact-head standard smoke remains a separate gate.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

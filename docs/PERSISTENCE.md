@@ -113,6 +113,12 @@ network resolver options, SponsorBlock categories, and the recent list
 (`app/recent`, a JSON array). Unknown keys and sections survive a load/save.
 Settings are written atomically.
 
+Keymap settings include `keymap/schema=2`. On a pre-schema-2 file, values
+identical to the old Go defaults are migrated once to the frozen bindings
+(Space all-cell Play/Pause, Ctrl+Space active, Ctrl+Arrow short seeks,
+percent-seek brackets, and corrected zoom/crop keys). Custom values and all
+schema-2 values are preserved; saving writes schema 2.
+
 Not implemented yet: tray/close-to-tray behavior, videos-per-process,
 a selectable macOS driver, and legacy key migrations beyond the ones this
 build reads.
