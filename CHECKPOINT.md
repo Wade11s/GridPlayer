@@ -1,3 +1,67 @@
+# Migration Checkpoints
+
+## 2026-11-21 checkpoint (post PR #70)
+
+Pinned inputs are unchanged from the 2026-11-09 section: upstream
+`bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`, MyGo `v0.8.4-0.20261108060507-46f8473c5753`,
+VLC 3.0.24 at `/Applications/VLC.app`, target `Wade11s/GridPlayer`.
+
+Gates now in force:
+- `main` is protected: required `vet-build-test`, `strict: true`,
+  `enforce_admins: true`, no force pushes/deletions, conversation resolution.
+- Every code or media-changing change since #41 is PR-first with a
+  fresh-context review bound to the exact head and local `.app` smoke evidence;
+  docs-only PRs say “not run” explicitly and are not counted as smoke passes.
+  The smoke uses `/tmp/gridplayer-smoke-data` and never reads the real settings
+  directory.
+- Hosted CI is Ubuntu + libVLC and runs `scripts/ci.sh` (`go vet ./...`,
+  `go test ./...`, `go build ./...`, no `-race`). Local PR evidence adds
+  `go test ./... -race` and the macOS `.app` smoke; there is no macOS runner
+  and no paid CI.
+
+Merged through 2026-11-21 (main `669d39d`):
+- #41–#63: list-fail policy, audio delay, end actions, frame stepping,
+  transform, F4 zoom/crop/fill limits, F5 grid lines/templates, F10 shortcut
+  set, F11 screensaver/window behavior, F12 SponsorBlock (skip, seek-bar
+  marks, cache/dedupe, per-video overrides), F13 i18n, settings, keymap,
+  snapshots, bookmarks, streams, bundled `.app`, and the earlier engine/grid/
+  playlist work recorded below.
+- #64: streamlink cookie jar (`--http-cookies-file`, session fallback,
+  RFC 6265-ish matching, FIFO-safe read).
+- #65: per-cell aspect/scale/crop with presence-aware pointers and upstream
+  sentinels; View actions act on the active cell.
+- #66: `.app` smoke isolated data directory.
+- #67: per-cell anchor and upstream `crop` margins; upstream `top_left` names.
+- #68: upstream `transform`/`end_action` enum spellings; end action restored
+  for single-file cells.
+- #69: libVLC transform moved to the instance option with reload on change; a
+  live transform change and a concurrent load are both safe.
+- #70: Fit Shapes (`grid.Shapes`/`grid.FitShapes`) with upstream split scoring,
+  shown picture shape (transform/crop/aspect), menu/settings/persistence.
+
+Current known open work (see README “Still open” for the full list):
+- Grid editor manual lines/weights/user templates; Fit Shapes size/reorder/
+  crop share; match-shapes auto mode.
+- Free/mosaic PUSH/z-order/optimizer and extra snap rules.
+- List-end pause/close and upstream list field names; external A/V file
+  persistence; track/device/deinterlace/color/header fields; adaptive stream
+  quality.
+- Full F13 menu/option translations; F11 selectable driver/process settings
+  (macOS constraints); F1 performance matrix and final acceptance evidence.
+
+Known constraints / notes:
+- Visual transform required the instance-level
+  `--video-filter=transform{type='90'}`; media options added after `set_media`
+  did not reach the native surface.
+- Opening media under TCC-protected Desktop paths from the ad-hoc app makes
+  macOS ask for permission; acceptance runs use `/tmp` copies on purpose.
+- The `/Applications/GridPlayer.app` oracle is 0.1.0 while the frozen source is
+  0.5.5; oracle comparison remains recorded-blocked, not silently relaxed.
+- Development toolchain is go1.27.4 locally; CI and `go.mod` pin 1.27.3.
+
+Evidence: PR bodies/comments #64–#70, `docs/`, `testdata/fixtures/manifest.json`,
+and the merge SHAs above.
+
 # Migration Checkpoint — 2026-11-09 (post-subtitles merge)
 
 ## Pinned inputs (frozen, spec §2.2)
