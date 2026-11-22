@@ -1,0 +1,53 @@
+# Frozen F1–F13 implementation and acceptance gap map
+
+Frozen behavior source: `vzhd1701/gridplayer@bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f`
+(0.5.5). Target base for this audit: `8d81caef76eaa061ea6eee2f17732630ba3d3085`
+(post PR #72), plus the external-track candidate that adds this map. The
+installed `/Applications/GridPlayer.app` is 0.1.0, not an equivalent oracle.
+
+Status vocabulary:
+
+- **Implemented** means a target code path exists; it is not a parity pass.
+- **Exercised / passed** names a real test or app command and its result.
+- **Unverified** means the required behavior or GUI/media observation is not run.
+- **Blocked** is reserved for a genuine prerequisite, notably 0.5.5-oracle-relative
+  thresholds. Missing implementation is not relabeled blocked.
+- Raw JSON/INI preservation means data survives; it does not mean behavior works.
+
+| Feature | Frozen-source anchors | Existing Go implementation and evidence | State and real remaining gaps |
+|---|---|---|---|
+| F1 multi-pane native playback | `widgets/video_frame_vlc_hw_sp.py`, `player/manager.py` | Per-cell `internal/engine`, `internal/vlcmac`, `internal/nativehost`; `scripts/smoke_app.sh` passed with 4 VideoToolbox lines on PR #72 and post-merge main. | **Implemented + smoke passed.** Full continuous-motion/frame-identity, audio sample, AV-sync, resize/occlusion/Retina, fps/drop/CPU/GPU/memory matrix is **unverified**. Smoke/startup logs are not final acceptance. |
+| F2 transport, seek, rate, loops | `widgets/video_block*.py`, `vlc_player/player_base.py` | Engine commands and fake/dummy tests; real libVLC pause/seek tests. PR #72 added upstream list-end values, manual-vs-automatic boundaries, shuffle rounds, and real Pause/reopen/Close app checks. | **Partially exercised.** Full seek landing/AV sync and every end/fail path in the GUI remain unverified. Manual/stop/shuffle app paths are not run. |
+| F3 audio/subtitles/external A/V | `models/audio_selection.py`, `subtitle_selection.py`, `video_block_audio/subtitles.py` | Track/chapter selection and real fixture tests; subtitle style; external file arrays, ordered load preparation, reload/clear tests, real subtitle-track reload/clear test, and app save/reopen/list-step evidence in this candidate. | **Partial.** Selected track/language/external selection objects, audio device, autodiscovery, channel mode and sample-level external-audio output remain open. Selection JSON preserved ≠ selection behavior. |
+| F4 picture geometry | `utils/aspect_calc.py`, `video_frame_vlc_base.py` | `viewgeom.go`, crop/anchor/zoom/transform code and numeric tests; real transform test. | **Partial.** Pixel aspect/SAR, frozen shift units/bounds, `shift_past_edges`, complete golden vectors and Retina/resize evidence are open. Go can emit scale 0 although upstream requires scale ≥1; this must be normalized without losing Fit semantics. |
+| F5 grid/layouts | `models/grid_state.py`, `player/managers/grid*.py`, `widgets/grid_editor.py`, `utils/layout/*` | Auto/Fixed/templates/Fit Shapes/Free/Mosaic/Single code and layout tests; Fit Shapes split-score golden test. | **Partial.** Manual lines/weights/user templates, Fit size/reorder/crop/hysteresis, match-shapes, PUSH/z-order, optimizer/live arrange, seven snap kinds and grid undo are absent. Fixed capacity grows instead of clipping; 4-DIP gaps differ from flush upstream cells; tile arrangements reset on count changes. GUI occlusion/Retina is unverified. |
+| F6 drag/drop | `drag_n_drop.py`, `layout_drag.py`, `utils/drop_zone.py` | Cell swap, internal drag, Finder file insertion/append and `.gpls` drop tests. | **Partial.** BEFORE/CENTER/AFTER/ABOVE/BELOW zones, replace modifiers, positional reorder, add-to-list, indicators, cross-instance metadata and Free/Mosaic drop semantics are missing. No final GUI drag evidence. |
+| F7 playlists/persistence | `models/playlist.py`, `video.py`, `media_list.py`, `params/settings_bindings.py` | `.gpls` v1, atomic save, unknown video/settings fields; PR #72 canonical list policy names/values + legacy aliases. This candidate preserves unknown top-level fields and external file arrays with tests. | **Partial.** Rich `lists[]`/list identity/read_as_list/list item headers and metadata are raw-only or absent; playlist-level defaults are not applied; legacy text playlists are rejected. Per-video `Extra` copied by array index can follow the wrong cell after swap. Unknown preservation is not behavioral parity. |
+| F8 streams/resolvers/network | `models/stream.py`, `vlc_player/static.py`, network utilities | yt-dlp → streamlink, proxy/cookies/format, local HLS/HTTP/RTSP tests; synthetic cookie support. | **Partial and locally exercised.** Adaptive quality ladder/delay, per-video stream options, upstream settings aliases and richer headers remain open. No private browser cookies or external-network acceptance is claimed. |
+| F9 settings/data dirs | `settings.py`, `params/settings_*`, `app_dir.py` | QSettings-like INI, unknown-key preservation, isolated `--user-data-dir`, settings/keymap UI and tests. | **Partial.** Several upstream key names/migrations differ (subtitle scale, proxy, keymap JSON, stream quality, mouse triggers); imported upstream settings therefore do not all take effect. Real-settings use is deliberately not tested. |
+| F10 actions/shortcuts/mouse | `params/actions.py` | 61 editable actions and keymap parse/settings tests; many transport/view keys wired. | **Partial.** Space should control all cells while Ctrl+Space controls active; `[ALL]` tier and media/mouse actions are incomplete. Some defaults collide with frozen meanings (`[`/`]`, arrows, zoom, crop). No complete dispatch parity table or final key/mouse GUI run. |
+| F11 player/window behavior | `settings.py`, `player/managers/video_driver.py`, `screensaver.py` | Truthful macOS HW_SP path, background pause, window behavior, caffeinate guard and decode-log smoke. | **macOS scope resolved:** multiprocess and tray/close-to-tray are excluded; no fake driver selector. Screensaver display-vs-system assertion state and minimized behavior differ and need correction/tests. Performance evidence remains open. |
+| F12 chapters/bookmarks/SponsorBlock/recovery | `widgets/video_block_*.py`, `models/*` | Real chapters/tracks test, bookmarks manager, snapshots, SponsorBlock skip/marks/cache/overrides, retry/fail tests. | **Substantially implemented, not fully accepted.** Loop Chapter, screenshot directory/template/format/quality settings and complete recovery GUI evidence remain open. |
+| F13 i18n/resources | `resources/translations/*`, `params/languages.py` | 19 locales, runtime TS parser, Polish Go overlay, resource tests. | **Partial.** Other Go-specific labels and many hard-coded menus/options remain English; coverage is not gated. `.qm` resources are bundled but not read by the TS loader; icon/flag parity is incomplete. |
+
+## Verification boundary for this candidate
+
+Passed locally during this slice:
+
+- Focused model/engine/app tests and real libVLC external-subtitle reload/clear.
+- Bundled-app external A/V array save/reopen and list-item clearing under `/tmp`.
+- Earlier PR #72 full macOS `go vet ./...`, `go test ./... -race -count=1`,
+  `go build ./...`, app build/smoke, and targeted list-end app runs.
+
+The final candidate must rerun the complete suite and app smoke on its exact head;
+the statements above do not close the full F1–F13 acceptance matrix. Ubuntu CI is
+core-only. No Gatekeeper change, public release, notarization, private media,
+real browser cookie, or real user settings are used.
+
+## Oracle blocker
+
+The installed 0.1.0 app can be observed only as a different version. Comparisons
+that require a 0.5.5 runtime oracle remain **blocked** and must not be reported as
+passed or replaced with looser thresholds. Frozen 0.5.5 source and its tests still
+define expected semantics; source-independent Go tests and real app evidence can
+continue while that specific comparison is blocked.

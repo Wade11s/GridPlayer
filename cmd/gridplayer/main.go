@@ -51,26 +51,28 @@ type cell struct {
 	failed  bool
 	listErr string
 
-	volume           int
-	muted            bool
-	rate             float64
-	audioDelay       int64
-	subDelay         int64
-	loopStart        int64
-	loopEnd          int64
-	cropMargins      cropMargins
-	startAt          int
-	startPaused      bool
-	pauseOnPlay      atomic.Bool
-	retries          atomic.Int32
-	viewMode         string
-	aspect           string
-	scale            float64
-	crop             string
-	zoom             float64
-	anchorX, anchorY float64
-	shiftX, shiftY   float64
-	transform        string
+	volume            int
+	muted             bool
+	rate              float64
+	audioDelay        int64
+	subDelay          int64
+	externalAudio     []string
+	externalSubtitles []string
+	loopStart         int64
+	loopEnd           int64
+	cropMargins       cropMargins
+	startAt           int
+	startPaused       bool
+	pauseOnPlay       atomic.Bool
+	retries           atomic.Int32
+	viewMode          string
+	aspect            string
+	scale             float64
+	crop              string
+	zoom              float64
+	anchorX, anchorY  float64
+	shiftX, shiftY    float64
+	transform         string
 
 	list      []string
 	listIndex int
@@ -1008,6 +1010,7 @@ func (a *app) ensure(i int, r grid.Rect) {
 		eng.SetSubtitleDelay(c.subDelay)
 		eng.SetTransform(c.transform)
 		eng.SetStartPosition(int64(c.startAt))
+		eng.SetExternalFilesForLoad(c.externalAudio, c.externalSubtitles)
 		if err := eng.Load(c.path); err != nil {
 			eng.Close()
 			nativehost.Remove(clip)
@@ -1214,6 +1217,7 @@ func (a *app) stepList(c *cell, isEnd bool) {
 		}
 		next = 0
 	}
+	clearExternalFiles(c)
 	c.advancing = true
 	defer func() { c.advancing = false }()
 	c.listIndex = next
@@ -1262,6 +1266,7 @@ func (a *app) previousList(c *cell) {
 	if prev < 0 {
 		prev = len(c.list) - 1
 	}
+	clearExternalFiles(c)
 	c.advancing = true
 	defer func() { c.advancing = false }()
 	c.listIndex = prev
@@ -1476,6 +1481,7 @@ func (a *app) loadListIndex(c *cell, index int) {
 	if c == nil || index < 0 || index >= len(c.list) || c.advancing {
 		return
 	}
+	clearExternalFiles(c)
 	c.skipGen = 0
 	c.advancing = true
 	defer func() { c.advancing = false }()
@@ -2576,6 +2582,8 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			c.cropMargins = cropMarginsFromList(v.CropMargins)
 		}
 		c.transform = normalizeTransform(v.Transform)
+		c.externalAudio = cloneStrings(v.ExternalAudio)
+		c.externalSubtitles = cloneStrings(v.ExternalSubtitles)
 		c.setSponsorMode(v.SponsorMode)
 		a.setSponsorOverrides(c, normalizeSponsorOverrides(v.SponsorModes))
 		c.sponsorSource = v.SponsorURL
@@ -2584,6 +2592,9 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			// The transform is an instance option, so a changed transform
 			// needs a new libVLC instance even when the path is unchanged.
 			reload := c.path != oldPath || c.transform != oldTransform
+			if c.eng.SetExternalFilesForLoad(c.externalAudio, c.externalSubtitles) {
+				reload = true
+			}
 			if reload {
 				c.eng.SetTransform(c.transform)
 				c.eng.SetStartPosition(int64(c.startAt))
@@ -2714,32 +2725,34 @@ func (a *app) document() *playlist.Document {
 			listFail = c.listFailRaw
 		}
 		v := playlist.Video{
-			URI:             source,
-			CurrentPosition: int(s.Time),
-			IsMuted:         s.Muted,
-			Volume:          float64(s.Volume) / 100,
-			Rate:            s.Rate,
-			PlaybackState:   s.Phase.String(),
-			CellViewMode:    a.cellViewMode(c),
-			AspectRatio:     &aspectRatio,
-			Scale:           scale,
-			CropRatio:       &cropRatio,
-			ListIndex:       c.listIndex,
-			ListEnd:         listEnd,
-			EndAction:       upstreamEndAction(c.endAction),
-			ListFail:        listFail,
-			ListFailWait:    cloneWait(c.listFailWait),
-			AudioDelay:      c.audioDelay,
-			SubtitleDelay:   c.subDelay,
-			LoopStart:       c.loopStart,
-			LoopEnd:         c.loopEnd,
-			Transform:       upstreamTransform(c.transform),
-			SponsorMode:     c.sponsorMode(),
-			SponsorModes:    a.sponsorOverridesCopy(c),
-			SponsorURL:      c.sponsorSource,
-			Anchor:          anchorName(c.anchorX, c.anchorY),
-			Crop:            cropMarginsList(c.cropMargins),
-			CropMargins:     cropMarginsList(c.cropMargins),
+			URI:               source,
+			CurrentPosition:   int(s.Time),
+			IsMuted:           s.Muted,
+			Volume:            float64(s.Volume) / 100,
+			Rate:              s.Rate,
+			PlaybackState:     s.Phase.String(),
+			CellViewMode:      a.cellViewMode(c),
+			AspectRatio:       &aspectRatio,
+			Scale:             scale,
+			CropRatio:         &cropRatio,
+			ListIndex:         c.listIndex,
+			ListEnd:           listEnd,
+			EndAction:         upstreamEndAction(c.endAction),
+			ListFail:          listFail,
+			ListFailWait:      cloneWait(c.listFailWait),
+			ExternalAudio:     cloneStrings(c.externalAudio),
+			ExternalSubtitles: cloneStrings(c.externalSubtitles),
+			AudioDelay:        c.audioDelay,
+			SubtitleDelay:     c.subDelay,
+			LoopStart:         c.loopStart,
+			LoopEnd:           c.loopEnd,
+			Transform:         upstreamTransform(c.transform),
+			SponsorMode:       c.sponsorMode(),
+			SponsorModes:      a.sponsorOverridesCopy(c),
+			SponsorURL:        c.sponsorSource,
+			Anchor:            anchorName(c.anchorX, c.anchorY),
+			Crop:              cropMarginsList(c.cropMargins),
+			CropMargins:       cropMarginsList(c.cropMargins),
 		}
 		if a.doc != nil && i < len(a.doc.Videos) {
 			v.ID = a.doc.Videos[i].ID
@@ -3063,8 +3076,9 @@ func (a *app) refreshMenu() {
 }
 
 func (a *app) addTrack(kind string) {
+	c := a.activeCell()
 	eng := a.activeEngine()
-	if eng == nil {
+	if c == nil || eng == nil {
 		return
 	}
 	title := "Load Subtitle File…"
@@ -3078,12 +3092,27 @@ func (a *app) addTrack(kind string) {
 	if err != nil || len(paths) == 0 {
 		return
 	}
+	changed := false
 	for _, p := range paths {
+		var attached, added bool
 		if kind == "subtitle" {
-			eng.AddSubtitle(p)
+			attached = eng.AddSubtitle(p)
+			if attached {
+				c.externalSubtitles, added = rememberExternalFile(c.externalSubtitles, p)
+			}
 		} else {
-			eng.AddAudio(p)
+			attached = eng.AddAudio(p)
+			if attached {
+				c.externalAudio, added = rememberExternalFile(c.externalAudio, p)
+			}
 		}
+		if !attached {
+			a.status = "Could not attach " + p
+		}
+		changed = changed || added
+	}
+	if changed {
+		a.dirty = true
 	}
 	eng.RefreshTracks()
 	if a.win != nil {

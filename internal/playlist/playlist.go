@@ -26,39 +26,83 @@ type Document struct {
 	Version  int                        `json:"version"`
 	Videos   []Video                    `json:"videos"`
 	Settings map[string]json.RawMessage `json:"settings,omitempty"`
+	Extra    map[string]json.RawMessage `json:"-"`
+}
+
+// UnmarshalJSON retains upstream lists, bookmarks, snapshots, window state,
+// and future top-level fields even when this build does not interpret them.
+func (d *Document) UnmarshalJSON(data []byte) error {
+	type alias Document
+	var a alias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*d = Document(a)
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(data, &all); err != nil {
+		return err
+	}
+	for _, key := range []string{"format", "version", "videos", "settings"} {
+		delete(all, key)
+	}
+	if len(all) > 0 {
+		d.Extra = all
+	}
+	return nil
+}
+
+// MarshalJSON merges preserved top-level fields back into the document.
+func (d Document) MarshalJSON() ([]byte, error) {
+	type alias Document
+	b, err := json.Marshal(alias(d))
+	if err != nil {
+		return nil, err
+	}
+	var all map[string]json.RawMessage
+	if err := json.Unmarshal(b, &all); err != nil {
+		return nil, err
+	}
+	for key, raw := range d.Extra {
+		if _, exists := all[key]; !exists {
+			all[key] = raw
+		}
+	}
+	return json.Marshal(all)
 }
 
 // Video is one cell. Unknown fields are kept in Extra.
 type Video struct {
-	ID              string                     `json:"id,omitempty"`
-	URI             string                     `json:"uri"`
-	Title           string                     `json:"title,omitempty"`
-	CurrentPosition int                        `json:"current_position,omitempty"`
-	IsMuted         bool                       `json:"is_muted,omitempty"`
-	Volume          float64                    `json:"volume,omitempty"`
-	Rate            float64                    `json:"rate,omitempty"`
-	CellViewMode    string                     `json:"cell_view_mode,omitempty"`
-	AspectRatio     *string                    `json:"aspect_ratio,omitempty"`
-	Scale           *float64                   `json:"scale,omitempty"`
-	CropRatio       *string                    `json:"crop_ratio,omitempty"`
-	PlaybackState   string                     `json:"playback_state,omitempty"`
-	ListIndex       int                        `json:"list_index,omitempty"`
-	ListEnd         string                     `json:"list_end_action,omitempty"`
-	EndAction       string                     `json:"end_action,omitempty"`
-	ListFail        string                     `json:"list_fail_action,omitempty"`
-	ListFailWait    *int                       `json:"list_fail_wait_sec,omitempty"`
-	AudioDelay      int64                      `json:"audio_delay_ms,omitempty"`
-	SubtitleDelay   int64                      `json:"subtitle_delay_ms,omitempty"`
-	LoopStart       int64                      `json:"loop_start,omitempty"`
-	LoopEnd         int64                      `json:"loop_end,omitempty"`
-	Transform       string                     `json:"transform,omitempty"`
-	SponsorMode     string                     `json:"sponsor_mode,omitempty"`
-	SponsorModes    map[string]string          `json:"sponsor_modes,omitempty"`
-	SponsorURL      string                     `json:"sponsor_url,omitempty"`
-	Anchor          string                     `json:"anchor,omitempty"`
-	Crop            []float64                  `json:"crop,omitempty"`
-	CropMargins     []float64                  `json:"crop_margins,omitempty"`
-	Extra           map[string]json.RawMessage `json:"-"`
+	ID                string                     `json:"id,omitempty"`
+	URI               string                     `json:"uri"`
+	Title             string                     `json:"title,omitempty"`
+	CurrentPosition   int                        `json:"current_position,omitempty"`
+	IsMuted           bool                       `json:"is_muted,omitempty"`
+	Volume            float64                    `json:"volume,omitempty"`
+	Rate              float64                    `json:"rate,omitempty"`
+	CellViewMode      string                     `json:"cell_view_mode,omitempty"`
+	AspectRatio       *string                    `json:"aspect_ratio,omitempty"`
+	Scale             *float64                   `json:"scale,omitempty"`
+	CropRatio         *string                    `json:"crop_ratio,omitempty"`
+	PlaybackState     string                     `json:"playback_state,omitempty"`
+	ListIndex         int                        `json:"list_index,omitempty"`
+	ListEnd           string                     `json:"list_end_action,omitempty"`
+	EndAction         string                     `json:"end_action,omitempty"`
+	ListFail          string                     `json:"list_fail_action,omitempty"`
+	ListFailWait      *int                       `json:"list_fail_wait_sec,omitempty"`
+	ExternalAudio     []string                   `json:"external_audio,omitempty"`
+	ExternalSubtitles []string                   `json:"external_subtitles,omitempty"`
+	AudioDelay        int64                      `json:"audio_delay_ms,omitempty"`
+	SubtitleDelay     int64                      `json:"subtitle_delay_ms,omitempty"`
+	LoopStart         int64                      `json:"loop_start,omitempty"`
+	LoopEnd           int64                      `json:"loop_end,omitempty"`
+	Transform         string                     `json:"transform,omitempty"`
+	SponsorMode       string                     `json:"sponsor_mode,omitempty"`
+	SponsorModes      map[string]string          `json:"sponsor_modes,omitempty"`
+	SponsorURL        string                     `json:"sponsor_url,omitempty"`
+	Anchor            string                     `json:"anchor,omitempty"`
+	Crop              []float64                  `json:"crop,omitempty"`
+	CropMargins       []float64                  `json:"crop_margins,omitempty"`
+	Extra             map[string]json.RawMessage `json:"-"`
 }
 
 // UnmarshalJSON keeps fields this build does not know.
@@ -100,7 +144,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
 		"list_end_action", "list_fail", "list_fail_wait", "list_fail_action",
 		"list_fail_wait_sec", "aspect_ratio", "scale", "crop_ratio",
-		"end_action", "audio_delay_ms",
+		"end_action", "audio_delay_ms", "external_audio", "external_subtitles",
 		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
 		"sponsor_mode", "sponsor_modes", "sponsor_url", "anchor", "crop", "crop_margins"} {
 		delete(all, k)
@@ -184,6 +228,12 @@ func Parse(data []byte, baseDir string) (*Document, error) {
 	}
 	for i := range d.Videos {
 		d.Videos[i].URI = ResolveURI(d.Videos[i].URI, baseDir)
+		for j, uri := range d.Videos[i].ExternalAudio {
+			d.Videos[i].ExternalAudio[j] = ResolveURI(uri, baseDir)
+		}
+		for j, uri := range d.Videos[i].ExternalSubtitles {
+			d.Videos[i].ExternalSubtitles[j] = ResolveURI(uri, baseDir)
+		}
 	}
 	return &d, nil
 }

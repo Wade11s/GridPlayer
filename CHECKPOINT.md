@@ -43,13 +43,15 @@ Current known open work (see README “Still open” for the full list):
 - Grid editor manual lines/weights/user templates; Fit Shapes size/reorder/
   crop share; match-shapes auto mode.
 - Free/mosaic PUSH/z-order/optimizer and extra snap rules.
-- External A/V file persistence; track/device/deinterlace/color/header
-  fields; adaptive stream quality. Upstream list policy JSON names/values
-  and list-end Start Over/Pause/Stop/Close behavior now have regression
-  tests; legacy Go names and Next Cell remain supported. Targeted real-app
-  Pause At Start, paused reopen, and Close checks pass (see
-  `docs/ACCEPTANCE.md`); manual/stop/shuffle GUI paths and the full
-  acceptance matrix remain open.
+- Selected track/language/device, deinterlace/color/header fields, rich list
+  identity, and adaptive stream quality. External A/V file arrays now
+  persist/reattach and clear on item changes; selection objects remain
+  preserved-but-uninterpreted. Upstream list policy JSON names/values and
+  list-end Start Over/Pause/Stop/Close behavior have regression tests;
+  legacy Go names and Next Cell remain supported. Targeted real-app list-end
+  and external-file checks pass (see `docs/ACCEPTANCE.md`); manual/stop/
+  shuffle GUI paths, sample-level external audio, and full acceptance remain
+  open.
 - Full F13 menu/option translations; F11 selectable driver/process settings
   (macOS constraints); F1 performance matrix and final acceptance evidence.
 
