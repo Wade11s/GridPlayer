@@ -72,10 +72,22 @@ func TestManualNextWrapsButAutomaticEndHonorsPolicy(t *testing.T) {
 	}
 }
 
-func TestListEndPauseSeeksLoopStartOnEngine(t *testing.T) {
-	backend := dummy.New()
+func TestAutomaticPreviousKeepsLegacyNextCellDirection(t *testing.T) {
+	first := &cell{path: "first.mp4"}
+	current := &cell{list: []string{"a.mp4", "b.mp4"}, listIndex: 0, listEnd: listEndNext, path: "a.mp4"}
+	third := &cell{path: "third.mp4"}
+	a := &app{cells: []*cell{first, current, third}, active: 1}
+	a.stepPrevious(current)
+	if a.active != 0 {
+		t.Fatalf("automatic Previous moved to cell %d, want previous cell 0", a.active)
+	}
+}
+
+func TestListEndPauseReloadsLoopStartOnEngine(t *testing.T) {
+	loads := 0
 	eng := engine.New(func(string, bool, string) (engine.Backend, error) {
-		return backend, nil
+		loads++
+		return dummy.New(), nil
 	})
 	defer eng.Close()
 	if err := eng.Load("b.mp4"); err != nil {
@@ -89,8 +101,9 @@ func TestListEndPauseSeeksLoopStartOnEngine(t *testing.T) {
 	a := &app{cells: []*cell{c}}
 	a.advanceList(c)
 	s := eng.Snapshot()
-	if s.Phase != engine.Paused || s.Time != 2000 {
-		t.Fatalf("pause-at-start engine snapshot: %+v", s)
+	if loads != 2 || s.Phase != engine.Paused || s.Time != 0 ||
+		c.startAt != 2000 || !c.pauseOnPlay.Load() {
+		t.Fatalf("pause reload snapshot/guard: loads=%d %+v start=%d guard=%v", loads, s, c.startAt, c.pauseOnPlay.Load())
 	}
 }
 

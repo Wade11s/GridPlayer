@@ -45,6 +45,11 @@ the caller when a GUI session is available.
 
 ## Notes
 
+- For settled-state playlist automation, `--save-playlist PATH` normally saves
+  after three seconds. Add `--save-on-quit` together with `--autoquit N` to
+  save immediately before that quit instead; this avoids sampling a short
+  clip before its end action has run. The playlist and user-data directory
+  should still be isolated `/tmp` paths.
 - The default `--files` is `testdata/fixtures/*.mp4` relative to the
   process working directory. From Finder, pass absolute paths:
   `open -a GridPlayer.app --args --files /abs/a.mp4,/abs/b.mp4`.

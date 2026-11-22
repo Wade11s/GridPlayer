@@ -31,10 +31,14 @@ func normalizeListEnd(action string) string {
 
 // handleListEnd performs a terminal action and reports whether the caller
 // should avoid wrapping. loop returns false so the caller performs the wrap.
-func (a *app) handleListEnd(c *cell) bool {
+func (a *app) handleListEnd(c *cell, forward bool) bool {
 	switch normalizeListEnd(c.listEnd) {
 	case listEndNext:
-		a.nextCellFrom(c)
+		if forward {
+			a.nextCellFrom(c)
+		} else {
+			a.previousCellFrom(c)
+		}
 	case listEndPause:
 		a.pauseListAtStart(c)
 	case listEndStop:
@@ -59,7 +63,15 @@ func (a *app) pauseListAtStart(c *cell) {
 	c.startPaused = true
 	c.skipGen = 0
 	if c.eng != nil {
-		c.eng.SeekTo(start)
+		// Seeking libVLC's ended player can asynchronously resume or settle
+		// as stopped. Reopen the same item and use the established paused
+		// restore guard; the new generation also fences late Ended events.
+		c.pauseOnPlay.Store(true)
+		c.eng.SetStartPosition(start)
+		if err := c.eng.Load(c.path); err != nil {
+			a.status = err.Error()
+			return
+		}
 		c.eng.Pause()
 	}
 }

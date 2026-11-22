@@ -121,9 +121,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   on the first Playing event; View follows the active cell. Automatic list
   steps choose Start Over, Pause At Start, Stop, Close, or the legacy Go Next
   Cell extension; manual Next/Previous wrap independently of that policy.
-  Document settings also store the active layout, free/mosaic tile geometry
-  and mosaic locks, and single side/share, so a `.gpls` or snapshot restores
-  the full grid.
+  Pause At Start reopens the same item with the existing first-Playing pause
+  guard because seeking an ended libVLC player was observed settling as
+  `idle`. Document settings also store the active layout, free/mosaic tile
+  geometry and mosaic locks, and single side/share, so a `.gpls` or snapshot
+  restores the full grid.
 - Snapshots are named playlist documents in `snapshots.json`. Save Current
   captures the live document, restore replaces the cells/grid and marks the
   playlist unsaved, and Delete removes the entry.

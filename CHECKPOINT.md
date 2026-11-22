@@ -46,8 +46,10 @@ Current known open work (see README “Still open” for the full list):
 - External A/V file persistence; track/device/deinterlace/color/header
   fields; adaptive stream quality. Upstream list policy JSON names/values
   and list-end Start Over/Pause/Stop/Close behavior now have regression
-  tests; legacy Go names and Next Cell remain supported. Real GUI acceptance
-  for these list-end paths remains open.
+  tests; legacy Go names and Next Cell remain supported. Targeted real-app
+  Pause At Start, paused reopen, and Close checks pass (see
+  `docs/ACCEPTANCE.md`); manual/stop/shuffle GUI paths and the full
+  acceptance matrix remain open.
 - Full F13 menu/option translations; F11 selectable driver/process settings
   (macOS constraints); F1 performance matrix and final acceptance evidence.
 
@@ -60,6 +62,9 @@ Known constraints / notes:
 - The `/Applications/GridPlayer.app` oracle is 0.1.0 while the frozen source is
   0.5.5; oracle comparison remains recorded-blocked, not silently relaxed.
 - Development toolchain is go1.27.4 locally; CI and `go.mod` pin 1.27.3.
+- List-end failed attempts are recorded in `docs/ACCEPTANCE.md`: premature
+  three-second samples and seek+pause settling as `idle` were not counted as
+  passes. Reopen-at-start passed the targeted bundled-app pause/reopen test.
 
 Evidence: PR bodies/comments #64–#70, `docs/`, `testdata/fixtures/manifest.json`,
 and the merge SHAs above.

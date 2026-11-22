@@ -1209,7 +1209,7 @@ func (a *app) stepList(c *cell, isEnd bool) {
 	}
 	next := c.listIndex + 1
 	if next >= len(c.list) {
-		if isEnd && a.handleListEnd(c) {
+		if isEnd && a.handleListEnd(c, true) {
 			return
 		}
 		next = 0
@@ -1428,7 +1428,7 @@ func (a *app) stepPrevious(c *cell) {
 	if c == nil || len(c.list) == 0 {
 		return
 	}
-	if c.listIndex == 0 && a.handleListEnd(c) {
+	if c.listIndex == 0 && a.handleListEnd(c, false) {
 		return
 	}
 	a.previousList(c)
@@ -1461,7 +1461,7 @@ func (a *app) shuffleList(c *cell) {
 	}
 	c.shuffleBag.sync(len(c.list), c.listIndex, randIntN)
 	if c.shuffleBag.roundOver() && normalizeListEnd(c.listEnd) != listEndLoop &&
-		a.handleListEnd(c) {
+		a.handleListEnd(c, true) {
 		return
 	}
 	index := c.shuffleBag.next(randIntN)
@@ -3609,6 +3609,7 @@ func main() {
 	files := flag.String("files", "", "comma-separated media paths (default: 4 fixtures)")
 	playlistPath := flag.String("playlist", "", "load a .gpls playlist")
 	savePath := flag.String("save-playlist", "", "save the current playlist after 3s (automation)")
+	saveOnQuit := flag.Bool("save-on-quit", false, "save --save-playlist immediately before autoquit instead of after 3s")
 	screenshot := flag.String("screenshot", "", "save a frame of the active cell to path after 2s")
 	single := flag.Bool("single", false, "start in single mode")
 	free := flag.Bool("free", false, "start with free tiles")
@@ -3729,7 +3730,7 @@ func main() {
 				})
 			}()
 		}
-		if *savePath != "" {
+		if *savePath != "" && !*saveOnQuit {
 			go func() {
 				time.Sleep(3 * time.Second)
 				mygo.RunOnMain(func() {
@@ -3755,6 +3756,11 @@ func main() {
 				time.Sleep(time.Duration(*autoquit) * time.Second)
 				mygo.RunOnMain(func() {
 					a.forceQuit = true
+					if *saveOnQuit && *savePath != "" {
+						if err := a.savePlaylist(*savePath); err != nil {
+							log.Printf("save playlist on quit: %v", err)
+						}
+					}
 					if a.win != nil {
 						a.win.Close()
 					}
