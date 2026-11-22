@@ -107,7 +107,7 @@ func TestListItemFieldsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"list_index":2`, `"list_end":"next"`, `"list_fail":"show_error"`, `"list_fail_wait":0`, `"audio_delay_ms":-450`} {
+	for _, want := range []string{`"list_index":2`, `"list_end_action":"next"`, `"list_fail_action":"show_error"`, `"list_fail_wait_sec":0`, `"audio_delay_ms":-450`} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("missing %s in %s", want, raw)
 		}
@@ -252,6 +252,73 @@ func TestAnchorAndCropRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{`"anchor":"top_left"`, `"crop":[10,20,30,40]`, `"crop_margins":[1,2,3,4]`} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+}
+
+// Upstream 0.5.5 serializes these list policies with _action/_sec suffixes.
+// Older Go documents used shorter names; both must load, while new writes
+// use the upstream names that a Python round trip can consume directly.
+func TestUpstreamListPolicyFieldNames(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"list.m3u","list_end_action":"stop",` +
+		`"list_fail_action":"show_error","list_fail_wait_sec":5}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.ListEnd != "stop" || v.ListFail != "show_error" ||
+		v.ListFailWait == nil || *v.ListFailWait != 5 {
+		t.Fatalf("upstream fields %+v", v)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"list_end_action":"stop"`,
+		`"list_fail_action":"show_error"`,
+		`"list_fail_wait_sec":5`,
+	} {
+		if !strings.Contains(string(raw), want) {
+			t.Fatalf("missing %s in %s", want, raw)
+		}
+	}
+	for _, gone := range []string{`"list_end":`, `"list_fail":`, `"list_fail_wait":`} {
+		if strings.Contains(string(raw), gone) {
+			t.Fatalf("legacy field %s remains in %s", gone, raw)
+		}
+	}
+}
+
+func TestLegacyListPolicyFieldNamesStillLoad(t *testing.T) {
+	src := `{"format":"gridplayer-playlist","videos":[{` +
+		`"uri":"list.m3u","list_end":"next",` +
+		`"list_fail":"play_next","list_fail_wait":0}]}`
+	d, err := Parse([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.ListEnd != "next" || v.ListFail != "play_next" ||
+		v.ListFailWait == nil || *v.ListFailWait != 0 {
+		t.Fatalf("legacy fields %+v", v)
+	}
+	if len(v.Extra) != 0 {
+		t.Fatalf("legacy fields leaked into extra: %+v", v.Extra)
+	}
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`"list_end_action":"next"`,
+		`"list_fail_action":"play_next"`,
+		`"list_fail_wait_sec":0`,
+	} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("missing %s in %s", want, raw)
 		}

@@ -43,10 +43,10 @@ type Video struct {
 	CropRatio       *string                    `json:"crop_ratio,omitempty"`
 	PlaybackState   string                     `json:"playback_state,omitempty"`
 	ListIndex       int                        `json:"list_index,omitempty"`
-	ListEnd         string                     `json:"list_end,omitempty"`
+	ListEnd         string                     `json:"list_end_action,omitempty"`
 	EndAction       string                     `json:"end_action,omitempty"`
-	ListFail        string                     `json:"list_fail,omitempty"`
-	ListFailWait    *int                       `json:"list_fail_wait,omitempty"`
+	ListFail        string                     `json:"list_fail_action,omitempty"`
+	ListFailWait    *int                       `json:"list_fail_wait_sec,omitempty"`
 	AudioDelay      int64                      `json:"audio_delay_ms,omitempty"`
 	SubtitleDelay   int64                      `json:"subtitle_delay_ms,omitempty"`
 	LoopStart       int64                      `json:"loop_start,omitempty"`
@@ -69,14 +69,32 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*v = Video(a)
+	// Older Go builds wrote these fields without upstream's action/sec
+	// suffixes. Read both; writes always use the upstream names.
+	var legacy struct {
+		ListEnd      string `json:"list_end"`
+		ListFail     string `json:"list_fail"`
+		ListFailWait *int   `json:"list_fail_wait"`
+	}
+	_ = json.Unmarshal(data, &legacy)
+	if v.ListEnd == "" {
+		v.ListEnd = legacy.ListEnd
+	}
+	if v.ListFail == "" {
+		v.ListFail = legacy.ListFail
+	}
+	if v.ListFailWait == nil {
+		v.ListFailWait = legacy.ListFailWait
+	}
 	var all map[string]json.RawMessage
 	if err := json.Unmarshal(data, &all); err != nil {
 		return err
 	}
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
-		"aspect_ratio", "scale", "crop_ratio",
-		"list_fail", "list_fail_wait", "end_action", "audio_delay_ms",
+		"list_end_action", "list_fail", "list_fail_wait", "list_fail_action",
+		"list_fail_wait_sec", "aspect_ratio", "scale", "crop_ratio",
+		"end_action", "audio_delay_ms",
 		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
 		"sponsor_mode", "sponsor_modes", "sponsor_url", "anchor", "crop", "crop_margins"} {
 		delete(all, k)
