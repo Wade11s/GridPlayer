@@ -117,11 +117,15 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   lists the active file's bookmarks with jump/rename/delete/clear; the menu and
   manager refresh when the active cell or playlist item changes.
 - Playlist cells persist their own `cell_view_mode`, `playback_state`,
-  `list_index` and `list_end`. A restored paused cell pauses on the first
-  Playing event; View follows the active cell; End of List chooses loop, stop,
-  or the next cell (stopping at the last). Document settings also store the
-  active layout, free/mosaic tile geometry and mosaic locks, and single
-  side/share, so a `.gpls` or snapshot restores the full grid.
+  `list_index` and upstream `list_end_action`. A restored paused cell pauses
+  on the first Playing event; View follows the active cell. Automatic list
+  steps choose Start Over, Pause At Start, Stop, Close, or the legacy Go Next
+  Cell extension; manual Next/Previous wrap independently of that policy.
+  Pause At Start reopens the same item with the existing first-Playing pause
+  guard because seeking an ended libVLC player was observed settling as
+  `idle`. Document settings also store the active layout, free/mosaic tile
+  geometry and mosaic locks, and single side/share, so a `.gpls` or snapshot
+  restores the full grid.
 - Snapshots are named playlist documents in `snapshots.json`. Save Current
   captures the live document, restore replaces the cells/grid and marks the
   playlist unsaved, and Delete removes the entry.

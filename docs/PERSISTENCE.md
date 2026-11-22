@@ -36,8 +36,18 @@ Rules:
 - The app saves position, mute, volume, rate, view mode, playback state and
   the grid subset. Per-video state also includes `audio_delay_ms`,
   `subtitle_delay_ms`, `loop_start`, `loop_end`, `transform`, `end_action`,
-  `list_fail`, `list_fail_wait`, `crop`, `crop_margins`, `aspect_ratio`,
-  `scale`, `crop_ratio`, `anchor`, and `grid_template`.
+  `list_end_action`, `list_fail_action`, `list_fail_wait_sec`, `crop`,
+  `crop_margins`, `aspect_ratio`, `scale`, `crop_ratio`, `anchor`, and
+  `grid_template`.
+- Per-video list policies use the upstream 0.5.5 JSON names
+  `list_end_action`, `list_fail_action`, and `list_fail_wait_sec`. Older Go
+  documents using `list_end`, `list_fail`, and `list_fail_wait` are still
+  accepted; canonical fields take precedence when both forms are present.
+  List-end values are serialized as upstream's `start_over`, `pause`,
+  `stop`, or `close`. The Go-only Next Cell action additionally retains
+  `list_end:"next"` for Go while writing `list_end_action:"start_over"`
+  as upstream's safe fallback. Unknown enum strings are echoed rather than
+  silently replaced.
 - Per-video view shape follows the upstream field names and is written
   explicitly: `aspect_ratio` (`""` is the video's own shape; `"own"` is accepted
   and treated the same), `scale` (`0` means fit; it is written only when it
@@ -58,8 +68,11 @@ Rules:
   mark the playlist dirty; Settings → Video changes the defaults and applies
   them to every cell.
 - `--playlist PATH` loads at startup; File → Open/Save/Save As manage the
-  document. Closing with unsaved structural changes asks Save / Discard /
-  Cancel; `--autoquit` skips the prompt for automation.
+  document. Automatic list steps apply Start Over, Pause At Start, Stop,
+  Close, or the legacy Go Next Cell action at a boundary. Manual Next and
+  Previous wrap regardless of that policy. Closing with unsaved structural
+  changes asks Save / Discard / Cancel; `--autoquit` skips the prompt for
+  automation.
 
 ## Settings (`settings.ini`)
 

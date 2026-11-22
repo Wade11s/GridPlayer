@@ -52,5 +52,19 @@ Changes need a new review; thresholds never relax in-implementation.
   frame 0051 in all panes, teardown clean, exit 0. Screenshot
   `testdata/gridplayer-4pane.png`.
 - `go vet ./...` exit 0; `scripts/build.sh all` builds all three binaries.
+- 2026-11-23, PR #72 list-end candidate (exact final head is bound in the PR):
+  bundled-app runs with a generated one-second H.264/AAC list fixture and
+  isolated `/tmp` data verified Pause At Start at 0 ms, paused save/reopen,
+  and Close removing the cell. Evidence: `/tmp/gridplayer-listend-pause-reload/`,
+  `/tmp/gridplayer-listend-pause-reopen/`, and
+  `/tmp/gridplayer-listend-close/` (`saved.gpls` + `vlc.log`, VideoToolbox
+  present). These are targeted local app checks, not the full media/GUI
+  acceptance matrix.
+- Failed list-end evidence, not passes: the fixed three-second autosave
+  sampled a one-second clip before its settled end state in two runs; a
+  0.2-second probe and a settled one-second probe showed seek+pause (also
+  with the late-Playing guard) settling as `idle`. The implementation then
+  changed to reopen-at-start with the paused-restore guard, which produced
+  the passing settled runs above. No threshold was lowered.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

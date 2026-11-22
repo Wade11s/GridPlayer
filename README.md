@@ -34,10 +34,11 @@ Still open:
   reorder and crop share; "match shapes" for Auto Rows/Columns.
 - Free/mosaic: PUSH overlap, z-order, optimizer/reorder-to-fit, equal-gap and
   video-shape snap.
-- Playlist parity: list-end pause/close and upstream `list_end_action`/
-  `list_fail_action`/`list_fail_wait_sec` names; external audio/subtitle file
-  persistence; track/device/deinterlace/color/header fields; adaptive stream
-  quality.
+- Playlist parity: external audio/subtitle file persistence;
+  track/device/deinterlace/color/header fields; adaptive stream quality.
+  Upstream list policy JSON names/values and Start Over/Pause/Stop/Close
+  behavior are implemented with regression tests; final GUI acceptance is
+  still required. Legacy Go names and Next Cell remain supported.
 - F11: videos-per-process does not exist on macOS (HW_SP is forced); a
   selectable driver is not exposed. Tray/close-to-tray stay out of macOS scope.
 - F13: full menu/option translation coverage.

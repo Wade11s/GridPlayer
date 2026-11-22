@@ -43,10 +43,10 @@ type Video struct {
 	CropRatio       *string                    `json:"crop_ratio,omitempty"`
 	PlaybackState   string                     `json:"playback_state,omitempty"`
 	ListIndex       int                        `json:"list_index,omitempty"`
-	ListEnd         string                     `json:"list_end,omitempty"`
+	ListEnd         string                     `json:"list_end_action,omitempty"`
 	EndAction       string                     `json:"end_action,omitempty"`
-	ListFail        string                     `json:"list_fail,omitempty"`
-	ListFailWait    *int                       `json:"list_fail_wait,omitempty"`
+	ListFail        string                     `json:"list_fail_action,omitempty"`
+	ListFailWait    *int                       `json:"list_fail_wait_sec,omitempty"`
 	AudioDelay      int64                      `json:"audio_delay_ms,omitempty"`
 	SubtitleDelay   int64                      `json:"subtitle_delay_ms,omitempty"`
 	LoopStart       int64                      `json:"loop_start,omitempty"`
@@ -69,14 +69,38 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*v = Video(a)
+	// Older Go builds wrote these fields without upstream's action/sec
+	// suffixes. Read both; a canonical field wins whenever it is present.
+	var legacy struct {
+		ListEnd      string `json:"list_end"`
+		ListFail     string `json:"list_fail"`
+		ListFailWait *int   `json:"list_fail_wait"`
+	}
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return err
+	}
 	var all map[string]json.RawMessage
 	if err := json.Unmarshal(data, &all); err != nil {
 		return err
 	}
+	if _, present := all["list_end_action"]; !present {
+		v.ListEnd = legacy.ListEnd
+	} else if v.ListEnd == "start_over" && legacy.ListEnd == "next" {
+		// Our dual-field Next Cell representation uses start_over only as
+		// upstream's fallback; Go restores the extension on the next load.
+		v.ListEnd = legacy.ListEnd
+	}
+	if _, present := all["list_fail_action"]; !present {
+		v.ListFail = legacy.ListFail
+	}
+	if _, present := all["list_fail_wait_sec"]; !present {
+		v.ListFailWait = legacy.ListFailWait
+	}
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
-		"aspect_ratio", "scale", "crop_ratio",
-		"list_fail", "list_fail_wait", "end_action", "audio_delay_ms",
+		"list_end_action", "list_fail", "list_fail_wait", "list_fail_action",
+		"list_fail_wait_sec", "aspect_ratio", "scale", "crop_ratio",
+		"end_action", "audio_delay_ms",
 		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
 		"sponsor_mode", "sponsor_modes", "sponsor_url", "anchor", "crop", "crop_margins"} {
 		delete(all, k)
@@ -87,19 +111,43 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON merges Extra back in.
+// listEndJSONFields maps the old Go values to upstream's ListEndAction
+// vocabulary. Next Cell is a Go-only extension: upstream gets its safe
+// start_over fallback while the old key preserves the behavior for Go.
+func listEndJSONFields(value string) (canonical, legacy string) {
+	switch value {
+	case "loop", "start_over":
+		return "start_over", ""
+	case "next":
+		return "start_over", "next"
+	default:
+		// pause/stop/close are already upstream names. Unknown values are
+		// echoed rather than silently replaced by a value we do not know.
+		return value, ""
+	}
+}
+
+// MarshalJSON merges Extra back in and writes upstream-valid list actions.
 func (v Video) MarshalJSON() ([]byte, error) {
 	type alias Video
 	b, err := json.Marshal(alias(v))
 	if err != nil {
 		return nil, err
 	}
-	if len(v.Extra) == 0 {
-		return b, nil
-	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
+	}
+	canonical, legacy := listEndJSONFields(v.ListEnd)
+	if canonical == "" {
+		delete(m, "list_end_action")
+	} else {
+		m["list_end_action"], _ = json.Marshal(canonical)
+	}
+	if legacy == "" {
+		delete(m, "list_end")
+	} else {
+		m["list_end"], _ = json.Marshal(legacy)
 	}
 	for k, raw := range v.Extra {
 		if _, ok := m[k]; !ok {
