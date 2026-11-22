@@ -107,7 +107,7 @@ func TestListItemFieldsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"list_index":2`, `"list_end_action":"next"`, `"list_fail_action":"show_error"`, `"list_fail_wait_sec":0`, `"audio_delay_ms":-450`} {
+	for _, want := range []string{`"list_index":2`, `"list_end_action":"start_over"`, `"list_end":"next"`, `"list_fail_action":"show_error"`, `"list_fail_wait_sec":0`, `"audio_delay_ms":-450`} {
 		if !strings.Contains(string(raw), want) {
 			t.Fatalf("missing %s in %s", want, raw)
 		}
@@ -315,7 +315,8 @@ func TestLegacyListPolicyFieldNamesStillLoad(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		`"list_end_action":"next"`,
+		`"list_end_action":"start_over"`,
+		`"list_end":"next"`, // Go-only Next Cell behavior survives for Go.
 		`"list_fail_action":"play_next"`,
 		`"list_fail_wait_sec":0`,
 	} {

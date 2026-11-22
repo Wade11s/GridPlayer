@@ -42,10 +42,12 @@ Rules:
 - Per-video list policies use the upstream 0.5.5 JSON names
   `list_end_action`, `list_fail_action`, and `list_fail_wait_sec`. Older Go
   documents using `list_end`, `list_fail`, and `list_fail_wait` are still
-  accepted; saving normalizes those fields to the upstream names. The
-  legacy Go-only `next` list-end value remains readable for compatibility;
-  upstream defines `start_over`, `pause`, `stop`, and `close`. Pause/close
-  behavior is tracked separately from this field-name compatibility slice.
+  accepted; canonical fields take precedence when both forms are present.
+  List-end values are serialized as upstream's `start_over`, `pause`,
+  `stop`, or `close`. The Go-only Next Cell action additionally retains
+  `list_end:"next"` for Go while writing `list_end_action:"start_over"`
+  as upstream's safe fallback. Unknown enum strings are echoed rather than
+  silently replaced.
 - Per-video view shape follows the upstream field names and is written
   explicitly: `aspect_ratio` (`""` is the video's own shape; `"own"` is accepted
   and treated the same), `scale` (`0` means fit; it is written only when it
@@ -66,8 +68,11 @@ Rules:
   mark the playlist dirty; Settings → Video changes the defaults and applies
   them to every cell.
 - `--playlist PATH` loads at startup; File → Open/Save/Save As manage the
-  document. Closing with unsaved structural changes asks Save / Discard /
-  Cancel; `--autoquit` skips the prompt for automation.
+  document. Automatic list steps apply Start Over, Pause At Start, Stop,
+  Close, or the legacy Go Next Cell action at a boundary. Manual Next and
+  Previous wrap regardless of that policy. Closing with unsaved structural
+  changes asks Save / Discard / Cancel; `--autoquit` skips the prompt for
+  automation.
 
 ## Settings (`settings.ini`)
 

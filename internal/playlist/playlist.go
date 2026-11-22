@@ -70,25 +70,31 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	}
 	*v = Video(a)
 	// Older Go builds wrote these fields without upstream's action/sec
-	// suffixes. Read both; writes always use the upstream names.
+	// suffixes. Read both; a canonical field wins whenever it is present.
 	var legacy struct {
 		ListEnd      string `json:"list_end"`
 		ListFail     string `json:"list_fail"`
 		ListFailWait *int   `json:"list_fail_wait"`
 	}
-	_ = json.Unmarshal(data, &legacy)
-	if v.ListEnd == "" {
-		v.ListEnd = legacy.ListEnd
-	}
-	if v.ListFail == "" {
-		v.ListFail = legacy.ListFail
-	}
-	if v.ListFailWait == nil {
-		v.ListFailWait = legacy.ListFailWait
+	if err := json.Unmarshal(data, &legacy); err != nil {
+		return err
 	}
 	var all map[string]json.RawMessage
 	if err := json.Unmarshal(data, &all); err != nil {
 		return err
+	}
+	if _, present := all["list_end_action"]; !present {
+		v.ListEnd = legacy.ListEnd
+	} else if v.ListEnd == "start_over" && legacy.ListEnd == "next" {
+		// Our dual-field Next Cell representation uses start_over only as
+		// upstream's fallback; Go restores the extension on the next load.
+		v.ListEnd = legacy.ListEnd
+	}
+	if _, present := all["list_fail_action"]; !present {
+		v.ListFail = legacy.ListFail
+	}
+	if _, present := all["list_fail_wait_sec"]; !present {
+		v.ListFailWait = legacy.ListFailWait
 	}
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
@@ -105,19 +111,43 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON merges Extra back in.
+// listEndJSONFields maps the old Go values to upstream's ListEndAction
+// vocabulary. Next Cell is a Go-only extension: upstream gets its safe
+// start_over fallback while the old key preserves the behavior for Go.
+func listEndJSONFields(value string) (canonical, legacy string) {
+	switch value {
+	case "loop", "start_over":
+		return "start_over", ""
+	case "next":
+		return "start_over", "next"
+	default:
+		// pause/stop/close are already upstream names. Unknown values are
+		// echoed rather than silently replaced by a value we do not know.
+		return value, ""
+	}
+}
+
+// MarshalJSON merges Extra back in and writes upstream-valid list actions.
 func (v Video) MarshalJSON() ([]byte, error) {
 	type alias Video
 	b, err := json.Marshal(alias(v))
 	if err != nil {
 		return nil, err
 	}
-	if len(v.Extra) == 0 {
-		return b, nil
-	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
+	}
+	canonical, legacy := listEndJSONFields(v.ListEnd)
+	if canonical == "" {
+		delete(m, "list_end_action")
+	} else {
+		m["list_end_action"], _ = json.Marshal(canonical)
+	}
+	if legacy == "" {
+		delete(m, "list_end")
+	} else {
+		m["list_end"], _ = json.Marshal(legacy)
 	}
 	for k, raw := range v.Extra {
 		if _, ok := m[k]; !ok {

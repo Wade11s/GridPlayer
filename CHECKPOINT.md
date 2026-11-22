@@ -43,9 +43,11 @@ Current known open work (see README “Still open” for the full list):
 - Grid editor manual lines/weights/user templates; Fit Shapes size/reorder/
   crop share; match-shapes auto mode.
 - Free/mosaic PUSH/z-order/optimizer and extra snap rules.
-- List-end pause/close behavior; external A/V file persistence; track/device/
-  deinterlace/color/header fields; adaptive stream quality. Upstream list
-  policy JSON names are now written and legacy Go names remain readable.
+- External A/V file persistence; track/device/deinterlace/color/header
+  fields; adaptive stream quality. Upstream list policy JSON names/values
+  and list-end Start Over/Pause/Stop/Close behavior now have regression
+  tests; legacy Go names and Next Cell remain supported. Real GUI acceptance
+  for these list-end paths remains open.
 - Full F13 menu/option translations; F11 selectable driver/process settings
   (macOS constraints); F1 performance matrix and final acceptance evidence.
 

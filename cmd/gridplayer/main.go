@@ -75,8 +75,12 @@ type cell struct {
 	list      []string
 	listIndex int
 	listEnd   string
-	endAction string
-	listFail  string
+	// listEndRaw/listFailRaw retain an unrecognised document enum verbatim.
+	listEndRaw  string
+	endAction   string
+	listFail    string
+	listFailRaw string
+	shuffleBag  shuffleBag
 	// listFailWait is set when this cell overrides the default wait.
 	// Zero means move on at once.
 	listFailWait    *int
@@ -1187,7 +1191,15 @@ func (c *cell) shouldAdvance(gen uint64) bool {
 	return true
 }
 
-func (a *app) advanceList(c *cell) {
+// nextList is a viewer-requested step. Like upstream, manual Next wraps at
+// the end regardless of the automatic list-end policy.
+func (a *app) nextList(c *cell) { a.stepList(c, false) }
+
+// advanceList is an automatic end/failure step, so its boundary applies the
+// configured list-end policy.
+func (a *app) advanceList(c *cell) { a.stepList(c, true) }
+
+func (a *app) stepList(c *cell, isEnd bool) {
 	if c == nil {
 		return
 	}
@@ -1197,15 +1209,10 @@ func (a *app) advanceList(c *cell) {
 	}
 	next := c.listIndex + 1
 	if next >= len(c.list) {
-		switch c.listEnd {
-		case "stop":
+		if isEnd && a.handleListEnd(c) {
 			return
-		case "next":
-			a.nextCellFrom(c)
-			return
-		default:
-			next = 0
 		}
+		next = 0
 	}
 	c.advancing = true
 	defer func() { c.advancing = false }()
@@ -1361,7 +1368,12 @@ func (a *app) setListEnd(mode string) {
 	if c == nil || len(c.list) == 0 {
 		return
 	}
+	mode = normalizeListEnd(mode)
+	if mode == "" {
+		return
+	}
 	c.listEnd = mode
+	c.listEndRaw = ""
 	a.dirty = true
 	a.refreshMenu()
 }
@@ -1416,14 +1428,8 @@ func (a *app) stepPrevious(c *cell) {
 	if c == nil || len(c.list) == 0 {
 		return
 	}
-	if c.listIndex == 0 {
-		switch c.listEnd {
-		case "stop":
-			return
-		case "next":
-			a.previousCellFrom(c)
-			return
-		}
+	if c.listIndex == 0 && a.handleListEnd(c) {
+		return
 	}
 	a.previousList(c)
 }
@@ -1453,8 +1459,15 @@ func (a *app) shuffleList(c *cell) {
 		a.advanceList(c)
 		return
 	}
-	index := pickShuffle(len(c.list), c.listIndex, randIntN)
-	a.loadListIndex(c, index)
+	c.shuffleBag.sync(len(c.list), c.listIndex, randIntN)
+	if c.shuffleBag.roundOver() && normalizeListEnd(c.listEnd) != listEndLoop &&
+		a.handleListEnd(c) {
+		return
+	}
+	index := c.shuffleBag.next(randIntN)
+	if index >= 0 {
+		a.loadListIndex(c, index)
+	}
 }
 
 func randIntN(n int) int { return rand.IntN(n) }
@@ -1507,6 +1520,7 @@ func (a *app) setListFail(mode string) {
 		return
 	}
 	c.listFail = mode
+	c.listFailRaw = ""
 	c.skipGen = 0
 	a.dirty = true
 	a.refreshMenu()
@@ -2004,7 +2018,7 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "next_file") {
 		if cell := a.activeCell(); cell != nil {
-			a.advanceList(cell)
+			a.nextList(cell)
 		}
 	}
 	if a.shortcut(c, "previous_file") {
@@ -2515,18 +2529,33 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				c.listIndex = v.ListIndex
 				c.path = c.list[c.listIndex]
 			}
-			switch v.ListEnd {
-			case "loop", "stop", "next":
-				c.listEnd = v.ListEnd
-			}
-			switch v.ListFail {
-			case listFailPlayNext, listFailShowError:
-				c.listFail = v.ListFail
-			}
-			if v.ListFailWait != nil {
-				wait := *v.ListFailWait
-				c.listFailWait = &wait
-			}
+		}
+		c.listEndRaw = ""
+		if action := normalizeListEnd(v.ListEnd); action != "" {
+			c.listEnd = action
+		} else if v.ListEnd != "" {
+			// Preserve a future/unknown enum rather than replacing it with
+			// this build's default on the next save.
+			c.listEnd = ""
+			c.listEndRaw = v.ListEnd
+		} else if len(c.list) > 0 {
+			c.listEnd = listEndLoop
+		} else {
+			c.listEnd = ""
+		}
+		c.listFailRaw = ""
+		switch v.ListFail {
+		case listFailPlayNext, listFailShowError:
+			c.listFail = v.ListFail
+		case "":
+			c.listFail = ""
+		default:
+			c.listFail = ""
+			c.listFailRaw = v.ListFail
+		}
+		if v.ListFailWait != nil {
+			wait := *v.ListFailWait
+			c.listFailWait = &wait
 		}
 		if action := normalizeEndAction(v.EndAction); action != "" {
 			c.endAction = action
@@ -2676,6 +2705,14 @@ func (a *app) document() *playlist.Document {
 			s := c.scale
 			scale = &s
 		}
+		listEnd := c.listEnd
+		if listEnd == "" {
+			listEnd = c.listEndRaw
+		}
+		listFail := c.listFail
+		if listFail == "" {
+			listFail = c.listFailRaw
+		}
 		v := playlist.Video{
 			URI:             source,
 			CurrentPosition: int(s.Time),
@@ -2688,9 +2725,9 @@ func (a *app) document() *playlist.Document {
 			Scale:           scale,
 			CropRatio:       &cropRatio,
 			ListIndex:       c.listIndex,
-			ListEnd:         c.listEnd,
+			ListEnd:         listEnd,
 			EndAction:       upstreamEndAction(c.endAction),
-			ListFail:        c.listFail,
+			ListFail:        listFail,
 			ListFailWait:    cloneWait(c.listFailWait),
 			AudioDelay:      c.audioDelay,
 			SubtitleDelay:   c.subDelay,
@@ -3305,16 +3342,20 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Label: a.tr("Actions", "Next in List"), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if a.active >= 0 && a.active < len(a.cells) {
-					a.advanceList(a.cells[a.active])
+					a.nextList(a.cells[a.active])
 				}
 			}},
 			{Label: a.tr("Actions", "End of List"), Submenu: []*mygo.MenuItem{
-				{Label: a.tr("Actions", "Loop"), Type: mygo.MenuItemRadio, Checked: listEnd == "loop", Disabled: !hasList,
-					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("loop") }},
-				{Label: a.tr("Actions", "Stop"), Type: mygo.MenuItemRadio, Checked: listEnd == "stop", Disabled: !hasList,
-					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("stop") }},
-				{Label: a.tr("Actions", "Next Cell"), Type: mygo.MenuItemRadio, Checked: listEnd == "next", Disabled: !hasList,
-					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd("next") }},
+				{Label: a.tr("Actions", "Start Over"), Type: mygo.MenuItemRadio, Checked: listEnd == listEndLoop, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd(listEndLoop) }},
+				{Label: a.tr("Actions", "Pause At Start"), Type: mygo.MenuItemRadio, Checked: listEnd == listEndPause, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd(listEndPause) }},
+				{Label: a.tr("Actions", "Stop"), Type: mygo.MenuItemRadio, Checked: listEnd == listEndStop, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd(listEndStop) }},
+				{Label: a.tr("Actions", "Close"), Type: mygo.MenuItemRadio, Checked: listEnd == listEndClose, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd(listEndClose) }},
+				{Label: a.tr("Actions", "Next Cell"), Type: mygo.MenuItemRadio, Checked: listEnd == listEndNext, Disabled: !hasList,
+					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListEnd(listEndNext) }},
 			}},
 			{Label: a.tr("Actions", "When Finished"), Submenu: []*mygo.MenuItem{
 				{Label: a.tr("Actions", "Loop File"), Type: mygo.MenuItemRadio, Checked: endAction == endLoop,
