@@ -1,5 +1,29 @@
 # Migration Checkpoints
 
+## 2026-11-23 F10 shortcut candidate
+
+Frozen source is unchanged. Base/main is
+`6c261e4611ec8d1233ca87825ae03d6f5fafdbb6` (post PR #73); code candidate
+is `cdbd0d03e74aed843ef85253d2f382fb3234ec0f` on
+`fix/f10-shortcut-parity` in `/tmp/gridplayer-f10`. A checkpoint-only commit
+follows; the PR binds the final reviewed head.
+
+Implemented: schema-2 one-time old-default migration, Space all-cell
+Play/Pause (including focused overlay buttons), Ctrl+Space active,
+Shift+PgUp/PgDn all-list steps, frozen percent/short-seek/zoom/crop defaults,
+and physical +/* dispatch. All-list folder navigation, remaining all-seek/
+media/mouse actions, and macOS default Ctrl+Space delivery remain open.
+
+Verification on the candidate tree: `go vet ./...`,
+`go test ./... -race -count=1`, `go build ./...`, `scripts/build_app.sh`, and
+standard `scripts/smoke_app.sh` PASS. MyGo focused-button regression PASS.
+Real `/tmp` Space-all and focused Tab+Space runs passed with VideoToolbox and
+clean autoquit (`/tmp/gridplayer-f10-real-tmp/`,
+`/tmp/gridplayer-f10-focused-tmp/`). Custom F12 active-cell key PASS; default
+Ctrl+Space was not delivered under the current input-source setup. Earlier
+Desktop-path TCC hangs and forced cleanup are retained in
+`docs/ACCEPTANCE.md`, not counted as passes. No test process remains.
+
 ## 2026-11-23 active external-track candidate
 
 Pinned source remains `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f` (0.5.5).
