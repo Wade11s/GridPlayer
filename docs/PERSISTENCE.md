@@ -29,16 +29,25 @@ Rules:
   above 1 are rejected (no silent downgrade).
 - Relative `uri` values resolve against the playlist's directory; `file://`
   becomes a local path; network URLs pass through.
-- Unknown top-level settings and unknown per-video fields are preserved on
-  load/save (they are re-emitted unchanged), so files written by the Python
-  app keep their data even where this build does not use it yet.
+- Unknown top-level document fields (including upstream `lists`, `bookmarks`,
+  `snapshots`, and `window_state`), unknown settings, and unknown per-video
+  fields are preserved on load/save. They are re-emitted unchanged, so files
+  written by the Python app keep their data even where this build does not
+  use it yet.
 - Writes are atomic (temp file + rename).
 - The app saves position, mute, volume, rate, view mode, playback state and
   the grid subset. Per-video state also includes `audio_delay_ms`,
   `subtitle_delay_ms`, `loop_start`, `loop_end`, `transform`, `end_action`,
   `list_end_action`, `list_fail_action`, `list_fail_wait_sec`, `crop`,
-  `crop_margins`, `aspect_ratio`, `scale`, `crop_ratio`, `anchor`, and
-  `grid_template`.
+  `crop_margins`, `aspect_ratio`, `scale`, `crop_ratio`, `anchor`,
+  `external_audio`, `external_subtitles`, and `grid_template`.
+- External audio/subtitle file arrays resolve relative paths against the
+  playlist directory, are attached in order before the first play, and are
+  restored on save/reopen. Changing the restored set reloads a live cell;
+  moving to another list item clears that item's external files before the
+  next load. Upstream `audio_selection`/`subtitle_selection` objects are
+  preserved as unknown data, but selected external track/language/device
+  behavior remains a separate track-parity gap.
 - Per-video list policies use the upstream 0.5.5 JSON names
   `list_end_action`, `list_fail_action`, and `list_fail_wait_sec`. Older Go
   documents using `list_end`, `list_fail`, and `list_fail_wait` are still

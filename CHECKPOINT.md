@@ -1,5 +1,38 @@
 # Migration Checkpoints
 
+## 2026-11-23 active external-track candidate
+
+Pinned source remains `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f` (0.5.5).
+Base/main is `8d81caef76eaa061ea6eee2f17732630ba3d3085` (post PR #72);
+the code candidate is `2d8bd22cfb8c77f2e02db05d20624dd4e4249e73` on
+`fix/playlist-external-tracks` in `/tmp/gridplayer-f7`. A checkpoint-only
+commit follows; the PR body binds the final reviewed head.
+
+Completed in this candidate:
+- Unknown top-level `.gpls` fields survive save; ordered external A/V paths
+  resolve, persist, attach before first play, reload when changed, and clear
+  on list-item changes. Selection objects remain raw-preserved, not applied.
+- `docs/GAP_MAP.md` records F1–F13 implementation, test, acceptance, macOS
+  exclusion, and oracle-blocker status.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`./scripts/build_app.sh` all PASS. `TestRealVLCExternalFilesSurviveReloadAndClear`
+PASS. `scripts/smoke_app.sh` initially could not copy ignored MP4s in the new
+worktree (not an app result); `python3 scripts/make_fixtures.py` regenerated
+them with a manifest identical to the main worktree, then smoke PASSed with
+4 VideoToolbox lines. App: `/tmp/gridplayer-f7/dist/darwin-arm64/GridPlayer.app`.
+External save/reopen and list-step evidence: `/tmp/gridplayer-external-app/`
+and `/tmp/gridplayer-external-list-step/`. Sample-level external audio and
+full GUI acceptance are not claimed.
+
+Highest remaining gaps: rich list identity/defaults and per-cell unknown-field
+identity; F5/F6 layout/drop semantics; F10 all-cell/mouse/key parity; F13
+translation coverage; selected track/device/deinterlace/color/header fields;
+adaptive quality; F1 full performance/media acceptance. The 0.1.0 installed
+oracle versus frozen 0.5.5 source remains the only recorded oracle-comparison
+blocker, not a reason to mark unimplemented features blocked.
+
 ## 2026-11-21 checkpoint (post PR #70)
 
 Pinned inputs are unchanged from the 2026-11-09 section: upstream
@@ -43,13 +76,15 @@ Current known open work (see README “Still open” for the full list):
 - Grid editor manual lines/weights/user templates; Fit Shapes size/reorder/
   crop share; match-shapes auto mode.
 - Free/mosaic PUSH/z-order/optimizer and extra snap rules.
-- External A/V file persistence; track/device/deinterlace/color/header
-  fields; adaptive stream quality. Upstream list policy JSON names/values
-  and list-end Start Over/Pause/Stop/Close behavior now have regression
-  tests; legacy Go names and Next Cell remain supported. Targeted real-app
-  Pause At Start, paused reopen, and Close checks pass (see
-  `docs/ACCEPTANCE.md`); manual/stop/shuffle GUI paths and the full
-  acceptance matrix remain open.
+- Selected track/language/device, deinterlace/color/header fields, rich list
+  identity, and adaptive stream quality. External A/V file arrays now
+  persist/reattach and clear on item changes; selection objects remain
+  preserved-but-uninterpreted. Upstream list policy JSON names/values and
+  list-end Start Over/Pause/Stop/Close behavior have regression tests;
+  legacy Go names and Next Cell remain supported. Targeted real-app list-end
+  and external-file checks pass (see `docs/ACCEPTANCE.md`); manual/stop/
+  shuffle GUI paths, sample-level external audio, and full acceptance remain
+  open.
 - Full F13 menu/option translations; F11 selectable driver/process settings
   (macOS constraints); F1 performance matrix and final acceptance evidence.
 

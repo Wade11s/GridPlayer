@@ -9,6 +9,7 @@ package engine
 
 import (
 	"errors"
+	"slices"
 	"sync"
 )
 
@@ -780,6 +781,38 @@ func (e *Engine) SetCrop(crop string) {
 	if be != nil {
 		be.SetCrop(crop)
 	}
+}
+
+// SetExternalFilesForLoad replaces the external files attached by future
+// Loads and reports whether the ordered set changed. It deliberately does
+// not mutate the current backend; callers changing a live item must Load it.
+func (e *Engine) SetExternalFilesForLoad(audio, subtitles []string) bool {
+	audio = cleanExternalFiles(audio)
+	subtitles = cleanExternalFiles(subtitles)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	changed := !slices.Equal(e.audioFiles, audio) || !slices.Equal(e.subtitles, subtitles)
+	if changed {
+		e.audioFiles = audio
+		e.subtitles = subtitles
+	}
+	return changed
+}
+
+func cleanExternalFiles(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	clean := make([]string, 0, len(paths))
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		if path == "" || seen[path] {
+			continue
+		}
+		seen[path] = true
+		clean = append(clean, path)
+	}
+	return clean
 }
 
 // AddSubtitle attaches a subtitle file, remembering it across reloads.

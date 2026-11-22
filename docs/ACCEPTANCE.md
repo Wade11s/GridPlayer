@@ -66,5 +66,14 @@ Changes need a new review; thresholds never relax in-implementation.
   with the late-Playing guard) settling as `idle`. The implementation then
   changed to reopen-at-start with the paused-restore guard, which produced
   the passing settled runs above. No threshold was lowered.
+- 2026-11-23, external-track candidate (exact final head is bound in its PR):
+  `TestRealVLCExternalFilesSurviveReloadAndClear` passed with real libVLC
+  subtitle-track enumeration. Bundled-app save/reopen preserved ordered
+  external audio/subtitle arrays plus upstream top-level fields; another
+  real list run cleared those files on item 2. Evidence:
+  `/tmp/gridplayer-external-app/` and `/tmp/gridplayer-external-list-step/`.
+  Both app runs used isolated data, generated fixtures, and VideoToolbox;
+  their logs name both external files. This verifies persistence/attachment
+  paths, **not sample-level external-audio output or full GUI acceptance**.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

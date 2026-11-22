@@ -1,5 +1,9 @@
 # GridPlayer Behavior Matrix (frozen source scope)
 
+Current evidence and remaining gaps are reconciled in [GAP_MAP.md](GAP_MAP.md).
+This file retains the frozen requirement/test matrix; code presence alone is
+not a parity pass.
+
 Source: vzhd1701/gridplayer @ `bf943684232d74ed9e271c3c9eeef6e7a7ed6e0f` (master HEAD resolved 2026-11-08 14:09 CST, UTC+8).
 Oracle installed: `/Applications/GridPlayer.app` — `0.1.0` (build `1`), identifier `com.wade11.gridplayer`.
 **Mismatch recorded:** oracle `0.1.0` != frozen source `0.5.5` (`gridplayer/version.py`: `__version__ = "0.5.5"`, `__app_id__ = "com.vzhd1701.gridplayer"`). Per MIGRATION_SPEC §3, the frozen source defines the target scope; the oracle is a runnable reference only. Items that cannot be reconciled from the oracle stay blocked, not silently re-scoped.

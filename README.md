@@ -34,11 +34,14 @@ Still open:
   reorder and crop share; "match shapes" for Auto Rows/Columns.
 - Free/mosaic: PUSH overlap, z-order, optimizer/reorder-to-fit, equal-gap and
   video-shape snap.
-- Playlist parity: external audio/subtitle file persistence;
-  track/device/deinterlace/color/header fields; adaptive stream quality.
-  Upstream list policy JSON names/values and Start Over/Pause/Stop/Close
-  behavior are implemented with regression tests; final GUI acceptance is
-  still required. Legacy Go names and Next Cell remain supported.
+- Playlist parity: selected track/language/device, deinterlace/color/header
+  fields, rich list identity, and adaptive stream quality. External
+  audio/subtitle file arrays now persist, reattach on reopen, and clear on
+  list-item changes; external selection objects are preserved but not fully
+  interpreted. Upstream list policy JSON names/values and Start
+  Over/Pause/Stop/Close behavior are implemented with regression tests;
+  final GUI acceptance is still required. Legacy Go names and Next Cell
+  remain supported.
 - F11: videos-per-process does not exist on macOS (HW_SP is forced); a
   selectable driver is not exposed. Tray/close-to-tray stay out of macOS scope.
 - F13: full menu/option translation coverage.
@@ -69,6 +72,7 @@ Tests: `go test ./... -race` (engine + grid + real libVLC dummy-output).
 ## Docs
 
 - `docs/BEHAVIOR_MATRIX.md` — frozen source → behavior → test matrix.
+- `docs/GAP_MAP.md` — current F1–F13 implementation/evidence/gap status.
 - `docs/ARCHITECTURE.md` — engine/surface boundaries and design decisions.
 - `docs/ACCEPTANCE.md` — frozen acceptance criteria and evidence.
 - `docs/MERGE_GATES.md` — review/CI/local-GUI merge gates.

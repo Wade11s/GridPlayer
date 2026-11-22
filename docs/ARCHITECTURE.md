@@ -40,9 +40,12 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   menu opens or a load settles.
 - View and external tracks: `SetAspectRatio/SetScale/SetCrop` map to libVLC's
   `video_set_aspect_ratio/scale/crop_geometry`; `AddSubtitle/AddAudio` map to
-  `media_player_add_slave` with a `file://` MRL. The engine applies stored
-  settings at `Load` and keeps external attachments across reloads. The UI
-  exposes aspect/scale/crop and file loading for the active cell.
+  `media_player_add_slave` with a `file://` MRL.
+  `SetExternalFilesForLoad` replaces the ordered set used by future loads.
+  `.gpls` external file arrays restore before first play, a changed set
+  reloads a live cell, and list-item transitions clear item-specific files.
+  Selection objects are still raw-preserved rather than fully interpreted.
+  The UI exposes aspect/scale/crop and file loading for the active cell.
 - URL resolution: `internal/resolve` shells out to `yt-dlp` with
   `--ignore-config --no-warnings --skip-download --no-playlist -g -f best`
   (plus `--enable-file-urls` for file://), never reading user config/cookies.
@@ -52,9 +55,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `bookmarks.json` (atomic save, name replace, sorted). The Bookmarks menu
   adds the active position, lists/jumps, and clears the active source.
 - Media lists: `internal/medialist` expands folders and m3u/pls/xspf into
-  one cell's ordered list (HLS manifests pass through as one stream). The
-  cell advances on Ended, wraps when `listLoop`, and Playback has
-  Previous/Next in List; the badge shows `i/n`.
+  one cell's ordered list (HLS manifests pass through as one stream).
+  Automatic steps apply `list_end_action`; manual Previous/Next wrap, and
+  external item files are cleared before a new item loads. The badge shows
+  `i/n`.
 - Streams: `SetMedia` uses `libvlc_media_new_location` for `scheme://` media,
   so `file://` HLS and `http(s)://` URLs open through libVLC directly.
   `testdata/fixtures/hls/` is a deterministic local VOD HLS (3 renditions);
