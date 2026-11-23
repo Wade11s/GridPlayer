@@ -96,5 +96,12 @@ Changes need a new review; thresholds never relax in-implementation.
   `/tmp/gridplayer-metadata-app/` preserved a synthetic UUID, title,
   `custom_field`, and raw `audio_selection`. This verifies persistence;
   the swap/insert cases are unit evidence, not a claimed GUI drag run.
+- 2026-11-23, z-order candidate: pure permutation/tier/topmost and app
+  persistence tests pass. Real overlapping Free Tiles evidence at
+  `/tmp/gridplayer-zorder-app/`: `before.png` shows B covering A; Grid →
+  Bring to Front produced `after.png` with A covering B. `saved.gpls`
+  persisted `grid_free_order:[1,0]`; VideoToolbox played and autoquit left
+  no process. Captures contain only the test app window. This is targeted
+  native stacking evidence, not PUSH/optimizer or full occlusion acceptance.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

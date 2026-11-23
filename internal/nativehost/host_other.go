@@ -22,11 +22,12 @@ func ToMac(r DIP, height float64) NSRect {
 	return NSRect{Origin: NSPoint{X: r.X, Y: height - r.Y - r.H}, Size: NSSize{Width: r.W, Height: r.H}}
 }
 
-func NewView() uintptr                                { return 0 }
-func NewClip() uintptr                                { return 0 }
-func AddSubview(parent, child uintptr)                {}
-func AddBelow(contentView, surfaceView, view uintptr) {}
-func SetFrame(view uintptr, frame NSRect)             {}
-func Frame(view uintptr) NSRect                       { return NSRect{} }
-func Remove(view uintptr)                             {}
-func Release(view uintptr)                            {}
+func NewView() uintptr                                               { return 0 }
+func NewClip() uintptr                                               { return 0 }
+func AddSubview(parent, child uintptr)                               {}
+func AddBelow(contentView, surfaceView, view uintptr)                {}
+func ReorderBelow(contentView, surfaceView uintptr, views []uintptr) {}
+func SetFrame(view uintptr, frame NSRect)                            {}
+func Frame(view uintptr) NSRect                                      { return NSRect{} }
+func Remove(view uintptr)                                            {}
+func Release(view uintptr)                                           {}

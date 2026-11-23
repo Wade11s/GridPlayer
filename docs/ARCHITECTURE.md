@@ -71,14 +71,16 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - Mosaic (`internal/grid.Mosaic` + `Arrange`): first tile big on the left
   (half for ≤4, third above), rest as equal tiles in a right-hand tier.
   Locked tiles act as walls; the free area is cut around them and filled with
-  justified rows, falling back to `Mosaic(n)` when no room remains. Drag,
-  resize, lock/unlock and Arrange persist through settings. The full
-  optimizer/reorder-to-fit, equal-gap/video-shape snap and z-order are later.
+  justified rows, falling back to `Mosaic(n)` when no room remains. Locked
+  tiles stay in the front stacking tier. Drag, resize, lock/unlock and Arrange
+  persist through settings. The full optimizer/reorder-to-fit, equal-gap/
+  video-shape snap are later.
 - Free Tiles: `FreeLayout` fractions + gap inset; the cell drag moves
   (MoveTile) and a bottom-right handle resizes (ResizeTile), clamped to the
   page and a 64×48 minimum. Snap targets page/neighbour edges and middles;
-  overlap can be disabled (axis-slide rejection). PUSH overlap and z-order
-  remain later.
+  overlap can be disabled (axis-slide rejection). A validated back-to-front
+  permutation drives Bring to Front/Send to Back, MyGo hit order, and a
+  clip-signature-gated native NSView reorder. PUSH overlap remains later.
 - Single Mode uses `internal/grid.SingleLayout`: one active cell big, the
   others in a strip (Auto/Right/Left/Bottom/Top), share clamped 5%..40%,
   tiles centered along the strip. Clicking a strip cell makes it big.

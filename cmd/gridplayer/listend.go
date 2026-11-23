@@ -1,7 +1,5 @@
 package main
 
-import "gridplayer-go/internal/grid"
-
 const (
 	listEndLoop  = "loop"
 	listEndNext  = "next" // Go-only Next Cell extension.
@@ -120,7 +118,7 @@ func (a *app) closeListCell(c *cell) {
 			a.active = 0
 		}
 	}
-	a.freeTiles = grid.FreeLayout(len(a.cells))
+	a.resetFreeTiles()
 	a.resetMosaic()
 	a.dirty = true
 	a.refreshMenu()

@@ -121,7 +121,8 @@ Merged through 2026-11-21 (main `669d39d`):
 Current known open work (see README “Still open” for the full list):
 - Grid editor manual lines/weights/user templates; Fit Shapes size/reorder/
   crop share; match-shapes auto mode.
-- Free/mosaic PUSH/z-order/optimizer and extra snap rules.
+- Free/mosaic PUSH/optimizer and extra snap rules; front/back and locked-front
+  stacking now have unit/persistence and real native-app evidence.
 - Selected track/language/device, deinterlace/color/header fields, rich list
   identity, and adaptive stream quality. External A/V file arrays now
   persist/reattach and clear on item changes; selection objects remain
