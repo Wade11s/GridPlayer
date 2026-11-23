@@ -1,5 +1,26 @@
 # Migration Checkpoints
 
+## 2026-11-23 per-video metadata candidate
+
+Frozen source is unchanged. Base/main is
+`45dae8e7a775d26b9b97a03e831777a43550a299` (post PR #74). Code candidate is
+`948b62e007b5b1c358433cb55b78e2a826c0c9a2`; latest-base merge head is
+`1dce48328e90d6e3743c31b814826228dda141b5`. A checkpoint-only commit
+follows; the PR binds the final reviewed head.
+
+Fixed: `document()` no longer aliases away per-video metadata. IDs, titles,
+and unknown fields live on their cell and follow the correct URI through
+save/reopen, cell swap, and insertion. Raw preservation is still not rich
+list/selection behavior.
+
+Verification at the latest-base merge head: `go vet ./...`,
+`go test ./... -race -count=1`, `go build ./...`, `scripts/build_app.sh`, and
+`scripts/smoke_app.sh` PASS (4 VideoToolbox lines). App:
+`/tmp/gridplayer-metadata/dist/darwin-arm64/GridPlayer.app`. Real metadata
+save/reopen PASS at `/tmp/gridplayer-metadata-app/`; swap/insert coverage is
+unit/MyGo-model evidence, not a claimed GUI drag run. Full acceptance and
+0.5.5-oracle comparisons remain open.
+
 ## 2026-11-23 F10 shortcut candidate
 
 Frozen source is unchanged. Base/main is
