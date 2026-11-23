@@ -50,9 +50,10 @@ External save/reopen and list-step evidence: `/tmp/gridplayer-external-app/`
 and `/tmp/gridplayer-external-list-step/`. Sample-level external audio and
 full GUI acceptance are not claimed.
 
-Highest remaining gaps: rich list identity/defaults and per-cell unknown-field
-identity; F5/F6 layout/drop semantics; remaining F10 all-seek/media/mouse
-parity and macOS Ctrl+Space verification; F13 translation coverage; selected track/device/deinterlace/color/header fields;
+Highest remaining gaps: rich list identity/defaults; F5/F6 layout/drop
+semantics; remaining F10 all-seek/media/mouse parity and macOS Ctrl+Space
+verification; F13 translation coverage; selected track/device/deinterlace/
+color/header fields;
 adaptive quality; F1 full performance/media acceptance. The 0.1.0 installed
 oracle versus frozen 0.5.5 source remains the only recorded oracle-comparison
 blocker, not a reason to mark unimplemented features blocked.

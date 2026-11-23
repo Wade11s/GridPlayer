@@ -45,6 +45,9 @@ type cell struct {
 	label   string
 	source  string
 	path    string
+	id      string
+	title   string
+	extra   map[string]json.RawMessage
 	eng     *engine.Engine
 	view    uintptr
 	clip    uintptr
@@ -2524,6 +2527,9 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c := a.cells[i]
 		v := d.Videos[i]
+		c.id = v.ID
+		c.title = v.Title
+		c.extra = cloneRawMessages(v.Extra)
 		c.startAt = v.CurrentPosition
 		c.muted = v.IsMuted
 		if v.Volume > 0 {
@@ -2753,6 +2759,9 @@ func (a *app) document() *playlist.Document {
 			listFail = c.listFailRaw
 		}
 		v := playlist.Video{
+			ID:                c.id,
+			Title:             c.title,
+			Extra:             cloneRawMessages(c.extra),
 			URI:               source,
 			CurrentPosition:   int(s.Time),
 			IsMuted:           s.Muted,
@@ -2781,11 +2790,6 @@ func (a *app) document() *playlist.Document {
 			Anchor:            anchorName(c.anchorX, c.anchorY),
 			Crop:              cropMarginsList(c.cropMargins),
 			CropMargins:       cropMarginsList(c.cropMargins),
-		}
-		if a.doc != nil && i < len(a.doc.Videos) {
-			v.ID = a.doc.Videos[i].ID
-			v.Title = a.doc.Videos[i].Title
-			v.Extra = a.doc.Videos[i].Extra
 		}
 		d.Videos[i] = v
 	}

@@ -88,5 +88,10 @@ Changes need a new review; thresholds never relax in-implementation.
   Those runs failed and their known isolated PIDs required SIGKILL; they are
   not passes. No system keyboard or security setting was changed. The final
   exact-head standard smoke remains a separate gate.
+- 2026-11-23, metadata candidate: cell-local ID/title/unknown-field swap and
+  insertion regression tests pass. Real bundled-app save/reopen at
+  `/tmp/gridplayer-metadata-app/` preserved a synthetic UUID, title,
+  `custom_field`, and raw `audio_selection`. This verifies persistence;
+  the swap/insert cases are unit evidence, not a claimed GUI drag run.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
