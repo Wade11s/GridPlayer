@@ -86,7 +86,10 @@ Changes need a new review; thresholds never relax in-implementation.
   opened generated fixtures through their Desktop paths: a stack sample
   showed libVLC blocked in `open` while teardown waited in `input_Close`.
   Those runs failed and their known isolated PIDs required SIGKILL; they are
-  not passes. No system keyboard or security setting was changed. The final
-  exact-head standard smoke remains a separate gate.
+  not passes. No system keyboard or security setting was changed. The
+  standard smoke passed at exact final head
+  `69f25ccbce024234eda650cfc6e6410b05b877d4`; the real media key runs used
+  code-identical candidate `cdbd0d03e74aed843ef85253d2f382fb3234ec0f`
+  (the final commit changed only the checkpoint).
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
