@@ -33,7 +33,9 @@ Rules:
   `snapshots`, and `window_state`), unknown settings, and unknown per-video
   fields are preserved on load/save. They are re-emitted unchanged, so files
   written by the Python app keep their data even where this build does not
-  use it yet.
+  use it yet. Per-video IDs, titles, and unknown fields live with their cell:
+  swapping or inserting cells does not move that metadata to another URI or
+  erase it through document aliasing.
 - Writes are atomic (temp file + rename).
 - The app saves position, mute, volume, rate, view mode, playback state and
   the grid subset. Per-video state also includes `audio_delay_ms`,
