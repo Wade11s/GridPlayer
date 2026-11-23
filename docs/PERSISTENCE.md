@@ -118,8 +118,11 @@ Settings are written atomically.
 Keymap settings include `keymap/schema=2`. On a pre-schema-2 file, values
 identical to the old Go defaults are migrated once to the frozen bindings
 (Space all-cell Play/Pause, Ctrl+Space active, Ctrl+Arrow short seeks,
-percent-seek brackets, and corrected zoom/crop keys). Custom values and all
-schema-2 values are preserved; saving writes schema 2.
+percent-seek brackets, and corrected zoom/crop keys). A pre-schema-2 value
+equal to an old default is treated as that default even if it was an
+intentional customization; the formats cannot distinguish those cases.
+Other pre-schema custom values and every schema-2 value are preserved;
+saving writes schema 2.
 
 Not implemented yet: tray/close-to-tray behavior, videos-per-process,
 a selectable macOS driver, and legacy key migrations beyond the ones this

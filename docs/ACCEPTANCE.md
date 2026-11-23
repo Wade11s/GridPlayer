@@ -86,8 +86,11 @@ Changes need a new review; thresholds never relax in-implementation.
   opened generated fixtures through their Desktop paths: a stack sample
   showed libVLC blocked in `open` while teardown waited in `input_Close`.
   Those runs failed and their known isolated PIDs required SIGKILL; they are
-  not passes. No system keyboard or security setting was changed. The final
-  exact-head standard smoke remains a separate gate.
+  not passes. No system keyboard or security setting was changed. Standard
+  smoke passed at `69f25ccbce024234eda650cfc6e6410b05b877d4` and again at
+  `96aeb2b54cf6b691838785497ce4a1ff966733d7`; the real media key runs used
+  code-identical candidate `cdbd0d03e74aed843ef85253d2f382fb3234ec0f`.
+  Later commits changed checkpoint/review wording only.
 - 2026-11-23, metadata candidate: cell-local ID/title/unknown-field swap and
   insertion regression tests pass. Real bundled-app save/reopen at
   `/tmp/gridplayer-metadata-app/` preserved a synthetic UUID, title,
