@@ -1,5 +1,28 @@
 # Migration Checkpoints
 
+## 2026-11-23 Free/Mosaic z-order candidate
+
+Frozen source is unchanged. Base/main is
+`f51faf3925e5ce3029662289f4c11d7dfc67a92b` (post PR #75); code candidate
+is `24886ed0dde0fa0834995b584a63c64a5c12a2c9` on
+`feat/free-tile-zorder` in `/tmp/gridplayer-zorder`. A checkpoint-only
+commit follows; the PR binds the final reviewed head.
+
+Implemented: validated back-to-front permutations, same-tier overlap-gated
+Bring to Front/Send to Back, locked-front Mosaic tiers, draw/hit order,
+document/settings persistence, and clip-signature-gated native NSView
+reordering. PUSH, optimizer/reorder-to-fit, advanced snapping, and full
+occlusion/Retina acceptance remain open.
+
+Verification on the candidate tree: `go vet ./...`,
+`go test ./... -race -count=1`, `go build ./...`, `scripts/build_app.sh`, and
+`scripts/smoke_app.sh` PASS (4 VideoToolbox lines). Real overlapping playback
+at `/tmp/gridplayer-zorder-app/`: `before.png` has B over A, `after.png` has A
+over B after Bring to Front; `saved.gpls` stores `grid_free_order:[1,0]` and
+autoquit left no process. App:
+`/tmp/gridplayer-zorder/dist/darwin-arm64/GridPlayer.app`. This is targeted
+stacking evidence, not full layout acceptance.
+
 ## 2026-11-23 per-video metadata candidate
 
 Frozen source is unchanged. Base/main is
