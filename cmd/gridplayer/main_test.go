@@ -921,6 +921,22 @@ func TestBindingUI(t *testing.T) {
 	if !ok || key != ui.KeySpace || mods != 0 {
 		t.Fatalf("space -> %v %v %v", mods, key, ok)
 	}
+	for _, tt := range []struct {
+		binding string
+		key     ui.Key
+	}{
+		{binding: "+", key: ui.KeyEqual},
+		{binding: "*", key: ui.Key8},
+	} {
+		b, err = keymap.Parse(tt.binding)
+		if err != nil {
+			t.Fatal(err)
+		}
+		mods, key, ok = bindingUI(b)
+		if !ok || key != tt.key || mods != ui.Shift {
+			t.Fatalf("%s -> %v %v %v, want Shift+%v", tt.binding, mods, key, ok, tt.key)
+		}
+	}
 	b, _ = keymap.Parse("none")
 	if _, _, ok := bindingUI(b); ok {
 		t.Fatal("empty binding accepted")
@@ -937,7 +953,7 @@ func TestSettingsDraftKeymap(t *testing.T) {
 	for i := range d.keys {
 		switch d.keys[i].Action {
 		case "play_pause":
-			d.keys[i].Value = "p"
+			d.keys[i].Value = "f12"
 		case "mute":
 			d.keys[i].Value = "none"
 		}
@@ -946,14 +962,14 @@ func TestSettingsDraftKeymap(t *testing.T) {
 		t.Fatal(err)
 	}
 	a.applySettingsDraft(d)
-	if got := a.keys.Get("play_pause").String(); got != "p" {
+	if got := a.keys.Get("play_pause").String(); got != "f12" {
 		t.Fatalf("play %q", got)
 	}
 	if !a.keys.Get("mute").Empty() {
 		t.Fatalf("mute %q", a.keys.Get("mute").String())
 	}
-	d.keys[0].Value = "p"
-	d.keys[1].Value = "p"
+	d.keys[0].Value = "f12"
+	d.keys[1].Value = "f12"
 	if err := d.validateKeymap(); err == nil {
 		t.Fatal("duplicate keymap accepted")
 	}

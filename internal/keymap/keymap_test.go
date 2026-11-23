@@ -12,6 +12,8 @@ func TestParseRoundTrip(t *testing.T) {
 		"option+space":  "alt+space",
 		"control+alt+k": "ctrl+alt+k",
 		"[":             "[",
+		"+":             "+",
+		"*":             "*",
 		"f12":           "f12",
 		"none":          "none",
 	}
@@ -49,13 +51,13 @@ func TestDisplayAndAccelerator(t *testing.T) {
 
 func TestMapDefaultsLoadSaveValidate(t *testing.T) {
 	m := Default()
-	if got := m.Get("play_pause").String(); got != "space" {
+	if got := m.Get("play_pause").String(); got != "ctrl+space" {
 		t.Fatalf("default play %q", got)
 	}
-	if err := m.Set("play_pause", "p"); err != nil {
+	if err := m.Set("play_pause", "f12"); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.Set("mute", "p"); err != nil {
+	if err := m.Set("mute", "f12"); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.Validate(); err == nil {
@@ -70,8 +72,11 @@ func TestMapDefaultsLoadSaveValidate(t *testing.T) {
 
 	values := map[string]string{}
 	m.Save(func(k, v string) { values[k] = v })
+	if values["keymap/schema"] != SchemaVersion {
+		t.Fatalf("saved schema %q", values["keymap/schema"])
+	}
 	loaded := Load(func(k string) string { return values[k] })
-	if got := loaded.Get("play_pause").String(); got != "p" {
+	if got := loaded.Get("play_pause").String(); got != "f12" {
 		t.Fatalf("loaded play %q", got)
 	}
 	if !loaded.Get("mute").Empty() {
@@ -86,7 +91,7 @@ func TestLoadKeepsDefaultsOnInvalidValues(t *testing.T) {
 		}
 		return ""
 	})
-	if got := m.Get("play_pause").String(); got != "space" {
+	if got := m.Get("play_pause").String(); got != "ctrl+space" {
 		t.Fatalf("invalid value replaced default: %q", got)
 	}
 }

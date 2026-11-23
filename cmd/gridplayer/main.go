@@ -1784,48 +1784,49 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 		}).
 		HandleInput(func(ev ui.InputEvent) bool {
 			return a.zoomInput(i, ev, r, s)
-		}).
-		Children(func() {
-			badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)
-			if len(cell.list) > 0 {
-				badge = fmt.Sprintf(" %s %d/%d  %dms  %s ", cell.label, cell.listIndex+1, len(cell.list), s.Time, s.Phase)
-			}
-			if a.mosaic && a.mosaicLocked[i] {
-				badge = strings.TrimSuffix(badge, " ") + " locked "
-			}
-			ui.Text(c, badge).Absolute().Top(6).Left(6).FontSize(14).
-				Background(ui.RGBA(0, 0, 0, 190)).TextColor(ui.RGB(255, 255, 255))
-			if s.Err != "" {
-				ui.Text(c, " "+s.Err+" ").Absolute().Top(30).Left(6).FontSize(12).
-					Background(ui.RGBA(120, 0, 0, 210)).TextColor(ui.RGB(255, 255, 255))
-			}
-			a.seekBar(c, i, cell, s)
-			ui.Row(c).Absolute().Left(6).Bottom(6).Gap(4).Children(func() {
-				label := "Play"
-				if s.Phase == engine.Playing {
-					label = "Pause"
-				}
-				if ui.Button(c.Key(fmt.Sprintf("play-%d", i)), label).Width(72).Clicked() && cell.eng != nil {
-					cell.eng.Toggle()
-				}
-				if ui.Button(c.Key(fmt.Sprintf("back-%d", i)), "-5s").Width(60).Clicked() && cell.eng != nil {
-					cell.eng.SeekTo(max(s.Time-5000, 0))
-				}
-				if ui.Button(c.Key(fmt.Sprintf("fwd-%d", i)), "+5s").Width(60).Clicked() && cell.eng != nil {
-					cell.eng.SeekTo(s.Time + 5000)
-				}
-				mute := "Mute"
-				if s.Muted {
-					mute = "Unmute"
-				}
-				if ui.Button(c.Key(fmt.Sprintf("mute-%d", i)), mute).Width(88).Clicked() && cell.eng != nil {
-					cell.eng.SetMute(!s.Muted)
-				}
-				if ui.Button(c.Key(fmt.Sprintf("shot-%d", i)), "Shot").Width(64).Clicked() && cell.eng != nil {
-					a.saveFrame(cell.eng)
-				}
-			})
 		})
+	el = a.allPlaybackCellShortcut(c, el)
+	el = el.Children(func() {
+		badge := fmt.Sprintf(" %s  %dms  %s ", cell.label, s.Time, s.Phase)
+		if len(cell.list) > 0 {
+			badge = fmt.Sprintf(" %s %d/%d  %dms  %s ", cell.label, cell.listIndex+1, len(cell.list), s.Time, s.Phase)
+		}
+		if a.mosaic && a.mosaicLocked[i] {
+			badge = strings.TrimSuffix(badge, " ") + " locked "
+		}
+		ui.Text(c, badge).Absolute().Top(6).Left(6).FontSize(14).
+			Background(ui.RGBA(0, 0, 0, 190)).TextColor(ui.RGB(255, 255, 255))
+		if s.Err != "" {
+			ui.Text(c, " "+s.Err+" ").Absolute().Top(30).Left(6).FontSize(12).
+				Background(ui.RGBA(120, 0, 0, 210)).TextColor(ui.RGB(255, 255, 255))
+		}
+		a.seekBar(c, i, cell, s)
+		ui.Row(c).Absolute().Left(6).Bottom(6).Gap(4).Children(func() {
+			label := "Play"
+			if s.Phase == engine.Playing {
+				label = "Pause"
+			}
+			if ui.Button(c.Key(fmt.Sprintf("play-%d", i)), label).Width(72).Clicked() && cell.eng != nil {
+				cell.eng.Toggle()
+			}
+			if ui.Button(c.Key(fmt.Sprintf("back-%d", i)), "-5s").Width(60).Clicked() && cell.eng != nil {
+				cell.eng.SeekTo(max(s.Time-5000, 0))
+			}
+			if ui.Button(c.Key(fmt.Sprintf("fwd-%d", i)), "+5s").Width(60).Clicked() && cell.eng != nil {
+				cell.eng.SeekTo(s.Time + 5000)
+			}
+			mute := "Mute"
+			if s.Muted {
+				mute = "Unmute"
+			}
+			if ui.Button(c.Key(fmt.Sprintf("mute-%d", i)), mute).Width(88).Clicked() && cell.eng != nil {
+				cell.eng.SetMute(!s.Muted)
+			}
+			if ui.Button(c.Key(fmt.Sprintf("shot-%d", i)), "Shot").Width(64).Clicked() && cell.eng != nil {
+				a.saveFrame(cell.eng)
+			}
+		})
+	})
 	if el.Clicked() {
 		a.setActive(i)
 	}
@@ -1872,6 +1873,9 @@ func (a *app) shortcuts(c *ui.Context) {
 		return
 	}
 	eng := a.activeEngine()
+	if a.shortcut(c, "play_pause_all") && !c.ShortcutRepeated() {
+		a.toggleAllPlayback()
+	}
 	if a.shortcut(c, "play_pause") && !c.ShortcutRepeated() && eng != nil {
 		eng.Toggle()
 	}
@@ -1880,6 +1884,24 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "seek_forward") && eng != nil {
 		eng.SeekTo(eng.Snapshot().Time + 5000)
+	}
+	if a.shortcut(c, "seek_percent_back") {
+		a.seekPercentOffsetActive(-1)
+	}
+	if a.shortcut(c, "seek_percent_forward") {
+		a.seekPercentOffsetActive(1)
+	}
+	if a.shortcut(c, "seek_percent_back_large") {
+		a.seekPercentOffsetActive(-5)
+	}
+	if a.shortcut(c, "seek_percent_forward_large") {
+		a.seekPercentOffsetActive(5)
+	}
+	if a.shortcut(c, "seek_percent_back_huge") {
+		a.seekPercentOffsetActive(-10)
+	}
+	if a.shortcut(c, "seek_percent_forward_huge") {
+		a.seekPercentOffsetActive(10)
 	}
 	if a.shortcut(c, "volume_up") && eng != nil {
 		eng.SetVolume(min(eng.Snapshot().Volume+5, 100))
@@ -2031,6 +2053,12 @@ func (a *app) shortcuts(c *ui.Context) {
 		if cell := a.activeCell(); cell != nil {
 			a.previousList(cell)
 		}
+	}
+	if a.shortcut(c, "next_file_all") {
+		a.nextAllLists()
+	}
+	if a.shortcut(c, "previous_file_all") {
+		a.previousAllLists()
 	}
 	if a.shortcut(c, "crop_off") {
 		if cell := a.activeCell(); cell != nil {
@@ -3354,6 +3382,9 @@ func (a *app) menu() *mygo.Menu {
 			{Role: mygo.RoleClose},
 		}},
 		{Label: a.tr("Actions", "Playback"), Submenu: []*mygo.MenuItem{
+			{Label: a.tr("Actions", "Play/Pause All"), Accelerator: a.keys.Get("play_pause_all").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.toggleAllPlayback()
+			}},
 			{Label: a.tr("Actions", "Play/Pause"), Accelerator: a.keys.Get("play_pause").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
 					eng.Toggle()
@@ -3373,6 +3404,12 @@ func (a *app) menu() *mygo.Menu {
 				if a.active >= 0 && a.active < len(a.cells) {
 					a.nextList(a.cells[a.active])
 				}
+			}},
+			{Label: a.tr("Actions", "Previous in List (All)"), Accelerator: a.keys.Get("previous_file_all").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.previousAllLists()
+			}},
+			{Label: a.tr("Actions", "Next in List (All)"), Accelerator: a.keys.Get("next_file_all").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.nextAllLists()
 			}},
 			{Label: a.tr("Actions", "End of List"), Submenu: []*mygo.MenuItem{
 				{Label: a.tr("Actions", "Start Over"), Type: mygo.MenuItemRadio, Checked: listEnd == listEndLoop, Disabled: !hasList,

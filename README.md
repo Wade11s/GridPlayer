@@ -13,6 +13,9 @@ Working locally (macOS/arm64):
 - Play/pause, seek, rate, volume, mute, loop, per-cell end and list actions,
   audio/subtitle tracks and chapters, audio/subtitle delay, frame stepping,
   screenshots, bookmarks with a manager window.
+- Editable schema-2 keymap with frozen common defaults: Space toggles all
+  cells, Ctrl+Space targets active, Shift+PgUp/PgDn steps all lists, and
+  percent-seek/zoom/crop keys match 0.5.5.
 - SponsorBlock: skip/show/off categories, seek-bar marks, cache/dedupe,
   per-video enable and category overrides.
 - Grid modes: auto rows, auto columns, fixed (incl. six built-in templates),
@@ -42,6 +45,10 @@ Still open:
   Over/Pause/Stop/Close behavior are implemented with regression tests;
   final GUI acceptance is still required. Legacy Go names and Next Cell
   remain supported.
+- F10: remaining all-cell seek/media/mouse actions and full GUI key coverage.
+  Real Space-all (including focused-button), custom active-key, and clean
+  teardown checks pass; default Ctrl+Space was a no-op under the current
+  macOS input-source setup and remains unverified.
 - F11: videos-per-process does not exist on macOS (HW_SP is forced); a
   selectable driver is not exposed. Tray/close-to-tray stay out of macOS scope.
 - F13: full menu/option translation coverage.

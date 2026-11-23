@@ -15,6 +15,23 @@ func (a *app) shortcut(c *ui.Context, action string) bool {
 	return ok && c.Shortcut(mods, key)
 }
 
+// allPlaybackCellShortcut claims Space in the cell's focus subtree before
+// a focused overlay button can activate itself. The window shortcut in
+// shortcuts still covers the no-focus case; MyGo delivers only the inner
+// matching action, so this does not toggle twice.
+func (a *app) allPlaybackCellShortcut(c *ui.Context, el ui.Element) ui.Element {
+	b := a.keys.Get("play_pause_all")
+	mods, key, ok := bindingUI(b)
+	if b.Empty() || !ok {
+		return el
+	}
+	return el.OnShortcut(mods, key, func() {
+		if !c.ShortcutRepeated() {
+			a.toggleAllPlayback()
+		}
+	})
+}
+
 func bindingUI(b keymap.Binding) (ui.Modifiers, ui.Key, bool) {
 	var mods ui.Modifiers
 	for _, m := range b.Mods {
@@ -29,7 +46,18 @@ func bindingUI(b keymap.Binding) (ui.Modifiers, ui.Key, bool) {
 			mods |= ui.Alt
 		}
 	}
-	key, ok := keyByName[b.Key]
+	keyName := b.Key
+	// MyGo reports physical keys. Frozen Qt's printable +/* shortcuts are
+	// Shift+= / Shift+8 on the macOS US key path.
+	switch keyName {
+	case "+":
+		keyName = "="
+		mods |= ui.Shift
+	case "*":
+		keyName = "8"
+		mods |= ui.Shift
+	}
+	key, ok := keyByName[keyName]
 	return mods, key, ok
 }
 
