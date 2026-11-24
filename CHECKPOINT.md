@@ -1,5 +1,29 @@
 # Migration Checkpoints
 
+## 2026-11-24 keep-awake candidate
+
+Frozen source is unchanged. Base/main is
+`f51faf3925e5ce3029662289f4c11d7dfc67a92b` (post PR #75). Code candidate is
+`751c7a136c0cc72b6973230b2109b386368630c1` on `fix/f11-keep-awake`. A
+checkpoint-only commit follows; the PR binds the final reviewed head.
+
+Fixed: `screensaverGuard` follows the frozen `ScreensaverManager` mode
+instead of starting `caffeinate -d -i` at launch and holding the display
+forever. It starts only while a cell is Playing, holds the display, downgrades
+to `-i` (system awake, screen may sleep) while the window is minimized, and
+stops on pause, end, settings changes, and teardown.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). Real bundled-app run at `/tmp/gridplayer-f11-evidence/` used one
+generated 60 s fixture and isolated data: `caffeinate -d -i -w <pid>` while
+playing, gone after Pause with `keep awake: none`, VideoToolbox in the log,
+clean autoquit teardown, no residual process. The minimized system-only mode
+is unit evidence only: agent-desktop AX minimization delivered no MyGo
+`OnMinimize` event in this session. `pause_minimized` semantics and
+performance evidence remain open.
+
 ## 2026-11-23 per-video metadata candidate
 
 Frozen source is unchanged. Base/main is

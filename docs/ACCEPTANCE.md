@@ -96,5 +96,18 @@ Changes need a new review; thresholds never relax in-implementation.
   `/tmp/gridplayer-metadata-app/` preserved a synthetic UUID, title,
   `custom_field`, and raw `audio_selection`. This verifies persistence;
   the swap/insert cases are unit evidence, not a claimed GUI drag run.
+- 2026-11-24, F11 keep-awake candidate (`751c7a1`, main `f51faf3`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`, and
+  `scripts/build_app.sh` PASS; `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with one generated 60 s H.264/AAC
+  fixture and isolated data (`/tmp/gridplayer-f11-evidence/`) held
+  `/usr/bin/caffeinate -d -i -w <pid>` while the cell played and removed it
+  after Pause (`keep awake: none`), with `Video Toolbox` in the log, clean
+  autoquit teardown, and no residual `gridplayer`/`caffeinate` process. The
+  minimized system-only assertion is unit evidence
+  (`TestKeepAwakeModeFollowsPlaybackAndMinimize`,
+  `TestCaffeinateCommandModes`), not a claimed GUI run: agent-desktop AX
+  minimization delivered no MyGo `OnMinimize` event in this session.
+  `pause_minimized` and background-pause key semantics remain open.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
