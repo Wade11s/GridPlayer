@@ -34,17 +34,14 @@ func Dims(n int, c Config) (rows, cols int) {
 	}
 	switch c.Mode {
 	case Fixed:
-		rows, cols = max(c.Rows, 1), max(c.Cols, 1)
-		for rows*cols < n {
-			// A fixed grid grows along its longer side, as the upstream
-			// fixed layout does when videos exceed its cells.
-			if cols <= rows {
-				cols++
-			} else {
-				rows++
-			}
-		}
-		return rows, cols
+		// The frozen displayed_size draws only the cells in use: cells pack
+		// row-major, the configured columns bound the packing, and the empty
+		// rows and columns past the last cell are not shown. The configured
+		// rows do not bound anything while videos overflow their cells: rows
+		// grow until the frozen close rule (confirm, then remove the extra
+		// videos) lands.
+		cols = min(max(c.Cols, 1), n)
+		return (n + cols - 1) / cols, cols
 	case AutoCols:
 		rows = int(math.Ceil(math.Sqrt(float64(n))))
 		cols = int(math.Ceil(float64(n) / float64(rows)))
@@ -57,8 +54,8 @@ func Dims(n int, c Config) (rows, cols int) {
 }
 
 // Layout returns one rect per cell, row-major, inside area with gap between
-// cells. Cells share the available space equally; the last row/column may
-// be partly empty when n does not fill the grid.
+// cells. Cells share the available space equally; the last row may be
+// partly empty when n does not fill it.
 func Layout(n int, area Rect, gap float64, c Config) []Rect {
 	if n <= 0 || area.W <= 0 || area.H <= 0 {
 		return nil
@@ -86,7 +83,9 @@ func Layout(n int, area Rect, gap float64, c Config) []Rect {
 	return out
 }
 
-// Capacity returns rows*cols for a fixed grid, or n for the automatic ones.
+// Capacity returns the number of cell slots the reported grid has: rows*cols
+// for the dimensions Dims picks. That can exceed n; for a fixed grid it is
+// the used extent.
 func Capacity(n int, c Config) int {
 	rows, cols := Dims(n, c)
 	return rows * cols
