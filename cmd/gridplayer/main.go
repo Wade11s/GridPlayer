@@ -137,8 +137,8 @@ type app struct {
 	crop                string
 	fillLimit           int
 	zoomToCursor        bool
-	pauseBackground     bool
-	backgroundPaused    map[*cell]bool
+	pauseMinimized      bool
+	minimizePaused      map[*cell]bool
 	inhibitScreensaver  bool
 	minimized           bool
 	screensaver         screensaverGuard
@@ -210,7 +210,7 @@ func newApp(paths []string) *app {
 		defaultAnchor:      "center",
 		defaultTransform:   "none",
 		fillLimit:          100,
-		pauseBackground:    true,
+		pauseMinimized:     true,
 		inhibitScreensaver: true,
 		resolver:           resolve.New(),
 		keys:               keymap.Default(),
@@ -241,7 +241,7 @@ func (a *app) loadSettings() {
 	a.settings = st
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
-	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
+	a.pauseMinimized = st.Get("playlist/pause_minimized", "true") == "true"
 	a.zoomToCursor = st.Get("player/zoom_to_cursor", "false") == "true"
 	a.inhibitScreensaver = st.Get("player/inhibit_screensaver", "true") == "true"
 	a.stayOnTop = st.Get("player/stay_on_top", "false") == "true"
@@ -504,7 +504,7 @@ func (a *app) saveSettings() {
 	}
 	a.settings.Set("video_defaults/cell_view_mode", view)
 	a.settings.Set("player/language", a.language)
-	a.settings.Set("playlist/pause_background_videos", fmt.Sprint(a.pauseBackground))
+	a.settings.Set("playlist/pause_minimized", fmt.Sprint(a.pauseMinimized))
 	a.settings.Set("player/inhibit_screensaver", fmt.Sprint(a.inhibitScreensaver))
 	a.settings.Set("player/stay_on_top", fmt.Sprint(a.stayOnTop))
 	a.settings.Set("player/start_maximized", fmt.Sprint(a.startMaximized))
@@ -2917,18 +2917,35 @@ func (a *app) closeRequested(e *mygo.CloseEvent) {
 	}
 }
 
-func (a *app) pauseForBackground() {
-	if !a.pauseBackground || a.closed.Load() {
+// applyMinimized follows the frozen window_state away handling: entering
+// the minimized state pauses every playing cell when the setting is on, and
+// leaving it resumes only those cells the minimize paused.
+func (a *app) applyMinimized(minimized bool) {
+	if a.closed.Load() || minimized == a.minimized {
 		return
 	}
-	a.backgroundPaused = map[*cell]bool{}
-	for _, c := range a.cells {
-		if c.eng == nil || c.eng.Snapshot().Phase != engine.Playing {
-			continue
+	a.minimized = minimized
+	if minimized {
+		a.minimizePaused = nil
+		if !a.pauseMinimized {
+			return
 		}
-		c.eng.Pause()
-		a.backgroundPaused[c] = true
+		a.minimizePaused = map[*cell]bool{}
+		for _, c := range a.cells {
+			if c == nil || c.eng == nil || c.eng.Snapshot().Phase != engine.Playing {
+				continue
+			}
+			c.eng.Pause()
+			a.minimizePaused[c] = true
+		}
+		return
 	}
+	for c := range a.minimizePaused {
+		if c.eng != nil {
+			c.eng.Play()
+		}
+	}
+	a.minimizePaused = nil
 }
 
 // playingCells counts cells in the Playing phase, the frozen source's
@@ -2961,7 +2978,7 @@ func (a *app) refreshKeepAwake() {
 	// does not wait for an event that already happened. Tests without a
 	// window set the field directly.
 	if a.win != nil {
-		a.minimized = a.win.IsMinimized()
+		a.applyMinimized(a.win.IsMinimized())
 	}
 	a.screensaver.SetMode(a.keepAwakeMode())
 }
@@ -2983,15 +3000,6 @@ func (a *app) pollKeepAwake() {
 			a.refreshKeepAwake()
 		})
 	}
-}
-
-func (a *app) resumeFromBackground() {
-	for c := range a.backgroundPaused {
-		if c.eng != nil {
-			c.eng.Play()
-		}
-	}
-	a.backgroundPaused = nil
 }
 
 func (a *app) toggleLoop() {
@@ -3834,16 +3842,8 @@ func main() {
 			return nativehost.Resolve(w.NativeHandle())
 		}
 		w.OnClose(func(e *mygo.CloseEvent) { a.closeRequested(e) })
-		w.OnBlur(func() { a.pauseForBackground() })
-		w.OnFocus(func() { a.resumeFromBackground() })
-		w.OnMinimize(func() {
-			a.minimized = true
-			a.refreshKeepAwake()
-		})
-		w.OnRestore(func() {
-			a.minimized = false
-			a.refreshKeepAwake()
-		})
+		w.OnMinimize(func() { a.refreshKeepAwake() })
+		w.OnRestore(func() { a.refreshKeepAwake() })
 		go a.pollKeepAwake()
 		w.OnFileDrop(func(e *mygo.FileDropEvent) {
 			if len(e.Paths) > 0 {
