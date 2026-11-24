@@ -140,6 +140,7 @@ type app struct {
 	pauseBackground     bool
 	backgroundPaused    map[*cell]bool
 	inhibitScreensaver  bool
+	minimized           bool
 	screensaver         screensaverGuard
 	stayOnTop           bool
 	startMaximized      bool
@@ -243,7 +244,6 @@ func (a *app) loadSettings() {
 	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
 	a.zoomToCursor = st.Get("player/zoom_to_cursor", "false") == "true"
 	a.inhibitScreensaver = st.Get("player/inhibit_screensaver", "true") == "true"
-	a.screensaver.Enable(a.inhibitScreensaver)
 	a.stayOnTop = st.Get("player/stay_on_top", "false") == "true"
 	a.startMaximized = st.Get("player/start_maximized", "false") == "true"
 	a.startFullscreen = st.Get("player/start_fullscreen", "false") == "true"
@@ -837,6 +837,7 @@ func (a *app) closeCell(c *cell) {
 	delete(a.sponsorSegments, c)
 	delete(a.sponsorLoading, c)
 	a.sponsorMu.Unlock()
+	a.refreshKeepAwake()
 }
 
 func (a *app) fetchSponsor(c *cell, raw string) {
@@ -1088,6 +1089,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				lastRetryGen = 0
 				if !wasPlaying {
 					mygo.RunOnMain(func() {
+						a.refreshKeepAwake()
 						c.failStreak = 0
 						c.netFailStreak = 0
 						c.skipGen = 0
@@ -1099,6 +1101,9 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				}
 				wasPlaying = true
 			} else {
+				if wasPlaying {
+					mygo.RunOnMain(func() { a.refreshKeepAwake() })
+				}
 				wasPlaying = false
 			}
 			if c.pauseOnPlay.Load() && s.Phase == engine.Playing {
@@ -2926,6 +2931,60 @@ func (a *app) pauseForBackground() {
 	}
 }
 
+// playingCells counts cells in the Playing phase, the frozen source's
+// playing_videos_count for the keep-awake decision.
+func (a *app) playingCells() int {
+	n := 0
+	for _, c := range a.cells {
+		if c != nil && c.eng != nil && c.eng.Snapshot().Phase == engine.Playing {
+			n++
+		}
+	}
+	return n
+}
+
+// keepAwakeMode mirrors the frozen ScreensaverManager._mode: nothing while
+// no video plays, the system alone while the window is minimized (sound
+// without a picture), and the display while a video is on screen.
+func (a *app) keepAwakeMode() keepAwakeMode {
+	if !a.inhibitScreensaver || a.playingCells() == 0 {
+		return keepAwakeNone
+	}
+	if a.minimized {
+		return keepAwakeSystem
+	}
+	return keepAwakeDisplay
+}
+
+func (a *app) refreshKeepAwake() {
+	// The window is the source of truth, so a launch that starts minimized
+	// does not wait for an event that already happened. Tests without a
+	// window set the field directly.
+	if a.win != nil {
+		a.minimized = a.win.IsMinimized()
+	}
+	a.screensaver.SetMode(a.keepAwakeMode())
+}
+
+// pollKeepAwake re-reads the live window state once a second. Minimize and
+// restore events are enough on their own; the poll also covers a launch that
+// starts minimized and a window state change the event path does not report.
+func (a *app) pollKeepAwake() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if a.closed.Load() {
+			return
+		}
+		mygo.RunOnMain(func() {
+			if a.closed.Load() {
+				return
+			}
+			a.refreshKeepAwake()
+		})
+	}
+}
+
 func (a *app) resumeFromBackground() {
 	for c := range a.backgroundPaused {
 		if c.eng != nil {
@@ -3777,6 +3836,15 @@ func main() {
 		w.OnClose(func(e *mygo.CloseEvent) { a.closeRequested(e) })
 		w.OnBlur(func() { a.pauseForBackground() })
 		w.OnFocus(func() { a.resumeFromBackground() })
+		w.OnMinimize(func() {
+			a.minimized = true
+			a.refreshKeepAwake()
+		})
+		w.OnRestore(func() {
+			a.minimized = false
+			a.refreshKeepAwake()
+		})
+		go a.pollKeepAwake()
 		w.OnFileDrop(func(e *mygo.FileDropEvent) {
 			if len(e.Paths) > 0 {
 				a.dropFiles(len(a.cells), e.Paths)
