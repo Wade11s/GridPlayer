@@ -46,6 +46,10 @@ import (
 // meet edge to edge; any positive value is a Go-only gap.
 const cellGap = 0.0
 
+// maxFixedSize is the frozen MAX_FIXED_SIZE: the largest rows or columns a
+// fixed grid accepts. It bounds a hand-edited document, not normal use.
+const maxFixedSize = 100
+
 type cell struct {
 	label   string
 	source  string
@@ -285,8 +289,8 @@ func (a *app) loadSettings() {
 	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
 		Mode:        parseMode(st.Get("playlist/grid_mode", "auto_rows")),
-		Rows:        clampInt(atoi(st.Get("playlist/grid_rows", "3"), 3), 1, 8),
-		Cols:        clampInt(atoi(st.Get("playlist/grid_cols", "3"), 3), 1, 8),
+		Rows:        clampInt(atoi(st.Get("playlist/grid_rows", "3"), 3), 1, maxFixedSize),
+		Cols:        clampInt(atoi(st.Get("playlist/grid_cols", "3"), 3), 1, maxFixedSize),
 		Preallocate: st.Get("playlist/grid_preallocate", "false") == "true",
 	}
 	a.template = st.Get("playlist/grid_template", "")
@@ -1853,14 +1857,33 @@ func (a *app) emptyCellRects(area grid.Rect) []grid.Rect {
 			return nil
 		}
 		places := template.Places()
-		if len(places) <= len(a.cells) {
+		// Cells take the places in order; the frozen grid then draws one
+		// empty cell per free position, so an unoccupied big place becomes
+		// a block of 1x1 empties.
+		covered := map[[2]int]bool{}
+		for i, p := range places {
+			if i >= len(a.cells) {
+				break
+			}
+			for row := p[0]; row < p[0]+p[2]; row++ {
+				for col := p[1]; col < p[1]+p[3]; col++ {
+					covered[[2]int{row, col}] = true
+				}
+			}
+		}
+		var out []grid.Rect
+		for row := 0; row < template.Rows; row++ {
+			for col := 0; col < template.Cols; col++ {
+				if covered[[2]int{row, col}] {
+					continue
+				}
+				out = append(out, grid.CellRect(template, row, col, area, cellGap))
+			}
+		}
+		if len(out) == 0 {
 			return nil
 		}
-		rects := grid.TemplateLayout(len(places), area, cellGap, template)
-		if len(rects) != len(places) {
-			return nil
-		}
-		return rects[len(a.cells):]
+		return out
 	}
 	rows, cols := grid.Dims(len(a.cells), a.cfg)
 	if rows*cols <= len(a.cells) {
@@ -2906,7 +2929,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 	if mode, rows, cols, preallocate := d.GridState(); mode != "" {
 		// Clamp sizes from a document so a hand-edited grid cannot ask the
 		// view to build tens of thousands of cells each frame.
-		a.cfg = grid.Config{Mode: parseMode(mode), Rows: clampInt(rows, 1, 8), Cols: clampInt(cols, 1, 8), Preallocate: preallocate}
+		a.cfg = grid.Config{Mode: parseMode(mode), Rows: clampInt(rows, 1, maxFixedSize), Cols: clampInt(cols, 1, maxFixedSize), Preallocate: preallocate}
 	}
 	a.template = ""
 	var templateName string

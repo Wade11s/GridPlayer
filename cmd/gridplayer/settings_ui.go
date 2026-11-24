@@ -578,6 +578,35 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	return d
 }
 
+// applyGridDraft applies the Grid tab's layout, rows, columns and
+// Show All Cells. The flag is a grid setting, not a property of one mode:
+// switching layout must not clear it or overwrite the stored key with false.
+func (a *app) applyGridDraft(d settingsDraft) {
+	a.template = ""
+	switch d.layout {
+	case "Auto Columns":
+		a.cfg = grid.Config{Mode: grid.AutoCols}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Fit Shapes":
+		a.cfg = grid.Config{Mode: grid.Shapes}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Fixed":
+		a.cfg = grid.Config{Mode: grid.Fixed, Rows: clampInt(atoi(d.rows, 3), 1, maxFixedSize), Cols: clampInt(atoi(d.cols, 3), 1, maxFixedSize)}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Free Tiles":
+		a.free, a.mosaic, a.single = true, false, false
+	case "Mosaic":
+		a.free, a.mosaic, a.single = false, true, false
+		a.ensureMosaic()
+	case "Single Mode":
+		a.free, a.mosaic, a.single = false, false, true
+	default:
+		a.cfg = grid.Config{Mode: grid.AutoRows}
+		a.free, a.mosaic, a.single = false, false, false
+	}
+	a.cfg.Preallocate = d.showAllCells
+}
+
 func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultVolume = clampInt(int(math.Round(d.volume)), 0, 100)
 	a.defaultMuted = d.muted
@@ -661,31 +690,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		}
 	}
 	oldCfg, oldFree, oldMosaic, oldSingle := a.cfg, a.free, a.mosaic, a.single
-	a.template = ""
-	switch d.layout {
-	case "Auto Columns":
-		a.cfg = grid.Config{Mode: grid.AutoCols}
-		a.free, a.mosaic, a.single = false, false, false
-	case "Fit Shapes":
-		a.cfg = grid.Config{Mode: grid.Shapes}
-		a.free, a.mosaic, a.single = false, false, false
-	case "Fixed":
-		a.cfg = grid.Config{Mode: grid.Fixed, Rows: clampInt(atoi(d.rows, 3), 1, 8), Cols: clampInt(atoi(d.cols, 3), 1, 8)}
-		a.free, a.mosaic, a.single = false, false, false
-	case "Free Tiles":
-		a.free, a.mosaic, a.single = true, false, false
-	case "Mosaic":
-		a.free, a.mosaic, a.single = false, true, false
-		a.ensureMosaic()
-	case "Single Mode":
-		a.free, a.mosaic, a.single = false, false, true
-	default:
-		a.cfg = grid.Config{Mode: grid.AutoRows}
-		a.free, a.mosaic, a.single = false, false, false
-	}
-	// The flag is a grid setting, not a property of one mode: switching
-	// layout must not clear it or overwrite the stored key with false.
-	a.cfg.Preallocate = d.showAllCells
+	a.applyGridDraft(d)
 	for _, c := range a.cells {
 		c.viewMode = viewModeName(a.fill, a.stretch)
 		c.aspect = a.aspect

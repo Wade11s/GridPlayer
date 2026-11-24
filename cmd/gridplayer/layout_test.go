@@ -79,6 +79,21 @@ func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
 	}
 }
 
+func TestSettingsLayoutSwitchKeepsShowAllCells(t *testing.T) {
+	for _, layout := range []string{"Auto Rows", "Auto Columns", "Fit Shapes", "Fixed", "Free Tiles", "Mosaic", "Single Mode"} {
+		a := &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+		a.applyGridDraft(settingsDraft{layout: layout, rows: "3", cols: "3", showAllCells: true})
+		if !a.cfg.Preallocate {
+			t.Fatalf("%s cleared preallocate", layout)
+		}
+	}
+	a := &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+	a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "3", cols: "3", showAllCells: false})
+	if a.cfg.Preallocate {
+		t.Fatal("a cleared checkbox kept preallocate on")
+	}
+}
+
 func TestShowAllCellsTurnsOffCleanly(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.ini")
 	st, err := settings.Load(path)
@@ -148,6 +163,35 @@ func TestEmptyCellsFollowTheLayout(t *testing.T) {
 	for _, e := range empties {
 		if e.X < big[2] && big[0] < e.X+e.W && e.Y < big[3] && big[1] < e.Y+e.H {
 			t.Fatalf("template empty cell %+v covers the big cell", e)
+		}
+	}
+
+	// A free big place becomes one empty per position, as the frozen grid
+	// draws them; the occupied big place is covered and stays empty-free.
+	a = &app{
+		cfg:      grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4, Preallocate: true},
+		template: "2 + 8",
+		cells:    []*cell{{path: "a.mp4"}},
+	}
+	template, ok = grid.FindTemplate("2 + 8")
+	if !ok {
+		t.Fatal("missing template 2 + 8")
+	}
+	empties = a.emptyCellRects(area)
+	if len(empties) != 12 {
+		t.Fatalf("2 + 8 empty cells = %d, want 12", len(empties))
+	}
+	unit := grid.CellRect(template, 0, 0, area, cellGap)
+	for _, e := range empties {
+		if math.Abs(e.W-unit.W) > 1e-9 || math.Abs(e.H-unit.H) > 1e-9 {
+			t.Fatalf("empty cell %+v is not one position", e)
+		}
+	}
+	live = grid.TemplateLayout(1, area, cellGap, template)
+	big = [4]float64{live[0].X, live[0].Y, live[0].X + live[0].W, live[0].Y + live[0].H}
+	for _, e := range empties {
+		if e.X < big[2] && big[0] < e.X+e.W && e.Y < big[3] && big[1] < e.Y+e.H {
+			t.Fatalf("2 + 8 empty cell %+v covers the occupied big cell", e)
 		}
 	}
 
