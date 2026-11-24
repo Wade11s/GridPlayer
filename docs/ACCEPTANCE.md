@@ -131,7 +131,7 @@ Changes need a new review; thresholds never relax in-implementation.
   process. Resolver mode/argument/environment behavior is unit evidence
   (`TestProxyModesSelectFlag`, `TestProxyNoneClearsInheritedEnvironment`);
   VLC playback proxying and the relay path remain open.
-- 2026-11-24, F12 loop-chapter candidate (`3e16074`, main `45be973`):
+- 2026-11-24, F12 loop-chapter candidate (`3cce29f`, main `45be973`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A generated 60 s chaptered H.264/AAC fixture
@@ -140,8 +140,13 @@ Changes need a new review; thresholds never relax in-implementation.
   `loop_end=20000` (start 0 omitted by the empty-field rule); a second 35 s
   run logged `loop segment: seek 20004 -> 0ms` and saved
   `current_position=11629` after wrapping inside that segment. Both logs show
-  VideoToolbox, clean teardown, and no residual process. Only chapter One was
-  exercised; cleaning, the 250 ms boundary tolerance, start/end/reset, and
-  the no-chapter paths are unit evidence.
+  VideoToolbox, clean teardown, and no residual process. A last-chapter run
+  with isolated data and `end_action=stop`, `loop=false` chose chapter Three
+  (`loop_start=40000`, no end), logged `loop segment: restart at end` followed
+  by `seek 0 -> 40000ms`, and saved at `current_position=58807` while playing
+  (`/tmp/gridplayer-f12-loop/last4/`); the ended restart reopens the media, so
+  that pass produced two VideoToolbox lines. Cleaning, the 250 ms boundary
+  tolerance, start/end/reset, chapters before the playhead, and the
+  no-chapter paths are unit evidence.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
