@@ -285,8 +285,8 @@ func (a *app) loadSettings() {
 	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
 		Mode:        parseMode(st.Get("playlist/grid_mode", "auto_rows")),
-		Rows:        atoi(st.Get("playlist/grid_rows", "3"), 3),
-		Cols:        atoi(st.Get("playlist/grid_cols", "3"), 3),
+		Rows:        clampInt(atoi(st.Get("playlist/grid_rows", "3"), 3), 1, 8),
+		Cols:        clampInt(atoi(st.Get("playlist/grid_cols", "3"), 3), 1, 8),
 		Preallocate: st.Get("playlist/grid_preallocate", "false") == "true",
 	}
 	a.template = st.Get("playlist/grid_template", "")
@@ -1841,13 +1841,51 @@ func (a *app) fixedGrid() bool {
 	return a.cfg.Mode == grid.Fixed && !a.free && !a.mosaic && !a.single
 }
 
+// emptyCellRects returns the rects of the fixed grid places no cell covers.
+// A template uses its own places, so its empty cells follow the big cell.
+func (a *app) emptyCellRects(area grid.Rect) []grid.Rect {
+	if !a.fixedGrid() || !a.cfg.Preallocate || len(a.cells) == 0 {
+		return nil
+	}
+	if a.template != "" {
+		template, ok := grid.FindTemplate(a.template)
+		if !ok {
+			return nil
+		}
+		places := template.Places()
+		if len(places) <= len(a.cells) {
+			return nil
+		}
+		rects := grid.TemplateLayout(len(places), area, cellGap, template)
+		if len(rects) != len(places) {
+			return nil
+		}
+		return rects[len(a.cells):]
+	}
+	rows, cols := grid.Dims(len(a.cells), a.cfg)
+	if rows*cols <= len(a.cells) {
+		return nil
+	}
+	slots := grid.Layout(rows*cols, area, cellGap, a.cfg)
+	if len(slots) != rows*cols {
+		return nil
+	}
+	return slots[len(a.cells):]
+}
+
 func (a *app) view(c *ui.Context) {
 	a.shortcuts(c)
 	defer a.handleDropped()
 	w, h := c.Size()
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	a.freeArea = [2]float64{float64(w), float64(h)}
-	rects := grid.Layout(len(a.cells), area, cellGap, a.cfg)
+	// Preallocate belongs to a fixed grid on show: Single Mode with one
+	// video (and Free/Mosaic) must not shrink a cell to a grid slot.
+	layoutCfg := a.cfg
+	if !a.fixedGrid() {
+		layoutCfg.Preallocate = false
+	}
+	rects := grid.Layout(len(a.cells), area, cellGap, layoutCfg)
 	if a.cfg.Mode == grid.Shapes && !a.free && !a.mosaic && !a.single {
 		shapes := make([]float64, len(a.cells))
 		for i, c := range a.cells {
@@ -1895,15 +1933,7 @@ func (a *app) view(c *ui.Context) {
 	}
 	theme := c.Theme()
 	drawOrder := a.layoutDrawOrder()
-	// Every configured cell of a preallocated fixed grid has a place, the
-	// empty ones too, as the frozen grid draws its empty cells.
-	var emptyCells []grid.Rect
-	if a.fixedGrid() && a.cfg.Preallocate && len(a.cells) > 0 {
-		if rows, cols := grid.Dims(len(a.cells), a.cfg); rows*cols > len(a.cells) {
-			slots := grid.Layout(rows*cols, area, cellGap, a.cfg)
-			emptyCells = slots[len(a.cells):]
-		}
-	}
+	emptyCells := a.emptyCellRects(area)
 	ui.Box(c).Fill().Background(ui.RGB(10, 10, 12)).Children(func() {
 		for i, r := range emptyCells {
 			ui.Box(c).Key(fmt.Sprintf("empty-cell-%d", i)).Absolute().
@@ -2874,7 +2904,9 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 	}
 	if mode, rows, cols, preallocate := d.GridState(); mode != "" {
-		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols, Preallocate: preallocate}
+		// Clamp sizes from a document so a hand-edited grid cannot ask the
+		// view to build tens of thousands of cells each frame.
+		a.cfg = grid.Config{Mode: parseMode(mode), Rows: clampInt(rows, 1, 8), Cols: clampInt(cols, 1, 8), Preallocate: preallocate}
 	}
 	a.template = ""
 	var templateName string

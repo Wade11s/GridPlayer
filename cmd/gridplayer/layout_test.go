@@ -3,6 +3,7 @@ package main
 import (
 	"math"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gridplayer-go/internal/grid"
@@ -75,6 +76,93 @@ func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
 	a.togglePreallocate()
 	if !a.cfg.Preallocate {
 		t.Fatal("preallocate toggled outside a fixed grid")
+	}
+}
+
+func TestShowAllCellsTurnsOffCleanly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+	a.togglePreallocate()
+	if a.cfg.Preallocate {
+		t.Fatal("preallocate did not toggle off")
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Get("playlist/grid_preallocate", ""); got != "false" {
+		t.Fatalf("saved preallocate = %q, want false", got)
+	}
+	d := a.document()
+	if _, _, _, preallocate := d.GridState(); preallocate {
+		t.Fatal("the document kept preallocate after turning it off")
+	}
+	if raw, ok := d.Settings["grid_state"]; ok && strings.Contains(string(raw), "preallocate") {
+		t.Fatalf("grid_state kept the key: %s", raw)
+	}
+}
+
+func TestEmptyCellsFollowTheLayout(t *testing.T) {
+	area := grid.Rect{W: 900, H: 600}
+	a := &app{
+		cfg:   grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true},
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+	}
+	empties := a.emptyCellRects(area)
+	if len(empties) != 7 {
+		t.Fatalf("empty cells = %d, want 7", len(empties))
+	}
+	live := grid.Layout(2, area, cellGap, a.cfg)
+	for _, e := range empties {
+		for _, l := range live {
+			if e.X < l.X+l.W && l.X < e.X+e.W && e.Y < l.Y+l.H && l.Y < e.Y+e.H {
+				t.Fatalf("empty cell %+v covers a live cell %+v", e, l)
+			}
+		}
+	}
+
+	// A template's empty cells follow its places, not uniform slots.
+	a = &app{
+		cfg:      grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4, Preallocate: true},
+		template: "1 + 12",
+		cells:    []*cell{{path: "a.mp4"}},
+	}
+	template, ok := grid.FindTemplate("1 + 12")
+	if !ok {
+		t.Fatal("missing template 1 + 12")
+	}
+	places := template.Places()
+	empties = a.emptyCellRects(area)
+	if len(empties) != len(places)-1 {
+		t.Fatalf("template empty cells = %d, want %d", len(empties), len(places)-1)
+	}
+	live = grid.TemplateLayout(1, area, cellGap, template)
+	big := [4]float64{live[0].X, live[0].Y, live[0].X + live[0].W, live[0].Y + live[0].H}
+	for _, e := range empties {
+		if e.X < big[2] && big[0] < e.X+e.W && e.Y < big[3] && big[1] < e.Y+e.H {
+			t.Fatalf("template empty cell %+v covers the big cell", e)
+		}
+	}
+
+	// No preallocate, no fixed grid, or no cells means no empty places.
+	a = &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}, cells: []*cell{{path: "a.mp4"}}}
+	if got := a.emptyCellRects(area); got != nil {
+		t.Fatalf("empty cells without preallocate = %d", len(got))
+	}
+	a = &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}, single: true, cells: []*cell{{path: "a.mp4"}}}
+	if got := a.emptyCellRects(area); got != nil {
+		t.Fatalf("empty cells in single mode = %d", len(got))
+	}
+	a = &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+	if got := a.emptyCellRects(area); got != nil {
+		t.Fatalf("empty cells with no videos = %d", len(got))
 	}
 }
 

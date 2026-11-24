@@ -670,7 +670,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		a.cfg = grid.Config{Mode: grid.Shapes}
 		a.free, a.mosaic, a.single = false, false, false
 	case "Fixed":
-		a.cfg = grid.Config{Mode: grid.Fixed, Rows: atoi(d.rows, 3), Cols: atoi(d.cols, 3), Preallocate: d.showAllCells}
+		a.cfg = grid.Config{Mode: grid.Fixed, Rows: clampInt(atoi(d.rows, 3), 1, 8), Cols: clampInt(atoi(d.cols, 3), 1, 8)}
 		a.free, a.mosaic, a.single = false, false, false
 	case "Free Tiles":
 		a.free, a.mosaic, a.single = true, false, false
@@ -680,9 +680,12 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	case "Single Mode":
 		a.free, a.mosaic, a.single = false, false, true
 	default:
-		a.cfg = grid.Config{Mode: grid.AutoRows, Preallocate: d.showAllCells}
+		a.cfg = grid.Config{Mode: grid.AutoRows}
 		a.free, a.mosaic, a.single = false, false, false
 	}
+	// The flag is a grid setting, not a property of one mode: switching
+	// layout must not clear it or overwrite the stored key with false.
+	a.cfg.Preallocate = d.showAllCells
 	for _, c := range a.cells {
 		c.viewMode = viewModeName(a.fill, a.stretch)
 		c.aspect = a.aspect
