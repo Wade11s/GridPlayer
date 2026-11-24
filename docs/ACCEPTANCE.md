@@ -131,5 +131,16 @@ Changes need a new review; thresholds never relax in-implementation.
   process. Resolver mode/argument/environment behavior is unit evidence
   (`TestProxyModesSelectFlag`, `TestProxyNoneClearsInheritedEnvironment`);
   VLC playback proxying and the relay path remain open.
+- 2026-11-24, F12 loop-chapter candidate (`a9585c9`, main `45be973`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A generated 60 s chaptered H.264/AAC fixture
+  (chapters at 0/20/40 s) at `/tmp/gridplayer-f12-loop/` was played through
+  the bundled app with isolated data. Choosing Playback > Loop Chapter saved
+  `loop_end=20000` (start 0 omitted by the empty-field rule); a second 35 s
+  run ended at `current_position=13403` after wrapping inside that segment.
+  Both logs show VideoToolbox, clean teardown, and no residual process. Only
+  chapter One was exercised; the start/end/reset and no-chapter paths are
+  unit evidence.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

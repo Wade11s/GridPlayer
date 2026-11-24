@@ -1,5 +1,30 @@
 # Migration Checkpoints
 
+## 2026-11-24 loop-chapter candidate
+
+Frozen source is unchanged. Base/main is `45be973` (post PR #79). Code
+candidate is `a9585c940afca8a816c8195b7cd1d51be4b6c3c9` on
+`feat/f12-loop-chapter`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: libVLC chapter times now reach the engine, the frozen Loop Chapter
+action sets the chapter under the playhead as the cell's loop segment, and
+the Playback menu exposes loop start/end/reset plus Loop Chapter. The watch
+loop returns a segment that runs past its end or more than 100 ms before its
+start, matching the frozen rule; the last chapter ends at the file end, and
+a segment loops whatever the end action says.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A generated 60 s chaptered fixture (0/20/40 s) at
+`/tmp/gridplayer-f12-loop/` was played with isolated data; Loop Chapter
+from the Playback menu saved `loop_end=20000` (start 0 omitted), and a
+35 s run ended at `current_position=13403` after wrapping inside that
+segment. Both runs logged VideoToolbox and exited cleanly. Only chapter One
+was exercised; earlier chapters before the playhead and live files are
+unit/no-op evidence.
+
 ## 2026-11-24 proxy-mode candidate
 
 Frozen source is unchanged. Base/main is `8ef2a54` (post PR #78). Code
