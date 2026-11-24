@@ -2619,15 +2619,24 @@ func (a *app) overflowCount(cfg grid.Config) int {
 	return 0
 }
 
-// confirmOverflow asks, as the frozen grid does, before it closes videos a
-// smaller grid cannot hold. Cancelling leaves the layout alone.
+// confirmOverflow asks before a fixed grid loses the videos it cannot hold.
 func (a *app) confirmOverflow(cfg grid.Config) bool {
-	over := a.overflowCount(cfg)
-	if over == 0 {
+	if cfg.Mode != grid.Fixed {
+		return true
+	}
+	return a.confirmClose(fixedCapacity(cfg))
+}
+
+// confirmClose asks, as the frozen grid does, before capacity drops below
+// the open videos. The frozen dialog makes Cancel the default button for a
+// destructive confirm, so this does too.
+func (a *app) confirmClose(capacity int) bool {
+	over := len(a.cells) - capacity
+	if over <= 0 {
 		return true
 	}
 	if a.askOverflow != nil {
-		return a.askOverflow(over, fixedCapacity(cfg))
+		return a.askOverflow(over, capacity)
 	}
 	noun := "videos"
 	if over == 1 {
@@ -2638,9 +2647,9 @@ func (a *app) confirmOverflow(cfg grid.Config) bool {
 		Type:               mygo.MessageWarning,
 		Title:              "Set grid size",
 		Message:            fmt.Sprintf("Close %d %s?", over, noun),
-		Detail:             fmt.Sprintf("This grid holds %d videos.", fixedCapacity(cfg)),
+		Detail:             fmt.Sprintf("This grid holds %d videos.", capacity),
 		Buttons:            []string{"Close Videos", "Cancel"},
-		DefaultButton:      0,
+		DefaultButton:      1,
 		CancelButton:       1,
 		DestructiveButtons: []int{0},
 	})
@@ -2650,11 +2659,18 @@ func (a *app) confirmOverflow(cfg grid.Config) bool {
 	return res.Button == 0
 }
 
-// closeOverflow stops and drops the trailing cells a fixed config cannot
-// hold, in the frozen stop -> unbind -> detach -> release order.
+// closeOverflow drops the cells a fixed config cannot hold.
 func (a *app) closeOverflow(cfg grid.Config) {
-	keep := fixedCapacity(cfg)
-	if cfg.Mode != grid.Fixed || keep >= len(a.cells) {
+	if cfg.Mode != grid.Fixed {
+		return
+	}
+	a.closeTo(fixedCapacity(cfg))
+}
+
+// closeTo stops and drops the trailing cells past keep, through closeCell,
+// the same path that closes a cell at teardown.
+func (a *app) closeTo(keep int) {
+	if keep >= len(a.cells) {
 		return
 	}
 	for i := len(a.cells) - 1; i >= keep; i-- {
@@ -2698,10 +2714,13 @@ func (a *app) setTemplate(name string) {
 	if !ok {
 		return
 	}
-	if len(a.cells) > len(template.Places()) {
-		a.status = "template has no room for all cells"
+	// A template has one place per cell it can show; the frozen action asks
+	// before it closes the videos that do not fit.
+	capacity := len(template.Places())
+	if !a.confirmClose(capacity) {
 		return
 	}
+	a.closeTo(capacity)
 	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols, Preallocate: a.cfg.Preallocate}
 	a.template = name
 	a.free, a.mosaic, a.single = false, false, false

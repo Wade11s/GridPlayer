@@ -103,6 +103,11 @@ func TestFixedOverflowAsksBeforeClosing(t *testing.T) {
 	if len(a.cells) != 4 || a.active != 3 {
 		t.Fatalf("cells=%d active=%d, want 4/3", len(a.cells), a.active)
 	}
+	for i, c := range a.cells {
+		if want := fmt.Sprintf("%d.mp4", i); c.path != want {
+			t.Fatalf("kept cell %d is %q, want %q (the trailing cells close)", i, c.path, want)
+		}
+	}
 	if a.cfg.Mode != grid.Fixed || a.cfg.Rows != 2 || a.cfg.Cols != 2 || !a.dirty {
 		t.Fatalf("cfg=%+v dirty=%v", a.cfg, a.dirty)
 	}
@@ -127,6 +132,29 @@ func TestFixedOverflowAsksBeforeClosing(t *testing.T) {
 	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
 	if len(a.cells) != 4 || a.cfg.Mode != grid.Fixed {
 		t.Fatalf("fitted grid cells=%d cfg=%+v", len(a.cells), a.cfg)
+	}
+}
+
+func TestNonFixedLayoutsNeverAsk(t *testing.T) {
+	a := &app{
+		cells:       make([]*cell, 5),
+		askOverflow: func(int, int) bool { t.Fatal("a non-fixed layout asked to close videos"); return false },
+	}
+	for _, cfg := range []grid.Config{
+		{Mode: grid.AutoRows},
+		{Mode: grid.AutoCols},
+		{Mode: grid.Shapes},
+		{Mode: grid.Fixed, Rows: 1, Cols: 1},
+	} {
+		if cfg.Mode == grid.Fixed {
+			continue // a fixed grid is expected to ask
+		}
+		if !a.confirmOverflow(cfg) {
+			t.Fatalf("%+v asked", cfg)
+		}
+	}
+	if !a.confirmOverflow(grid.Config{Mode: grid.AutoRows}) || len(a.cells) != 5 {
+		t.Fatal("a non-fixed config changed the cells")
 	}
 }
 
@@ -155,6 +183,25 @@ func TestGridDraftOverflowCancelKeepsLayout(t *testing.T) {
 	if len(a.cells) != 5 || a.cfg.Rows != 3 || a.cfg.Cols != 3 {
 		t.Fatalf("cancel changed cells=%d cfg=%+v", len(a.cells), a.cfg)
 	}
+	// A declined Settings apply must not overwrite the stored grid keys,
+	// even though the rest of the draft is saved.
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.settings = st
+	a.saveSettings()
+	a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "2", cols: "2"})
+	a.saveSettings()
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Get("playlist/grid_rows", ""); got != "3" {
+		t.Fatalf("declined apply wrote grid_rows=%q, want 3", got)
+	}
+
 	a.askOverflow = func(int, int) bool { return true }
 	if ok := a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "2", cols: "2"}); !ok {
 		t.Fatal("an accepted smaller grid reported declined")
