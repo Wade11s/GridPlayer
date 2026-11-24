@@ -1,5 +1,29 @@
 # Migration Checkpoints
 
+## 2026-11-24 chapter-stops candidate
+
+Frozen source is unchanged. Base/main is `6ee09d7` (post PR #81). Code
+candidate is `d0311ac4b38c5a008f04ce3cf9f0555c047dd0de` on
+`fix/f12-chapter-stops`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: chapter jumps now use the frozen stop list instead of the adjacent
+chapter. Stops are the segment start plus chapter starts strictly inside it;
+Next takes the first stop past the 250 ms tolerance, restarts the segment
+when none is ahead, or runs the end action without one. Previous restarts the
+current chapter when more than 3 s in, otherwise the stop before. Cleaned
+chapter lists feed both paths, and jumps still pass through the segment seek
+clamp.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A bundled-app run at `/tmp/gridplayer-f12-chapters2/` with a pause
+end action pressed Next Chapter on the last chapter and saved
+`playback_state=idle` rather than wrapping to chapter One and playing;
+VideoToolbox present, clean exit, no residual. The specific stop selection
+and 3 s Previous rule are unit evidence.
+
 ## 2026-11-24 segment-seek candidate
 
 Frozen source is unchanged. Base/main is `ce98aa2` (post PR #80). Code
