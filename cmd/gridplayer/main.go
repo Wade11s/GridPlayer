@@ -2702,6 +2702,11 @@ func (a *app) closeBeyond(order []int, keep int) {
 		if kept[i] {
 			continue
 		}
+		// Closing a cell before the active one shifts it down; leaving the
+		// index alone would switch the active video.
+		if i < a.active {
+			a.active--
+		}
 		a.closeCell(a.cells[i])
 		a.cells = append(a.cells[:i], a.cells[i+1:]...)
 	}

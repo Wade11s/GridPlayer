@@ -146,8 +146,9 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	// Playlist order 0..4, but read row by row the top-left tile is 4 and
 	// the bottom-right is 0, so a 2x2 keeps 4,3,2,1 and closes 0.
 	a := &app{
-		cells: cells(5),
-		free:  true,
+		cells:  cells(5),
+		active: 2,
+		free:   true,
 		freeTiles: []grid.Tile{
 			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},
 			{Box: [4]float64{0.02, 0.6, 0.4, 0.95}},
@@ -168,6 +169,21 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 		if a.cells[i].path != w {
 			t.Fatalf("kept %v, want %v", cellPaths(a.cells), want)
 		}
+	}
+	// The active video was index 2 and is still itself after index 0 closed.
+	if got := a.cells[a.active].path; got != "2.mp4" {
+		t.Fatalf("active is %q, want 2.mp4", got)
+	}
+
+	// Closing the active cell itself leaves a valid active index on a
+	// surviving video.
+	b := &app{cells: cells(5), active: 4}
+	b.closeOverflow(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if b.active < 0 || b.active >= len(b.cells) {
+		t.Fatalf("active %d out of range for %d cells", b.active, len(b.cells))
+	}
+	if got := b.cells[b.active].path; got == "4.mp4" {
+		t.Fatalf("active still points at the closed video")
 	}
 }
 

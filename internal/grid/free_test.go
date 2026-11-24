@@ -96,6 +96,45 @@ func TestReadInRowsReadsTilesRowByRow(t *testing.T) {
 		t.Fatalf("overlapping bands read = %v, want [0 1 2]", got)
 	}
 
+	// The row band's bottom shrinks to the shallower tile: a tile starting
+	// below that new bottom opens a row even though it is inside the first
+	// tile's own height.
+	tiles = []Tile{
+		{Box: [4]float64{0.02, 0.1, 0.4, 0.9}},
+		{Box: [4]float64{0.5, 0.2, 0.9, 0.3}},
+		{Box: [4]float64{0.02, 0.35, 0.4, 0.5}},
+	}
+	if got := ReadInRows(tiles); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("shrunk band read = %v, want [0 1 2]", got)
+	}
+
+	// Exactly at the band's bottom minus the frozen hair joins; below it
+	// does not.
+	base := 0.3
+	tiles = []Tile{
+		{Box: [4]float64{0.02, 0.02, 0.4, base}},
+		{Box: [4]float64{0.5, base - 2e-6, 0.9, 0.5}},
+		{Box: [4]float64{0.02, base - 0.5e-6, 0.4, 0.6}},
+	}
+	if got := ReadInRows(tiles); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("hair boundary read = %v, want tile 1 in the band and 2 out", got)
+	}
+
+	// Identical boxes keep their index order; a single tile reads alone.
+	tiles = []Tile{
+		{Box: [4]float64{0.1, 0.1, 0.2, 0.2}},
+		{Box: [4]float64{0.1, 0.1, 0.2, 0.2}},
+	}
+	if got := ReadInRows(tiles); len(got) != 2 || got[0] != 0 || got[1] != 1 {
+		t.Fatalf("identical boxes read = %v, want [0 1]", got)
+	}
+	if got := ReadInRows([]Tile{{Box: [4]float64{0, 0, 1, 1}}}); len(got) != 1 || got[0] != 0 {
+		t.Fatalf("single tile read = %v", got)
+	}
+	if got := ReadInRows(nil); got != nil {
+		t.Fatalf("no tiles read = %v", got)
+	}
+
 	// The order decides which tiles a smaller grid closes last.
 	tiles = []Tile{
 		{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},  // 0 bottom right
