@@ -202,20 +202,21 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
-- 2026-11-25, F5 show-all-cells candidate (`3c1db7b`, main `38a54a0`):
+- 2026-11-25, F5 show-all-cells candidate (code `3c1db7b`, main `38a54a0`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with two generated fixtures and a
-  saved 3x3 fixed `grid_state` at `/tmp/gridplayer-showall/` started as two
+  saved 3x3 fixed `grid_state` at `/tmp/gridplayer-showall4/` started as two
   full-window panes; choosing Grid > Show All Cells redrew them as two
-  one-third cells in the top row with the empty cells of the fixed grid
-  visible (`show-all-cells.png`). The saved playlist kept
+  one-third cells in the top row and seven empty cells, each with the
+  frozen empty-cell plus in its middle (`show-all-cells.png`). The saved playlist kept
   `grid_state.preallocate` true, `settings.ini` kept
   `grid_preallocate=true`, both cells played, autoquit exited cleanly, and
   no `gridplayer`/`poc-hw` process remained. Only the toggle-on direction
-  and the save are exercised in the app; the toggle-off path and the disabled
-  state outside Fixed are unit evidence
-  (`TestShowAllCellsTogglesInFixedMode`, `TestFixedPreallocateShowsEveryCell`).
+  and the save are exercised in the app; the toggle-off path, the disabled
+  state outside Fixed, the settings write and the carry across presets are
+  unit evidence (`TestShowAllCellsTogglesInFixedMode`,
+  `TestFixedPreallocateShowsEveryCell`).
 - 2026-11-25, F5 fixed-cells candidate (`2eca6f0`, main `5b43599`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

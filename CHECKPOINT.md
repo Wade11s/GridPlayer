@@ -13,19 +13,31 @@ the `Show All Cells` checkable Grid item (disabled outside Fixed), the
 settings checkbox, `playlist/grid_preallocate` persistence, and
 `grid_state.preallocate` in the document, written only when set.
 
-Verification on `3c1db7b` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+An empty cell is drawn the way the frozen `EmptyCell` does: a cell-shaped
+background with a plus in its middle. Free Tiles, Mosaic and Single Mode are
+not fixed grids even though `cfg.Mode` stays Fixed, so the action is disabled
+and ignored there; a size preset, template or mode switch carries the flag
+instead of clearing it.
+
+Verification on the final head (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
 lines. A bundled-app run with two generated fixtures and a saved 3x3 fixed
-`grid_state` at `/tmp/gridplayer-showall/` showed two one-third cells in the
-top row (`show-all-cells.png`) after choosing Grid > Show All Cells; the
-saved playlist kept `grid_state.preallocate` true, `settings.ini` kept
+`grid_state` at `/tmp/gridplayer-showall4/` showed two one-third cells in
+the top row and seven plus-marked empty cells (`show-all-cells.png`) after
+choosing Grid > Show All Cells; the saved playlist kept
+`grid_state.preallocate` true, `settings.ini` kept
 `grid_preallocate=true`, both cells played, and autoquit left no process.
-Geometry is asserted by `TestFixedPreallocateShowsEveryCell` and the
-document/settings round-trip by `TestShowAllCellsTogglesInFixedMode`.
+Geometry is asserted by `TestFixedPreallocateShowsEveryCell`; the toggle,
+the settings write, the document round-trip and the carry across presets and
+mode switches by `TestShowAllCellsTogglesInFixedMode`.
 
 Still open: overflow (more videos than cells) grows rows where upstream
-confirms and closes the extras.
+confirms and closes the extras; a playlist whose `grid_state` omits
+`preallocate` loads as false instead of inheriting
+`playlist/grid_preallocate`, because Go has no per-key override tracking;
+and a preallocated grid with no videos still shows the empty-state message
+instead of its empty cells.
 
 ## 2026-11-25 fixed-cells candidate
 
