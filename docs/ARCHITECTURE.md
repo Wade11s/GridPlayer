@@ -75,7 +75,8 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   tiles stay in the front stacking tier. Drag, resize, lock/unlock and Arrange
   persist through settings. The full optimizer/reorder-to-fit, equal-gap/
   video-shape snap are later.
-- Free Tiles: `FreeLayout` fractions + gap inset; the cell drag moves
+- Free Tiles: `FreeLayout` fractions, drawn at their box edges (no inset
+  unless a gap is passed; the app passes `cellGap = 0`); the cell drag moves
   (MoveTile) and a bottom-right handle resizes (ResizeTile), clamped to the
   page and a 64×48 minimum. Snap targets page/neighbour edges and middles;
   overlap can be disabled (axis-slide rejection). A validated back-to-front
@@ -87,8 +88,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - Fit Shapes (`grid.Shapes`, `grid.FitShapes`): upstream AUTO_SHAPES. Each
   cell's engine shape (16:9 until known) drives a justified layout: lines end
   flush, rows or columns are chosen by the split score, and the whole group is
-  centred with the 4-DIP gap. The split search mirrors upstream's `justified.py`
-  without the size/reorder controls this build does not expose yet.
+  centred in the area. Cells meet flush because the app passes `cellGap = 0`,
+  as the frozen `CellLayout` spacing 0 does. The split search mirrors upstream's
+  `justified.py` without the size/reorder controls this build does not expose yet.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per
