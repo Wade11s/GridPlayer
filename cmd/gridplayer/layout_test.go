@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"path/filepath"
 	"strings"
@@ -76,6 +77,90 @@ func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
 	a.togglePreallocate()
 	if !a.cfg.Preallocate {
 		t.Fatal("preallocate toggled outside a fixed grid")
+	}
+}
+
+func TestFixedOverflowAsksBeforeClosing(t *testing.T) {
+	cells := func(n int) []*cell {
+		out := make([]*cell, n)
+		for i := range out {
+			out[i] = &cell{path: fmt.Sprintf("%d.mp4", i)}
+		}
+		return out
+	}
+
+	asked := 0
+	a := &app{
+		cells:       cells(5),
+		active:      4,
+		cfg:         grid.Config{Mode: grid.AutoRows},
+		askOverflow: func(over, capacity int) bool { asked++; return over == 1 && capacity == 4 },
+	}
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if asked != 1 {
+		t.Fatalf("asked %d times, want 1", asked)
+	}
+	if len(a.cells) != 4 || a.active != 3 {
+		t.Fatalf("cells=%d active=%d, want 4/3", len(a.cells), a.active)
+	}
+	if a.cfg.Mode != grid.Fixed || a.cfg.Rows != 2 || a.cfg.Cols != 2 || !a.dirty {
+		t.Fatalf("cfg=%+v dirty=%v", a.cfg, a.dirty)
+	}
+
+	// Cancelling keeps every cell and the old layout.
+	a = &app{
+		cells:       cells(5),
+		cfg:         grid.Config{Mode: grid.AutoRows},
+		askOverflow: func(int, int) bool { return false },
+	}
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if len(a.cells) != 5 || a.cfg.Mode != grid.AutoRows {
+		t.Fatalf("cancel kept cells=%d cfg=%+v", len(a.cells), a.cfg)
+	}
+
+	// A grid that holds every video asks nothing.
+	a = &app{
+		cells:       cells(4),
+		cfg:         grid.Config{Mode: grid.AutoRows},
+		askOverflow: func(int, int) bool { t.Fatal("asked for a grid that fits"); return false },
+	}
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if len(a.cells) != 4 || a.cfg.Mode != grid.Fixed {
+		t.Fatalf("fitted grid cells=%d cfg=%+v", len(a.cells), a.cfg)
+	}
+}
+
+func TestOverflowCount(t *testing.T) {
+	a := &app{cells: make([]*cell, 5)}
+	if got := a.overflowCount(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2}); got != 1 {
+		t.Fatalf("5 in 2x2 overflow = %d, want 1", got)
+	}
+	if got := a.overflowCount(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}); got != 0 {
+		t.Fatalf("5 in 3x3 overflow = %d, want 0", got)
+	}
+	if got := a.overflowCount(grid.Config{Mode: grid.AutoRows}); got != 0 {
+		t.Fatalf("auto overflow = %d, want 0", got)
+	}
+}
+
+func TestGridDraftOverflowCancelKeepsLayout(t *testing.T) {
+	a := &app{
+		cells:       make([]*cell, 5),
+		cfg:         grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3},
+		askOverflow: func(int, int) bool { return false },
+	}
+	if ok := a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "2", cols: "2"}); ok {
+		t.Fatal("a declined smaller grid reported applied")
+	}
+	if len(a.cells) != 5 || a.cfg.Rows != 3 || a.cfg.Cols != 3 {
+		t.Fatalf("cancel changed cells=%d cfg=%+v", len(a.cells), a.cfg)
+	}
+	a.askOverflow = func(int, int) bool { return true }
+	if ok := a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "2", cols: "2"}); !ok {
+		t.Fatal("an accepted smaller grid reported declined")
+	}
+	if len(a.cells) != 4 || a.cfg.Rows != 2 || a.cfg.Cols != 2 {
+		t.Fatalf("accept kept cells=%d cfg=%+v", len(a.cells), a.cfg)
 	}
 }
 

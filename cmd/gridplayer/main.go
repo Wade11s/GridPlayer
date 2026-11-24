@@ -145,11 +145,14 @@ func (c *cell) setLoopSegment(start, end int64, active bool) {
 }
 
 type app struct {
-	win                 *mygo.Window
-	resolve             func() (cv, sv uintptr, h float64, ok bool)
-	cells               []*cell
-	active              int
-	cfg                 grid.Config
+	win     *mygo.Window
+	resolve func() (cv, sv uintptr, h float64, ok bool)
+	cells   []*cell
+	active  int
+	cfg     grid.Config
+	// askOverflow asks before a smaller fixed grid closes videos; nil opens
+	// the frozen dialog. Tests inject one.
+	askOverflow         func(over, capacity int) bool
 	template            string
 	fill                bool
 	stretch             bool
@@ -2600,10 +2603,85 @@ func (a *app) togglePreallocate() {
 	}
 }
 
+// fixedCapacity is how many videos a fixed grid holds.
+func fixedCapacity(cfg grid.Config) int {
+	return max(cfg.Rows, 1) * max(cfg.Cols, 1)
+}
+
+// overflowCount is how many trailing cells a fixed config cannot hold.
+func (a *app) overflowCount(cfg grid.Config) int {
+	if cfg.Mode != grid.Fixed {
+		return 0
+	}
+	if over := len(a.cells) - fixedCapacity(cfg); over > 0 {
+		return over
+	}
+	return 0
+}
+
+// confirmOverflow asks, as the frozen grid does, before it closes videos a
+// smaller grid cannot hold. Cancelling leaves the layout alone.
+func (a *app) confirmOverflow(cfg grid.Config) bool {
+	over := a.overflowCount(cfg)
+	if over == 0 {
+		return true
+	}
+	if a.askOverflow != nil {
+		return a.askOverflow(over, fixedCapacity(cfg))
+	}
+	noun := "videos"
+	if over == 1 {
+		noun = "video"
+	}
+	res, err := mygo.Dialog.Message(mygo.MessageOptions{
+		Parent:             a.win,
+		Type:               mygo.MessageWarning,
+		Title:              "Set grid size",
+		Message:            fmt.Sprintf("Close %d %s?", over, noun),
+		Detail:             fmt.Sprintf("This grid holds %d videos.", fixedCapacity(cfg)),
+		Buttons:            []string{"Close Videos", "Cancel"},
+		DefaultButton:      0,
+		CancelButton:       1,
+		DestructiveButtons: []int{0},
+	})
+	if err != nil {
+		return false
+	}
+	return res.Button == 0
+}
+
+// closeOverflow stops and drops the trailing cells a fixed config cannot
+// hold, in the frozen stop -> unbind -> detach -> release order.
+func (a *app) closeOverflow(cfg grid.Config) {
+	keep := fixedCapacity(cfg)
+	if cfg.Mode != grid.Fixed || keep >= len(a.cells) {
+		return
+	}
+	for i := len(a.cells) - 1; i >= keep; i-- {
+		a.closeCell(a.cells[i])
+		a.cells = append(a.cells[:i], a.cells[i+1:]...)
+	}
+	if a.active >= len(a.cells) {
+		a.active = len(a.cells) - 1
+	}
+	if a.active < 0 {
+		a.active = 0
+	}
+	a.dirty = true
+	a.resetFreeTiles()
+	a.refreshKeepAwake()
+}
+
 func (a *app) setGrid(cfg grid.Config) {
 	// The preallocate flag belongs to the layout, not to one mode: a preset
 	// or template switch carries it, as the frozen grid keeps the setting.
 	cfg.Preallocate = a.cfg.Preallocate
+	// A fixed grid that cannot hold every video asks before closing the
+	// extras, as the frozen _apply_fixed does.
+	if !a.confirmOverflow(cfg) {
+		return
+	}
+	a.closeOverflow(cfg)
 	a.cfg = cfg
 	a.template = ""
 	a.free, a.mosaic, a.single = false, false, false
