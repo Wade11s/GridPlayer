@@ -581,30 +581,42 @@ func (a *app) currentSettingsDraft() settingsDraft {
 // applyGridDraft applies the Grid tab's layout, rows, columns and
 // Show All Cells. The flag is a grid setting, not a property of one mode:
 // switching layout must not clear it or overwrite the stored key with false.
-func (a *app) applyGridDraft(d settingsDraft) {
-	a.template = ""
+// It reports false when a smaller fixed grid was declined, leaving the
+// layout as it was.
+func (a *app) applyGridDraft(d settingsDraft) bool {
+	next := a.cfg
+	next.Preallocate = d.showAllCells
+	free, mosaic, single := false, false, false
 	switch d.layout {
 	case "Auto Columns":
-		a.cfg = grid.Config{Mode: grid.AutoCols}
-		a.free, a.mosaic, a.single = false, false, false
+		next = grid.Config{Mode: grid.AutoCols, Preallocate: d.showAllCells}
 	case "Fit Shapes":
-		a.cfg = grid.Config{Mode: grid.Shapes}
-		a.free, a.mosaic, a.single = false, false, false
+		next = grid.Config{Mode: grid.Shapes, Preallocate: d.showAllCells}
 	case "Fixed":
-		a.cfg = grid.Config{Mode: grid.Fixed, Rows: clampInt(atoi(d.rows, 3), 1, maxFixedSize), Cols: clampInt(atoi(d.cols, 3), 1, maxFixedSize)}
-		a.free, a.mosaic, a.single = false, false, false
+		next = grid.Config{Mode: grid.Fixed, Rows: clampInt(atoi(d.rows, 3), 1, maxFixedSize), Cols: clampInt(atoi(d.cols, 3), 1, maxFixedSize), Preallocate: d.showAllCells}
 	case "Free Tiles":
-		a.free, a.mosaic, a.single = true, false, false
+		free = true
 	case "Mosaic":
-		a.free, a.mosaic, a.single = false, true, false
-		a.ensureMosaic()
+		mosaic = true
 	case "Single Mode":
-		a.free, a.mosaic, a.single = false, false, true
+		single = true
 	default:
-		a.cfg = grid.Config{Mode: grid.AutoRows}
-		a.free, a.mosaic, a.single = false, false, false
+		next = grid.Config{Mode: grid.AutoRows, Preallocate: d.showAllCells}
 	}
-	a.cfg.Preallocate = d.showAllCells
+	fixed := !free && !mosaic && !single
+	if fixed && !a.confirmOverflow(next) {
+		return false
+	}
+	if fixed {
+		a.closeOverflow(next)
+	}
+	a.cfg = next
+	a.free, a.mosaic, a.single = free, mosaic, single
+	a.template = ""
+	if mosaic {
+		a.ensureMosaic()
+	}
+	return true
 }
 
 func (a *app) applySettingsDraft(d settingsDraft) {
@@ -690,6 +702,8 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		}
 	}
 	oldCfg, oldFree, oldMosaic, oldSingle := a.cfg, a.free, a.mosaic, a.single
+	// A declined smaller grid keeps the layout; the rest of the draft still
+	// applies, as the frozen dialog only refuses the grid change.
 	a.applyGridDraft(d)
 	for _, c := range a.cells {
 		c.viewMode = viewModeName(a.fill, a.stretch)

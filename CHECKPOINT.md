@@ -1,5 +1,44 @@
 # Migration Checkpoints
 
+## 2026-11-25 overflow-close candidate
+
+Frozen source is unchanged. Base/main is `2bfdda8` (after PR #85). Code
+candidate is `1fc9f1b09b7506fc229028acc60e8ea41d88e6eb` on
+`fix/f5-overflow-close`; the PR binds the final reviewed head.
+
+Added: a smaller fixed grid asks before it closes videos, as the frozen
+`_apply_fixed`/`_resize_fixed`/`cmd_apply_grid_template` do through
+`_confirm_overflow`: "Set grid size" / "Close N videos?" with "This grid
+holds M videos.", a destructive Close Videos button, and Cancel as the
+default button, as the frozen destructive confirm does. Go writes "Close 1
+video?" where the frozen shows "Close 1 videos?". Confirming closes the
+trailing cells through `closeCell`, the same path that closes a cell at
+teardown; cancelling leaves the layout and every cell untouched. The Grid
+presets, the template menu and the Settings Grid tab share
+`confirmClose`/`closeTo`.
+
+Verification on `1fc9f1b` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run with five generated fixtures at
+`/tmp/gridplayer-overflow2/` chose Grid > Fixed 2x2: the confirm appeared
+with Cancel as the default button and Close Videos marked destructive
+(`dialog.png`), and Cancel kept all five cells (`cancelled.png`). Choosing
+Templates > 1 + 2 then asked "Close 2 videos?" / "This grid holds 3 videos."
+(`template-dialog.png`); Close Videos left the three-cell template layout
+(`template-closed.png`). The saved playlist holds plane-a..c with
+`settings.grid_state` 2x3 fixed and `grid_template` "1 + 2", `vlc.log`
+has the five decode lines from launch, teardown finished, and no process
+remained.
+Unit: `TestFixedOverflowAsksBeforeClosing`, `TestOverflowCount`,
+`TestGridDraftOverflowCancelKeepsLayout`, `TestNonFixedLayoutsNeverAsk`.
+
+Still open: a loaded document with more videos than its grid extends the rows
+instead of leaving the extras unplaced; leaving Free Tiles or Mosaic for a
+smaller fixed grid closes playlist-order cells where the frozen closes in
+spatial reading order; closed videos are not remembered for a Reopen Closed
+Video action; the frozen grid undo is absent.
+
 ## 2026-11-25 show-all-cells candidate
 
 Frozen source is unchanged. Base/main is `38a54a0` (after PR #84). Code
