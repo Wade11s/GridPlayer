@@ -992,7 +992,7 @@ func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 		return
 	}
 	c.sponsorSkipEnd.Store(target)
-	eng.SeekTo(target)
+	a.seekCellTo(c, target)
 }
 
 // reloadCells recreates every live engine so instance-level options such as
@@ -1904,10 +1904,10 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 				cell.eng.Toggle()
 			}
 			if ui.Button(c.Key(fmt.Sprintf("back-%d", i)), "-5s").Width(60).Clicked() && cell.eng != nil {
-				cell.eng.SeekTo(max(s.Time-5000, 0))
+				a.seekCellTo(cell, max(s.Time-5000, 0))
 			}
 			if ui.Button(c.Key(fmt.Sprintf("fwd-%d", i)), "+5s").Width(60).Clicked() && cell.eng != nil {
-				cell.eng.SeekTo(s.Time + 5000)
+				a.seekCellTo(cell, s.Time+5000)
 			}
 			mute := "Mute"
 			if s.Muted {
@@ -1974,10 +1974,10 @@ func (a *app) shortcuts(c *ui.Context) {
 		eng.Toggle()
 	}
 	if a.shortcut(c, "seek_back") && eng != nil {
-		eng.SeekTo(max(eng.Snapshot().Time-5000, 0))
+		a.seekActive(max(eng.Snapshot().Time-5000, 0))
 	}
 	if a.shortcut(c, "seek_forward") && eng != nil {
-		eng.SeekTo(eng.Snapshot().Time + 5000)
+		a.seekActive(eng.Snapshot().Time + 5000)
 	}
 	if a.shortcut(c, "seek_percent_back") {
 		a.seekPercentOffsetActive(-1)
@@ -2043,8 +2043,10 @@ func (a *app) shortcuts(c *ui.Context) {
 		if eng != nil {
 			lo, hi := int64(0), eng.Snapshot().Length
 			if cell := a.activeCell(); cell != nil {
-				if start, end := cell.loopBounds(); end > 0 {
-					lo, hi = start, end
+				if start, end, active := cell.loopState(); active {
+					if l, h, ok := loopSeekBounds(start, end, hi, true); ok {
+						lo, hi = l, h
+					}
 				}
 			}
 			a.seekActive(randomSeekTarget(lo, hi, rand.Int64N))
@@ -2174,15 +2176,20 @@ func (a *app) activeSnapshot() engine.Snapshot {
 	return engine.Snapshot{}
 }
 
-func (a *app) seekActive(ms int64) {
-	if eng := a.activeEngine(); eng != nil {
-		c := a.activeCell()
-		if c != nil {
-			start, end := c.loopBounds()
-			ms = seekableTime(ms, start, end)
-		}
-		eng.SeekTo(ms)
+func (a *app) seekCellTo(c *cell, ms int64) {
+	if c == nil || c.eng == nil {
+		return
 	}
+	if start, end, active := c.loopState(); active {
+		if lo, hi, ok := loopSeekBounds(start, end, c.eng.Snapshot().Length, true); ok {
+			ms = seekableTime(ms, lo, hi)
+		}
+	}
+	c.eng.SeekTo(ms)
+}
+
+func (a *app) seekActive(ms int64) {
+	a.seekCellTo(a.activeCell(), ms)
 }
 
 func (a *app) seekPercentActive(percent float64) {
@@ -2691,7 +2698,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
-		c.setLoopSegment(v.LoopStart, v.LoopEnd, v.LoopStart > 0 || v.LoopEnd > 0)
+		c.setLoopSegment(v.LoopStart, v.LoopEnd, loopActiveFromVideo(v))
 		if v.Anchor != "" {
 			c.anchorX, c.anchorY = parseAnchor(v.Anchor)
 		} else {
@@ -2845,7 +2852,12 @@ func (a *app) document() *playlist.Document {
 		if listFail == "" {
 			listFail = c.listFailRaw
 		}
-		loopStart, loopEnd := c.loopBounds()
+		loopStart, loopEnd, loopActive := c.loopState()
+		var loopActivePtr *bool
+		if loopActive {
+			active := true
+			loopActivePtr = &active
+		}
 		v := playlist.Video{
 			ID:                c.id,
 			Title:             c.title,
@@ -2871,6 +2883,7 @@ func (a *app) document() *playlist.Document {
 			SubtitleDelay:     c.subDelay,
 			LoopStart:         loopStart,
 			LoopEnd:           loopEnd,
+			LoopActive:        loopActivePtr,
 			Transform:         upstreamTransform(c.transform),
 			SponsorMode:       c.sponsorMode(),
 			SponsorModes:      a.sponsorOverridesCopy(c),
@@ -3408,9 +3421,7 @@ func (a *app) bookmarkName(key string) string {
 }
 
 func (a *app) jumpBookmark(pos int64) {
-	if eng := a.activeEngine(); eng != nil {
-		eng.SeekTo(pos)
-	}
+	a.seekActive(pos)
 }
 
 func (a *app) clearBookmarks() {
@@ -3601,12 +3612,12 @@ func (a *app) menu() *mygo.Menu {
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Seek -5s"), Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
-					eng.SeekTo(max(eng.Snapshot().Time-5000, 0))
+					a.seekActive(max(eng.Snapshot().Time-5000, 0))
 				}
 			}},
 			{Label: a.tr("Actions", "Seek +5s"), Accelerator: a.keys.Get("seek_forward").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
-					eng.SeekTo(eng.Snapshot().Time + 5000)
+					a.seekActive(eng.Snapshot().Time + 5000)
 				}
 			}},
 			{Type: mygo.MenuItemSeparator},

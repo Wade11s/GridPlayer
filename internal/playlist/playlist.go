@@ -72,37 +72,40 @@ func (d Document) MarshalJSON() ([]byte, error) {
 
 // Video is one cell. Unknown fields are kept in Extra.
 type Video struct {
-	ID                string                     `json:"id,omitempty"`
-	URI               string                     `json:"uri"`
-	Title             string                     `json:"title,omitempty"`
-	CurrentPosition   int                        `json:"current_position,omitempty"`
-	IsMuted           bool                       `json:"is_muted,omitempty"`
-	Volume            float64                    `json:"volume,omitempty"`
-	Rate              float64                    `json:"rate,omitempty"`
-	CellViewMode      string                     `json:"cell_view_mode,omitempty"`
-	AspectRatio       *string                    `json:"aspect_ratio,omitempty"`
-	Scale             *float64                   `json:"scale,omitempty"`
-	CropRatio         *string                    `json:"crop_ratio,omitempty"`
-	PlaybackState     string                     `json:"playback_state,omitempty"`
-	ListIndex         int                        `json:"list_index,omitempty"`
-	ListEnd           string                     `json:"list_end_action,omitempty"`
-	EndAction         string                     `json:"end_action,omitempty"`
-	ListFail          string                     `json:"list_fail_action,omitempty"`
-	ListFailWait      *int                       `json:"list_fail_wait_sec,omitempty"`
-	ExternalAudio     []string                   `json:"external_audio,omitempty"`
-	ExternalSubtitles []string                   `json:"external_subtitles,omitempty"`
-	AudioDelay        int64                      `json:"audio_delay_ms,omitempty"`
-	SubtitleDelay     int64                      `json:"subtitle_delay_ms,omitempty"`
-	LoopStart         int64                      `json:"loop_start,omitempty"`
-	LoopEnd           int64                      `json:"loop_end,omitempty"`
-	Transform         string                     `json:"transform,omitempty"`
-	SponsorMode       string                     `json:"sponsor_mode,omitempty"`
-	SponsorModes      map[string]string          `json:"sponsor_modes,omitempty"`
-	SponsorURL        string                     `json:"sponsor_url,omitempty"`
-	Anchor            string                     `json:"anchor,omitempty"`
-	Crop              []float64                  `json:"crop,omitempty"`
-	CropMargins       []float64                  `json:"crop_margins,omitempty"`
-	Extra             map[string]json.RawMessage `json:"-"`
+	ID                string   `json:"id,omitempty"`
+	URI               string   `json:"uri"`
+	Title             string   `json:"title,omitempty"`
+	CurrentPosition   int      `json:"current_position,omitempty"`
+	IsMuted           bool     `json:"is_muted,omitempty"`
+	Volume            float64  `json:"volume,omitempty"`
+	Rate              float64  `json:"rate,omitempty"`
+	CellViewMode      string   `json:"cell_view_mode,omitempty"`
+	AspectRatio       *string  `json:"aspect_ratio,omitempty"`
+	Scale             *float64 `json:"scale,omitempty"`
+	CropRatio         *string  `json:"crop_ratio,omitempty"`
+	PlaybackState     string   `json:"playback_state,omitempty"`
+	ListIndex         int      `json:"list_index,omitempty"`
+	ListEnd           string   `json:"list_end_action,omitempty"`
+	EndAction         string   `json:"end_action,omitempty"`
+	ListFail          string   `json:"list_fail_action,omitempty"`
+	ListFailWait      *int     `json:"list_fail_wait_sec,omitempty"`
+	ExternalAudio     []string `json:"external_audio,omitempty"`
+	ExternalSubtitles []string `json:"external_subtitles,omitempty"`
+	AudioDelay        int64    `json:"audio_delay_ms,omitempty"`
+	SubtitleDelay     int64    `json:"subtitle_delay_ms,omitempty"`
+	LoopStart         int64    `json:"loop_start,omitempty"`
+	LoopEnd           int64    `json:"loop_end,omitempty"`
+	// LoopActive is the Go extension that keeps a whole-file segment
+	// (start 0, no end) distinguishable from no segment. Upstream ignores it.
+	LoopActive   *bool                      `json:"loop_active,omitempty"`
+	Transform    string                     `json:"transform,omitempty"`
+	SponsorMode  string                     `json:"sponsor_mode,omitempty"`
+	SponsorModes map[string]string          `json:"sponsor_modes,omitempty"`
+	SponsorURL   string                     `json:"sponsor_url,omitempty"`
+	Anchor       string                     `json:"anchor,omitempty"`
+	Crop         []float64                  `json:"crop,omitempty"`
+	CropMargins  []float64                  `json:"crop_margins,omitempty"`
+	Extra        map[string]json.RawMessage `json:"-"`
 }
 
 // UnmarshalJSON keeps fields this build does not know.

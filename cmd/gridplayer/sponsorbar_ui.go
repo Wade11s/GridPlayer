@@ -139,6 +139,6 @@ func (a *app) seekBar(c *ui.Context, i int, cell *cell, s engine.Snapshot) {
 	if width <= 0 {
 		return
 	}
-	cell.eng.SeekTo(seekTargetForX(x, width, s.Length))
+	a.seekCellTo(cell, seekTargetForX(x, width, s.Length))
 	a.setActive(i)
 }

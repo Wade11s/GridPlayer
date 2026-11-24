@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"gridplayer-go/internal/engine"
+	"gridplayer-go/internal/playlist"
 )
 
 // chapterToleranceMS is the frozen tolerance: VLC reports a time a hair
@@ -80,6 +81,32 @@ func chapterSpan(chapters []engine.Chapter, at, length int64) (start, end int64,
 		return 0, 0, false
 	}
 	return start, end, true
+}
+
+// loopSeekBounds is the segment a seek must stay inside. A zero end means
+// EOF, as the frozen loop_end property does.
+func loopSeekBounds(start, end, length int64, active bool) (lo, hi int64, ok bool) {
+	if !active {
+		return 0, 0, false
+	}
+	lo = start
+	if lo < 0 {
+		lo = 0
+	}
+	hi = end
+	if hi <= 0 {
+		hi = length
+	}
+	if hi <= lo {
+		return 0, 0, false
+	}
+	return lo, hi, true
+}
+
+// loopActiveFromVideo reads the persisted segment, including the Go-only
+// whole-file marker.
+func loopActiveFromVideo(v playlist.Video) bool {
+	return (v.LoopActive != nil && *v.LoopActive) || v.LoopStart > 0 || v.LoopEnd > 0
 }
 
 // loopSeekTarget is the frozen segment rule: a time past the end, or more
