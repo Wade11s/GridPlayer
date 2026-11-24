@@ -391,7 +391,10 @@ func (a *app) loadSettings() {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
 		c.rate = a.defaultRate
-		c.loop = a.defaultLoop
+		if len(c.list) == 0 {
+			c.loop = a.defaultLoop
+			a.applyDefaultEnd(c)
+		}
 		c.zoom = a.defaultZoom
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 		c.transform = a.defaultTransform
@@ -677,6 +680,18 @@ func comparePaths(cells []*cell, paths []string) bool {
 	return true
 }
 
+// applyDefaultEnd gives a plain file the configured end action. The helper
+// skips list cells entirely: a loop default is carried by c.loop, and newCell
+// applies a non-loop default to list cells through its own list branch.
+func (a *app) applyDefaultEnd(c *cell) {
+	if c == nil || len(c.list) > 0 {
+		return
+	}
+	if action := normalizeEndAction(a.defaultEnd); action != "" && action != endLoop {
+		c.endAction = action
+	}
+}
+
 func (a *app) paths() []string {
 	out := make([]string, len(a.cells))
 	for i, c := range a.cells {
@@ -775,6 +790,9 @@ func (a *app) newCell(i int, p string) *cell {
 			}
 		}
 	}
+	// A plain file takes the default end action too; a loop default is
+	// carried by c.loop rather than an action value.
+	a.applyDefaultEnd(c)
 	a.fetchSponsor(c, p)
 	return c
 }
@@ -1503,10 +1521,40 @@ func (a *app) finishVideo(c *cell) {
 			c.eng.Stop()
 		}
 	case endPause:
-		if c.eng != nil {
-			c.eng.Pause()
-		}
+		a.pauseAtStart(c)
 	}
+}
+
+// pauseAtStart is the frozen pause end action: back to the loop start, then
+// paused. libVLC can drop a pause issued before the reopened input exists,
+// so use the established paused-restore guard.
+func (a *app) pauseAtStart(c *cell) {
+	if c == nil || c.eng == nil {
+		return
+	}
+	start, _ := c.loopBounds()
+	if start < 0 {
+		start = 0
+	}
+	log.Printf("pause at start: %dms", start)
+	// A chapter jump pauses a playing input: seek and pause, as the frozen
+	// source does. An ended input has to be reopened behind the
+	// paused-restore guard instead.
+	if c.eng.Snapshot().Phase != engine.Ended {
+		a.seekCellTo(c, start)
+		c.eng.Pause()
+		return
+	}
+	c.startAt = int(start)
+	c.startPaused = true
+	c.skipGen = 0
+	c.pauseOnPlay.Store(true)
+	c.eng.SetStartPosition(start)
+	if err := c.eng.Load(c.path); err != nil {
+		a.status = err.Error()
+		return
+	}
+	c.eng.Pause()
 }
 
 func (a *app) stepOnFailure(c *cell) {
@@ -3339,31 +3387,7 @@ func (a *app) disableSubtitles() {
 }
 
 func (a *app) chapter(step int) {
-	eng := a.activeEngine()
-	if eng == nil {
-		return
-	}
-	eng.RefreshTracks()
-	s := eng.Snapshot()
-	if len(s.Chapters) == 0 {
-		return
-	}
-	current := s.Chapter
-	if current < 0 || current >= len(s.Chapters) {
-		current = 0
-	}
-	var start, end int64
-	active := false
-	if c := a.activeCell(); c != nil {
-		start, end, active = c.loopState()
-	}
-	i, ok := nextChapter(s.Chapters, current, step, start, end, active)
-	if !ok {
-		return
-	}
-	// A chapter jump is a seek in the frozen source, so the loop segment
-	// applies to it as it does to every other seek.
-	a.seekActive(s.Chapters[i].Time)
+	a.chapterSeek(step)
 }
 
 func (a *app) setRate(rate float64) {

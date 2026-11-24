@@ -109,6 +109,51 @@ func loopActiveFromVideo(v playlist.Video) bool {
 	return (v.LoopActive != nil && *v.LoopActive) || v.LoopStart > 0 || v.LoopEnd > 0
 }
 
+// chapterSeek is the frozen chapter jump: a stop inside the segment, the
+// segment start when none is ahead, or the end action past the last chapter.
+func (a *app) chapterSeek(step int) {
+	eng := a.activeEngine()
+	if eng == nil {
+		return
+	}
+	eng.RefreshTracks()
+	s := eng.Snapshot()
+	chapters := cleanChapters(s.Chapters, s.Length)
+	if len(chapters) == 0 {
+		return
+	}
+	start, end := int64(0), s.Length
+	active := false
+	if c := a.activeCell(); c != nil {
+		loopStart, loopEnd, isActive := c.loopState()
+		start, active = loopStart, isActive
+		if loopStart < 0 {
+			start = 0
+		}
+		if loopEnd > 0 {
+			end = loopEnd
+		}
+	}
+	if step > 0 {
+		if stop, ok := nextStop(chapters, s.Time, start, end); ok {
+			a.seekActive(stop)
+			return
+		}
+		if active {
+			a.seekActive(start)
+			return
+		}
+		c := a.activeCell()
+		if c != nil && c.finishAction() == endLoop {
+			a.seekActive(0)
+			return
+		}
+		a.finishVideo(c)
+		return
+	}
+	a.seekActive(previousStop(chapters, s.Time, start, end))
+}
+
 // clampSegmentSeek keeps ms inside the segment; without a length only the
 // lower bound is knowable.
 func clampSegmentSeek(start, end, length, ms int64, active bool) int64 {
@@ -124,26 +169,53 @@ func clampSegmentSeek(start, end, length, ms int64, active bool) int64 {
 	return seekableTime(ms, start, 0)
 }
 
-// nextChapter returns the next chapter in the given direction whose start
-// is reachable inside the segment. It skips the current one and reports no
-// candidate when the segment holds no other start, as the frozen reachable
-// chapter list does.
-func nextChapter(chapters []engine.Chapter, current, step int, start, end int64, active bool) (int, bool) {
-	n := len(chapters)
-	if n == 0 || step == 0 {
-		return 0, false
-	}
-	for k := 1; k <= n; k++ {
-		i := ((current+step*k)%n + n) % n
-		if i == current {
-			continue
+// chapterRestartMS is the frozen cut: going back from further into a
+// chapter than this starts the same chapter over.
+const chapterRestartMS = 3000
+
+// chapterStops lists where a jump can land: the segment start and the
+// chapter starts strictly inside it, in order and once each.
+func chapterStops(chapters []engine.Chapter, start, end int64) []int64 {
+	stops := []int64{start}
+	for _, ch := range chapters {
+		if ch.Time > start && (end <= 0 || ch.Time < end) {
+			stops = append(stops, ch.Time)
 		}
-		at := chapters[i].Time
-		if !active || (at >= start && (end <= 0 || at < end)) {
-			return i, true
+	}
+	sort.Slice(stops, func(i, j int) bool { return stops[i] < stops[j] })
+	out := stops[:0]
+	for _, stop := range stops {
+		if len(out) == 0 || out[len(out)-1] != stop {
+			out = append(out, stop)
+		}
+	}
+	return out
+}
+
+// nextStop is the next stop past the frozen tolerance, or none at the last.
+func nextStop(chapters []engine.Chapter, at, start, end int64) (int64, bool) {
+	for _, stop := range chapterStops(chapters, start, end) {
+		if stop > at+chapterToleranceMS {
+			return stop, true
 		}
 	}
 	return 0, false
+}
+
+// previousStop is this chapter's start, or the one before near its start.
+func previousStop(chapters []engine.Chapter, at, start, end int64) int64 {
+	stops := chapterStops(chapters, start, end)
+	index := sort.Search(len(stops), func(i int) bool { return stops[i] > at+chapterToleranceMS }) - 1
+	if index < 0 {
+		index = 0
+	}
+	if at-stops[index] > chapterRestartMS {
+		return stops[index]
+	}
+	if index > 0 {
+		return stops[index-1]
+	}
+	return stops[0]
 }
 
 // loopSeekTarget is the frozen segment rule: a time past the end, or more

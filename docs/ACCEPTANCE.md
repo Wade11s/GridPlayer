@@ -163,7 +163,37 @@ Changes need a new review; thresholds never relax in-implementation.
   whole-file persistence is `TestWholeFileSegmentSurvivesDocument`,
   `TestLoopActiveFromDocument`, `TestLoopActiveResetDropsExtension`,
   `TestUpstreamWholeFileLoopPresence`; chapter reachability is
-  `TestNextChapterSkipsUnreachable`; one run
+  `TestChapterStopSelection`; one run
   is not proof of every seek path.
+- 2026-11-24, F12 chapter-stops candidate (`0f9b723`, main `6ee09d7`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with isolated data at
+  `/tmp/gridplayer-f12-chapters12/` used the default loop end action and
+  pressed Next Chapter on the last chapter; VLC logged `SET_TIME to 0` and
+  the cell saved playing at 10245, so it looped instead of stopping.
+  A pause-action run at `/tmp/gridplayer-f12-chapters13/` logged
+  `pause at start: 0ms` and saved `playback_state=paused` at time 0 after the
+  reopen (two VideoToolbox lines), clean exit, no residual. Stop selection,
+  the 250 ms tolerance and the 3 s Previous rule are unit evidence
+  (`TestChapterStopSelection`, `TestChapterNextPastLastRunsEndAction`,
+  `TestChapterJumpSeeksInsideSegment`).
+- 2026-11-25, F12 chapter-stops head (`d4096d0`, main `6ee09d7`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines at `d4096d0`. The bundled app played the generated 60 s
+  chaptered fixture (0/20/40 s) at `/tmp/gridplayer-f12-loop/loopchapter.mkv`
+  with isolated data at `/tmp/gridplayer-f12-chapters18/`; three
+  Tracks > Next Chapter clicks logged `SET_TIME to 20000000`, `40000000`,
+  then `0` at the last stop with the default `end_action=pause`, and the app
+  logged `pause at start: 0ms` followed by `keep awake: none`. The saved
+  playlist is `playback_state=paused` with `end_action=pause`; the log has
+  one VideoToolbox line, so the pause path seeks and pauses the live input
+  instead of reopening it. Teardown finished with no residual
+  `gridplayer`/`poc-hw` process. The parent code candidate `34ceccb`
+  reproduced the sequence at `/tmp/gridplayer-f12-chapters17/`. The frozen
+  boundaries are asserted in `TestChapterStopSelection` (250 ms next
+  boundary, 3 s Previous boundary) and the end-action helper scope in
+  `TestApplyDefaultEndSkipsLoopDefaultForLists`.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

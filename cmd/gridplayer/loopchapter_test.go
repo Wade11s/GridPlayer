@@ -160,27 +160,81 @@ func TestWholeFileSegmentSurvivesDocument(t *testing.T) {
 	}
 }
 
-func TestNextChapterSkipsUnreachable(t *testing.T) {
+func TestChapterStopSelection(t *testing.T) {
 	chapters := []engine.Chapter{{Time: 0}, {Time: 10000}, {Time: 20000}, {Time: 30000}}
-	for _, tt := range []struct {
-		name    string
-		current int
-		start   int64
-		end     int64
-		active  bool
-		want    int
-		wantOK  bool
-	}{
-		{name: "next in segment", current: 0, start: 10000, end: 20000, active: true, want: 1, wantOK: true},
-		{name: "wrap to reachable", current: 2, start: 10000, end: 20000, active: true, want: 1, wantOK: true},
-		{name: "skip before start", current: 0, start: 20000, end: 30000, active: true, want: 2, wantOK: true},
-		{name: "none reachable", current: 0, start: 40000, end: 0, active: true},
-		{name: "no segment", current: 0, want: 1, wantOK: true},
-	} {
-		got, ok := nextChapter(chapters, tt.current, 1, tt.start, tt.end, tt.active)
-		if ok != tt.wantOK || got != tt.want {
-			t.Fatalf("%s: index=%d ok=%v, want %d %v", tt.name, got, ok, tt.want, tt.wantOK)
+	if got := chapterStops(chapters, 10000, 30000); len(got) != 2 || got[0] != 10000 || got[1] != 20000 {
+		t.Fatalf("stops = %v", got)
+	}
+	if stop, ok := nextStop(chapters, 9000, 0, 60000); !ok || stop != 10000 {
+		t.Fatalf("next from 9 s = %d %v", stop, ok)
+	}
+	if stop, ok := nextStop(chapters, 9800, 0, 60000); !ok || stop != 20000 {
+		t.Fatalf("next inside tolerance = %d %v, want 20000", stop, ok)
+	}
+	if stop, ok := nextStop(chapters, 9749, 0, 60000); !ok || stop != 10000 {
+		t.Fatalf("next just outside tolerance = %d %v, want 10000", stop, ok)
+	}
+	if stop, ok := nextStop(chapters, 9750, 0, 60000); !ok || stop != 20000 {
+		t.Fatalf("next at exactly the 250 ms boundary = %d %v, want 20000", stop, ok)
+	}
+	if stop, ok := nextStop(chapters, 35000, 0, 60000); ok {
+		t.Fatalf("next past last = %d, want none", stop)
+	}
+	if stop := previousStop(chapters, 25000, 0, 60000); stop != 20000 {
+		t.Fatalf("previous deep in chapter = %d, want 20000", stop)
+	}
+	if stop := previousStop(chapters, 21000, 0, 60000); stop != 10000 {
+		t.Fatalf("previous near chapter start = %d, want 10000", stop)
+	}
+	if stop := previousStop(chapters, 23000, 0, 60000); stop != 10000 {
+		t.Fatalf("previous at exactly 3 s in = %d, want 10000", stop)
+	}
+	if stop := previousStop(chapters, 23001, 0, 60000); stop != 20000 {
+		t.Fatalf("previous just past 3 s in = %d, want 20000", stop)
+	}
+	if stop := previousStop(chapters, 5000, 0, 60000); stop != 0 {
+		t.Fatalf("previous in first chapter = %d, want 0", stop)
+	}
+}
+
+func TestChapterNextPastLastRunsEndAction(t *testing.T) {
+	newEngine := func() *engine.Engine {
+		e := engine.New(func(string, bool, string) (engine.Backend, error) {
+			return &chapterBackend{Backend: dummy.New(), chapters: []engine.Chapter{
+				{Time: 0}, {Time: 10000}, {Time: 20000},
+			}}, nil
+		})
+		if err := e.Load("movie.mkv"); err != nil {
+			t.Fatal(err)
 		}
+		e.Play()
+		e.SeekTo(25000)
+		return e
+	}
+
+	if c := (&cell{loop: true, endAction: endNext, list: []string{"a", "b"}}); c.finishAction() != endNext {
+		t.Fatalf("list cell action = %s, want next", c.finishAction())
+	}
+
+	loop := newEngine()
+	defer loop.Close()
+	c := &cell{eng: loop, endAction: endLoop}
+	a := &app{cells: []*cell{c}}
+	a.chapter(1)
+	if got := loop.Snapshot().Time; got != 0 {
+		t.Fatalf("loop end action seek = %d, want 0", got)
+	}
+
+	pause := newEngine()
+	defer pause.Close()
+	c = &cell{eng: pause, endAction: endPause}
+	a = &app{cells: []*cell{c}}
+	a.chapter(1)
+	if got := pause.Snapshot().Phase; got != engine.Paused {
+		t.Fatalf("pause end action phase = %s, want paused", got)
+	}
+	if got := pause.Snapshot().Time; got != 0 {
+		t.Fatalf("pause end action seek = %d, want 0", got)
 	}
 }
 
