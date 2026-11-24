@@ -1,5 +1,26 @@
 # Migration Checkpoints
 
+## 2026-11-25 flush-cells candidate
+
+Frozen source is unchanged. Base/main is `3395ab1` (after PR #76). Code
+candidate is `4154c863eaa31b886752d763201f75315c38ffb9` on
+`fix/f5-flush-cells`; the PR binds the final reviewed head.
+
+Fixed: every layout call now uses `cellGap = 0`. The frozen `CellLayout`
+sets spacing 0 and its `Box` "share[s] the very same number for that edge",
+so cells meet edge to edge; Go had been passing 4 DIPs for the grid, Fit
+Shapes, templates, Single Mode, and the Free/Mosaic tile rects.
+
+Verification on `4154c86` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run with isolated data at `/tmp/gridplayer-flush/`
+showed four panes meeting edge to edge (`4pane.png`), all four cells playing
+at teardown, 4 VideoToolbox lines, clean autoquit, and no residual process.
+The geometry is asserted by `TestCellsMeetWithoutGap` (grid neighbours share
+an edge, the cells fill the area, a Free/Mosaic tile rect is uninset, the
+Single Mode pane and strip band meet, and a template leaves no gap).
+
 ## 2026-11-23 Free/Mosaic z-order candidate
 
 Frozen source is unchanged. Base/main is `a05f925` (after PR #82), merged

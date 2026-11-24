@@ -202,5 +202,17 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F5 flush-cells candidate (`4154c86`, main `3395ab1`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with four generated fixtures and
+  isolated data at `/tmp/gridplayer-flush/` shows the panes meeting edge to
+  edge (`4pane.png`); all four cells were still playing at teardown
+  (7410/7158/7402/7410 ms), autoquit exited cleanly, and no
+  `gridplayer`/`poc-hw` process remained. `TestCellsMeetWithoutGap` asserts
+  the flush geometry for the grid, Free/Mosaic tile rects, Single Mode and a
+  built-in template. This is one screenshot of one layout, not the full
+  occlusion/Retina matrix.
+
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
