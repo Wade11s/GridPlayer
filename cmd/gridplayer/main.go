@@ -392,6 +392,9 @@ func (a *app) loadSettings() {
 		c.muted = i > 0 || a.defaultMuted
 		c.rate = a.defaultRate
 		c.loop = a.defaultLoop
+		if a.defaultEnd != "" && a.defaultEnd != endLoop {
+			c.endAction = a.defaultEnd
+		}
 		c.zoom = a.defaultZoom
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 		c.transform = a.defaultTransform
@@ -773,6 +776,13 @@ func (a *app) newCell(i int, p string) *cell {
 					c.endAction = action
 				}
 			}
+		}
+	}
+	// A plain file takes the default end action too; a loop default is
+	// carried by c.loop rather than an action value.
+	if c.endAction == "" {
+		if action := normalizeEndAction(a.defaultEnd); action != "" && action != endLoop {
+			c.endAction = action
 		}
 	}
 	a.fetchSponsor(c, p)
@@ -1518,6 +1528,7 @@ func (a *app) pauseAtStart(c *cell) {
 	if start < 0 {
 		start = 0
 	}
+	log.Printf("pause at start: %dms", start)
 	c.startAt = int(start)
 	c.startPaused = true
 	c.skipGen = 0
