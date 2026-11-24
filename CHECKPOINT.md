@@ -22,6 +22,178 @@ over B after Bring to Front; `saved.gpls` stores `grid_free_order:[1,0]` and
 autoquit left no process. App:
 `/tmp/gridplayer-zorder/dist/darwin-arm64/GridPlayer.app`. This is targeted
 stacking evidence, not full layout acceptance.
+## 2026-11-24 chapter-stops candidate
+
+Frozen source is unchanged. Base/main is `6ee09d7` (post PR #81). Code
+candidate is `d4096d0d33790d25456c77b3d2e955dedbb0d1a0` on
+`fix/f12-chapter-stops`; the earlier `0f9b723` run did not cover the final
+head, and `34ceccb` changed pause and default-end-action code, so that
+evidence is superseded rather than carried forward. The PR binds the final
+reviewed head.
+
+Fixed: chapter jumps now use the frozen stop list instead of the adjacent
+chapter. Stops are the segment start plus chapter starts strictly inside it;
+Next takes the first stop past the 250 ms tolerance, restarts the segment
+when none is ahead, or runs the end action without one. Previous restarts the
+current chapter when more than 3 s in, otherwise the stop before. Cleaned
+chapter lists feed both paths, and jumps still pass through the segment seek
+clamp.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A bundled-app run at `/tmp/gridplayer-f12-chapters12/` (default loop
+end action) pressed Next Chapter on the last chapter; VLC logged
+`SET_TIME to 0` and the cell saved playing at 10245, so it looped instead of
+stopping. A pause-action run at `/tmp/gridplayer-f12-chapters13/` logged
+`pause at start: 0ms` and saved `playback_state=paused` at time 0 after the
+reopen (two VideoToolbox lines), with a clean exit. The specific stop
+selection and 3 s Previous rule are unit evidence.
+
+Re-verified on `d4096d0` after the gate-3 review: the suite and app smoke
+PASS with 4 VideoToolbox lines. The bundled app repeated the chapter sequence
+at `/tmp/gridplayer-f12-chapters18/` on the live pause path: `SET_TIME to
+20000000`, `40000000`, then `0` at the last stop with
+`end_action=pause`, followed by `pause at start: 0ms` and
+`keep awake: none`, saved `playback_state=paused`, one VideoToolbox line
+(no reopen), clean teardown, no residual process. `34ceccb` reproduced the
+same sequence at `/tmp/gridplayer-f12-chapters17/`.
+
+## 2026-11-24 segment-seek candidate
+
+Frozen source is unchanged. Base/main is `ce98aa2` (post PR #80). Code
+candidate is `145c7c6aea2e09f7abb9de2c5b20bd157e8885ee` on
+`fix/f12-segment-seeks`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: shortcut, overlay and menu seeks, bookmark jumps, seek-bar drags and
+SponsorBlock skips now go through one clamp, so a loop segment holds while
+playing or paused. A start-only segment uses the file length as its end and
+clamps the lower bound before a length is known. A whole-file `(0,0)`
+segment persists through the Go-only `loop_active` playlist field and is
+restored on load; upstream ignores the field. The extension is removed from
+the unknown-field map so clearing a segment cannot resurrect it; upstream's
+whole-file `loop_start:0` presence is read as the same segment. Chapter
+jumps seek through the same clamp and skip starts outside the segment.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A bundled-app run at `/tmp/gridplayer-f12-seek5/` chose Loop Chapter on
+chapter One and saved `loop_end=20000`, `current_position=11792`, after
+logging `loop segment: seek 20007 -> 0ms`; a chapter-Three run
+(`/tmp/gridplayer-f12-seek2/`) saved `loop_start=40000` without a redundant
+`loop_active` but ended during its EOF reload, so only its persistence shape
+is claimed. Both exited cleanly with VideoToolbox and no residual process.
+One run is not proof of every seek path; the clamp itself is unit-tested.
+
+## 2026-11-24 loop-chapter candidate
+
+Frozen source is unchanged. Base/main is `45be973` (post PR #79). Code
+candidate is `7bcabab013db30c60550c823e4642d1654ba789e` on
+`feat/f12-loop-chapter`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: libVLC chapter times now reach the engine, the frozen Loop Chapter
+action sets the chapter under the playhead as the cell's loop segment, and
+the Playback menu exposes loop start/end/reset plus Loop Chapter. The watch
+loop returns a segment that runs past its end or more than 100 ms before its
+start, matching the frozen rule; the last chapter ends at the file end, and
+a segment loops whatever the end action says. Chapter starts are sorted,
+de-duplicated, filtered, and snapped within the frozen 250 ms tolerance; a
+file whose only chapter starts at zero has none. The loop bounds are one
+atomic pointer, so the watch goroutine never sees a half-updated segment;
+they carry an explicit active flag and are cleared when a list item loads,
+so a shorter next file cannot inherit a 40 s start. Loop Reset clears the
+active cell, as the frozen action does; the all-cells variant remains open.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A generated 60 s chaptered fixture (0/20/40 s) at
+`/tmp/gridplayer-f12-loop/` was played with isolated data; Loop Chapter
+from the Playback menu saved `loop_end=20000` (start 0 omitted), and a
+35 s run logged `loop segment: seek 20011 -> 0ms` and saved
+`current_position=12524` after wrapping inside that segment. A last-chapter
+run with `end_action=stop` and `loop=false` chose chapter Three
+(`loop_start=40000`, no end), logged `loop segment: restart at end` and then
+`seek 0 -> 40000ms`, and saved at `current_position=56687` while playing.
+The ended restart reopens the media because VLC 3's input is over, so that
+pass re-initializes decode (two VideoToolbox lines). All runs exited
+cleanly. Chapters before the playhead and live files are unit/no-op
+evidence.
+
+## 2026-11-24 proxy-mode candidate
+
+Frozen source is unchanged. Base/main is `8ef2a54` (post PR #78). Code
+candidate is `e136a87aaacb7af53fbde24340b110b61df63821` on
+`fix/f9-proxy-mode`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: resolver requests now read the frozen `network/proxy_mode` and
+`network/proxy_url`. System inherits the environment, none clears inherited
+proxy variables for the child, and custom passes the configured URL to
+yt-dlp and streamlink; custom with no URL is read as no proxy rather than
+the machine's. The single `network/proxy` URL older Go builds wrote
+migrates to custom, and Settings exposes the mode beside the URL.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). Two isolated bundled-app runs at `/tmp/gridplayer-f9-proxy/`: a
+legacy `network/proxy` URL loaded and saved back as
+`proxy_mode=custom` + `proxy_url`, with the legacy key preserved; an
+upstream `proxy_mode=none` + `proxy_url` pair stayed unchanged. Both
+produced 4 VideoToolbox lines and exited cleanly. VLC playback proxying and
+the relay path remain open.
+
+## 2026-11-24 minimize-pause candidate
+
+Frozen source is unchanged. Base/main is
+`d6647b6` (post PR #77). Code candidate is
+`079ab3bceae0bb99de5b183890ece2c8adea3e77` on `fix/f11-pause-minimized`.
+A checkpoint-only commit follows; the PR binds the final reviewed head.
+
+Fixed: `playlist/pause_minimized` (frozen default true) now pauses every
+Playing cell when the window is minimized and resumes only the cells it
+paused on return; a cell the user had paused stays paused. Removed the
+focus-loss pause Go had bound to `playlist/pause_background_videos`; in the
+frozen source that key pauses hidden cells in single mode without a strip,
+which Go's layout does not have yet, so the key is left preserved for that
+slice.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). Bundled-app run at `/tmp/gridplayer-f11-pause/` loaded
+`pause_minimized=false`, saved it back unchanged, preserved the unknown
+`pause_background_videos` key, produced 4 VideoToolbox lines, and exited
+cleanly with no residual process. Minimize pause/restore is unit evidence
+only: MyGo still does not report the minimized state in this environment.
+
+## 2026-11-24 keep-awake candidate
+
+Frozen source is unchanged. Base/main is
+`f51faf3925e5ce3029662289f4c11d7dfc67a92b` (post PR #75). Code candidate is
+`751c7a136c0cc72b6973230b2109b386368630c1` on `fix/f11-keep-awake`. A
+checkpoint-only commit follows; the PR binds the final reviewed head.
+
+Fixed: `screensaverGuard` follows the frozen `ScreensaverManager` mode
+instead of starting `caffeinate -d -i` at launch and holding the display
+forever. It starts only while a cell is Playing, holds the display, downgrades
+to `-i` (system awake, screen may sleep) while the window is minimized, and
+stops on pause, end, settings changes, and teardown.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). Real bundled-app run at `/tmp/gridplayer-f11-evidence/` used one
+generated 60 s fixture and isolated data: `caffeinate -d -i -w <pid>` while
+playing, gone after Pause with `keep awake: none`, VideoToolbox in the log,
+clean autoquit teardown, no residual process. The minimized system-only mode
+is unit evidence only: agent-desktop AX minimization delivered no MyGo
+`OnMinimize` event in this session. `pause_minimized` semantics and
+performance evidence remain open.
 
 ## 2026-11-23 per-video metadata candidate
 

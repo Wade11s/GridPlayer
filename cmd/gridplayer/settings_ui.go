@@ -29,7 +29,7 @@ type settingsDraft struct {
 	rate               float64
 	loop               bool
 	language           string
-	pauseBackground    bool
+	pauseMinimized     bool
 	inhibitScreensaver bool
 	sponsorEnabled     bool
 	sponsorModes       []string
@@ -63,6 +63,7 @@ type settingsDraft struct {
 	subEncoding     string
 	subAutodetect   bool
 
+	proxyMode  string
 	proxy      string
 	cookies    string
 	ytdlp      string
@@ -93,6 +94,7 @@ var (
 	transformOptions   = []string{"None", "Rotate 90", "Rotate 180", "Rotate 270", "Flip horizontal", "Flip vertical", "Transpose", "Anti-transpose"}
 	sponsorModeOptions = []string{"Skip", "Show", "Off"}
 	formatOptions      = []string{"Best", "Worst", "720p", "480p"}
+	proxyModeOptions   = []string{"System", "None", "Custom"}
 	outlineOptions     = []string{"None", "Thin", "Normal", "Thick"}
 	encodingOptions    = []string{"Auto", "UTF-8", "GB18030", "Windows-1252", "Shift_JIS"}
 	retryModeOptions   = []string{"Off", "Fixed attempts", "Keep trying"}
@@ -107,7 +109,7 @@ func defaultSettingsDraft() settingsDraft {
 		rate:               1,
 		loop:               true,
 		language:           "English",
-		pauseBackground:    true,
+		pauseMinimized:     true,
 		inhibitScreensaver: true,
 		sponsorModes:       defaultSponsorModes(),
 		stayOnTop:          false,
@@ -225,7 +227,7 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 			ui.Checkbox(c, &d.muted, "Start new cells muted")
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Pause videos when minimized"), func() {
-			ui.Checkbox(c, &d.pauseBackground, "Pause when the window loses focus")
+			ui.Checkbox(c, &d.pauseMinimized, a.tr("SettingsDialog", "Pause while the window is minimized"))
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Disable screensaver while playing"), func() {
 			ui.Checkbox(c, &d.inhibitScreensaver, a.tr("SettingsDialog", "Keep the display awake"))
@@ -376,8 +378,11 @@ func (a *app) settingsSubtitles(c *ui.Context, d *settingsDraft) {
 func (a *app) settingsNetwork(c *ui.Context, d *settingsDraft) {
 	ui.Form(c, func() {
 		ui.Field(c, a.tr("SettingsDialog", "Proxy"), func() {
-			ui.TextInput(c, &d.proxy)
-		}).Description("http://host:port — passed to yt-dlp and streamlink")
+			ui.Row(c).Gap(8).Children(func() {
+				ui.Select(c, &d.proxyMode, proxyModeOptions)
+				ui.TextInput(c, &d.proxy)
+			})
+		}).Description("http://host:port — custom passes it to yt-dlp and streamlink")
 		ui.Field(c, a.tr("SettingsDialog", "Cookies file"), func() {
 			ui.Row(c).Gap(8).Children(func() {
 				ui.TextInput(c, &d.cookies)
@@ -487,7 +492,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.rate = a.defaultRate
 	d.loop = a.defaultLoop
 	d.language = i18n.Name(a.language)
-	d.pauseBackground = a.pauseBackground
+	d.pauseMinimized = a.pauseMinimized
 	d.inhibitScreensaver = a.inhibitScreensaver
 	d.stayOnTop = a.stayOnTop
 	d.startMaximized = a.startMaximized
@@ -531,6 +536,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.zoomToCursor = a.zoomToCursor
 	d.transform = transformName(a.defaultTransform)
 	if a.resolver != nil {
+		d.proxyMode = proxyModeName(a.resolver.ProxyMode)
 		d.proxy = a.resolver.Proxy
 		d.cookies = a.resolver.Cookies
 		d.ytdlp = a.resolver.Path
@@ -573,9 +579,9 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultRate = clampPlaybackRate(d.rate)
 	a.language = i18n.Code(d.language)
 	a.loadTranslator()
-	a.pauseBackground = d.pauseBackground
+	a.pauseMinimized = d.pauseMinimized
 	a.inhibitScreensaver = d.inhibitScreensaver
-	a.screensaver.Enable(a.inhibitScreensaver)
+	a.refreshKeepAwake()
 	a.sponsorEnabled.Store(d.sponsorEnabled)
 	a.zoomToCursor = d.zoomToCursor
 	a.stayOnTop = d.stayOnTop
@@ -637,6 +643,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	if a.resolver == nil {
 		a.resolver = resolve.New()
 	}
+	a.resolver.ProxyMode = proxyModeValue(d.proxyMode)
 	a.resolver.Proxy = strings.TrimSpace(d.proxy)
 	a.resolver.Cookies = strings.TrimSpace(d.cookies)
 	a.resolver.Path = strings.TrimSpace(d.ytdlp)
@@ -787,6 +794,28 @@ func scaleFromName(s string) float64 {
 		return 2
 	default:
 		return 0
+	}
+}
+
+func proxyModeName(mode string) string {
+	switch strings.ToLower(mode) {
+	case "none":
+		return "None"
+	case "custom":
+		return "Custom"
+	default:
+		return "System"
+	}
+}
+
+func proxyModeValue(name string) string {
+	switch name {
+	case "None":
+		return "none"
+	case "Custom":
+		return "custom"
+	default:
+		return "system"
 	}
 }
 

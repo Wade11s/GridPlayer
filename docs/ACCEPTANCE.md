@@ -103,5 +103,104 @@ Changes need a new review; thresholds never relax in-implementation.
   persisted `grid_free_order:[1,0]`; VideoToolbox played and autoquit left
   no process. Captures contain only the test app window. This is targeted
   native stacking evidence, not PUSH/optimizer or full occlusion acceptance.
+- 2026-11-24, F11 keep-awake candidate (`751c7a1`, main `f51faf3`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`, and
+  `scripts/build_app.sh` PASS; `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with one generated 60 s H.264/AAC
+  fixture and isolated data (`/tmp/gridplayer-f11-evidence/`) held
+  `/usr/bin/caffeinate -d -i -w <pid>` while the cell played and removed it
+  after Pause (`keep awake: none`), with `Video Toolbox` in the log, clean
+  autoquit teardown, and no residual `gridplayer`/`caffeinate` process. The
+  minimized system-only assertion is unit evidence
+  (`TestKeepAwakeModeFollowsPlaybackAndMinimize`,
+  `TestCaffeinateCommandModes`), not a claimed GUI run: agent-desktop AX
+  minimization delivered no MyGo `OnMinimize` event in this session.
+  `pause_minimized` and background-pause key semantics remain open.
+- 2026-11-24, F11 minimize-pause candidate (`079ab3b`, main `d6647b6`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-f11-pause/` with
+  isolated data read `pause_minimized=false`, wrote it back, preserved the
+  unknown `playlist/pause_background_videos` key, and exited cleanly with no
+  residual process. The minimize pause/restore itself is unit evidence
+  (`TestMinimizePausesThenRestoresPlayingCells`,
+  `TestMinimizePauseCanBeDisabled`); MyGo did not report the minimized state
+  in this session, so no GUI minimize run is claimed. Single-mode
+  `pause_background_videos` remains open with the single-mode layout work.
+- 2026-11-24, F9 proxy-mode candidate (`e136a87`, main `8ef2a54`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. Two isolated bundled-app runs at
+  `/tmp/gridplayer-f9-proxy/`: the legacy `network/proxy` URL loaded and
+  saved back as `proxy_mode=custom` + `proxy_url=http://legacy:8080`, with
+  the legacy key preserved; upstream `proxy_mode=none` + a URL stayed
+  unchanged. Both exited cleanly with 4 VideoToolbox lines and no residual
+  process. Resolver mode/argument/environment behavior is unit evidence
+  (`TestProxyModesSelectFlag`, `TestProxyNoneClearsInheritedEnvironment`);
+  VLC playback proxying and the relay path remain open.
+- 2026-11-24, F12 loop-chapter candidate (`7bcabab`, main `45be973`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A generated 60 s chaptered H.264/AAC fixture
+  (chapters at 0/20/40 s) at `/tmp/gridplayer-f12-loop/` was played through
+  the bundled app with isolated data. Choosing Playback > Loop Chapter saved
+  `loop_end=20000` (start 0 omitted by the empty-field rule); a second 35 s
+  run logged `loop segment: seek 20011 -> 0ms` and saved
+  `current_position=12524` after wrapping inside that segment. Both logs show
+  VideoToolbox, clean teardown, and no residual process. A last-chapter run
+  with isolated data and `end_action=stop`, `loop=false` chose chapter Three
+  (`loop_start=40000`, no end), logged `loop segment: restart at end` followed
+  by `seek 0 -> 40000ms`, and saved at `current_position=56687` while playing
+  (`/tmp/gridplayer-f12-loop/last7/`); the ended restart reopens the media, so
+  that pass produced two VideoToolbox lines. Cleaning, the 250 ms boundary
+  tolerance, start/end/reset, clearing on a new list item, chapters before
+  the playhead, and the no-chapter paths are unit evidence.
+- 2026-11-24, F2/F12 segment-seek candidate (`145c7c6`, main `ce98aa2`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with isolated data at
+  `/tmp/gridplayer-f12-seek5/` chose Loop Chapter on chapter One and saved
+  `loop_end=20000`, `current_position=11792`, after logging
+  `loop segment: seek 20007 -> 0ms`; a chapter-Three run
+  (`/tmp/gridplayer-f12-seek2/`) saved `loop_start=40000` without a redundant
+  `loop_active` but ended during its EOF reload, so only its persistence shape
+  is claimed. Both logged VideoToolbox, exited cleanly, and left no residual
+  process. Seek clamping is unit evidence (`TestLoopSeekBounds`,
+  `TestSeekCellToClampsSegment`, `TestChapterJumpSeeksInsideSegment`) and
+  whole-file persistence is `TestWholeFileSegmentSurvivesDocument`,
+  `TestLoopActiveFromDocument`, `TestLoopActiveResetDropsExtension`,
+  `TestUpstreamWholeFileLoopPresence`; chapter reachability is
+  `TestChapterStopSelection`; one run
+  is not proof of every seek path.
+- 2026-11-24, F12 chapter-stops candidate (`0f9b723`, main `6ee09d7`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with isolated data at
+  `/tmp/gridplayer-f12-chapters12/` used the default loop end action and
+  pressed Next Chapter on the last chapter; VLC logged `SET_TIME to 0` and
+  the cell saved playing at 10245, so it looped instead of stopping.
+  A pause-action run at `/tmp/gridplayer-f12-chapters13/` logged
+  `pause at start: 0ms` and saved `playback_state=paused` at time 0 after the
+  reopen (two VideoToolbox lines), clean exit, no residual. Stop selection,
+  the 250 ms tolerance and the 3 s Previous rule are unit evidence
+  (`TestChapterStopSelection`, `TestChapterNextPastLastRunsEndAction`,
+  `TestChapterJumpSeeksInsideSegment`).
+- 2026-11-25, F12 chapter-stops head (`d4096d0`, main `6ee09d7`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines at `d4096d0`. The bundled app played the generated 60 s
+  chaptered fixture (0/20/40 s) at `/tmp/gridplayer-f12-loop/loopchapter.mkv`
+  with isolated data at `/tmp/gridplayer-f12-chapters18/`; three
+  Tracks > Next Chapter clicks logged `SET_TIME to 20000000`, `40000000`,
+  then `0` at the last stop with the default `end_action=pause`, and the app
+  logged `pause at start: 0ms` followed by `keep awake: none`. The saved
+  playlist is `playback_state=paused` with `end_action=pause`; the log has
+  one VideoToolbox line, so the pause path seeks and pauses the live input
+  instead of reopening it. Teardown finished with no residual
+  `gridplayer`/`poc-hw` process. The parent code candidate `34ceccb`
+  reproduced the sequence at `/tmp/gridplayer-f12-chapters17/`. The frozen
+  boundaries are asserted in `TestChapterStopSelection` (250 ms next
+  boundary, 3 s Previous boundary) and the end-action helper scope in
+  `TestApplyDefaultEndSkipsLoopDefaultForLists`.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

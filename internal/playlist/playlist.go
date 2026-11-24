@@ -72,37 +72,40 @@ func (d Document) MarshalJSON() ([]byte, error) {
 
 // Video is one cell. Unknown fields are kept in Extra.
 type Video struct {
-	ID                string                     `json:"id,omitempty"`
-	URI               string                     `json:"uri"`
-	Title             string                     `json:"title,omitempty"`
-	CurrentPosition   int                        `json:"current_position,omitempty"`
-	IsMuted           bool                       `json:"is_muted,omitempty"`
-	Volume            float64                    `json:"volume,omitempty"`
-	Rate              float64                    `json:"rate,omitempty"`
-	CellViewMode      string                     `json:"cell_view_mode,omitempty"`
-	AspectRatio       *string                    `json:"aspect_ratio,omitempty"`
-	Scale             *float64                   `json:"scale,omitempty"`
-	CropRatio         *string                    `json:"crop_ratio,omitempty"`
-	PlaybackState     string                     `json:"playback_state,omitempty"`
-	ListIndex         int                        `json:"list_index,omitempty"`
-	ListEnd           string                     `json:"list_end_action,omitempty"`
-	EndAction         string                     `json:"end_action,omitempty"`
-	ListFail          string                     `json:"list_fail_action,omitempty"`
-	ListFailWait      *int                       `json:"list_fail_wait_sec,omitempty"`
-	ExternalAudio     []string                   `json:"external_audio,omitempty"`
-	ExternalSubtitles []string                   `json:"external_subtitles,omitempty"`
-	AudioDelay        int64                      `json:"audio_delay_ms,omitempty"`
-	SubtitleDelay     int64                      `json:"subtitle_delay_ms,omitempty"`
-	LoopStart         int64                      `json:"loop_start,omitempty"`
-	LoopEnd           int64                      `json:"loop_end,omitempty"`
-	Transform         string                     `json:"transform,omitempty"`
-	SponsorMode       string                     `json:"sponsor_mode,omitempty"`
-	SponsorModes      map[string]string          `json:"sponsor_modes,omitempty"`
-	SponsorURL        string                     `json:"sponsor_url,omitempty"`
-	Anchor            string                     `json:"anchor,omitempty"`
-	Crop              []float64                  `json:"crop,omitempty"`
-	CropMargins       []float64                  `json:"crop_margins,omitempty"`
-	Extra             map[string]json.RawMessage `json:"-"`
+	ID                string   `json:"id,omitempty"`
+	URI               string   `json:"uri"`
+	Title             string   `json:"title,omitempty"`
+	CurrentPosition   int      `json:"current_position,omitempty"`
+	IsMuted           bool     `json:"is_muted,omitempty"`
+	Volume            float64  `json:"volume,omitempty"`
+	Rate              float64  `json:"rate,omitempty"`
+	CellViewMode      string   `json:"cell_view_mode,omitempty"`
+	AspectRatio       *string  `json:"aspect_ratio,omitempty"`
+	Scale             *float64 `json:"scale,omitempty"`
+	CropRatio         *string  `json:"crop_ratio,omitempty"`
+	PlaybackState     string   `json:"playback_state,omitempty"`
+	ListIndex         int      `json:"list_index,omitempty"`
+	ListEnd           string   `json:"list_end_action,omitempty"`
+	EndAction         string   `json:"end_action,omitempty"`
+	ListFail          string   `json:"list_fail_action,omitempty"`
+	ListFailWait      *int     `json:"list_fail_wait_sec,omitempty"`
+	ExternalAudio     []string `json:"external_audio,omitempty"`
+	ExternalSubtitles []string `json:"external_subtitles,omitempty"`
+	AudioDelay        int64    `json:"audio_delay_ms,omitempty"`
+	SubtitleDelay     int64    `json:"subtitle_delay_ms,omitempty"`
+	LoopStart         int64    `json:"loop_start,omitempty"`
+	LoopEnd           int64    `json:"loop_end,omitempty"`
+	// LoopActive is the Go extension that keeps a whole-file segment
+	// (start 0, no end) distinguishable from no segment. Upstream ignores it.
+	LoopActive   *bool                      `json:"loop_active,omitempty"`
+	Transform    string                     `json:"transform,omitempty"`
+	SponsorMode  string                     `json:"sponsor_mode,omitempty"`
+	SponsorModes map[string]string          `json:"sponsor_modes,omitempty"`
+	SponsorURL   string                     `json:"sponsor_url,omitempty"`
+	Anchor       string                     `json:"anchor,omitempty"`
+	Crop         []float64                  `json:"crop,omitempty"`
+	CropMargins  []float64                  `json:"crop_margins,omitempty"`
+	Extra        map[string]json.RawMessage `json:"-"`
 }
 
 // UnmarshalJSON keeps fields this build does not know.
@@ -140,17 +143,25 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	if _, present := all["list_fail_wait_sec"]; !present {
 		v.ListFailWait = legacy.ListFailWait
 	}
+	_, loopStartPresent := all["loop_start"]
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
 		"list_end_action", "list_fail", "list_fail_wait", "list_fail_action",
 		"list_fail_wait_sec", "aspect_ratio", "scale", "crop_ratio",
 		"end_action", "audio_delay_ms", "external_audio", "external_subtitles",
-		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
+		"subtitle_delay_ms", "loop_start", "loop_end", "loop_active", "transform",
 		"sponsor_mode", "sponsor_modes", "sponsor_url", "anchor", "crop", "crop_margins"} {
 		delete(all, k)
 	}
 	if len(all) > 0 {
 		v.Extra = all
+	}
+	// Upstream writes a whole-file loop as loop_start=0 with no end; the
+	// key's presence carries the segment that the zero value cannot.
+	if loopStartPresent && v.LoopStart == 0 && v.LoopEnd == 0 &&
+		(v.LoopActive == nil || !*v.LoopActive) {
+		active := true
+		v.LoopActive = &active
 	}
 	return nil
 }

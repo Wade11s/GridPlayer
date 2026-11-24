@@ -95,20 +95,19 @@ func randomSeekTarget(loopStart, loopEnd int64, next func(int64) int64) int64 {
 	return loopStart + next(loopEnd-loopStart+1)
 }
 
-// setLoopPoint validates the frozen fragment-loop bounds.
-func setLoopPoint(start, end *int64, at int64, isStart bool) bool {
+// setLoopPoint validates the frozen fragment-loop bounds and returns the
+// updated pair.
+func setLoopPoint(start, end, at int64, isStart bool) (int64, int64, bool) {
 	if isStart {
-		if end != nil && *end != 0 && at >= *end {
-			return false
+		if end != 0 && at >= end {
+			return start, end, false
 		}
-		*start = at
-		return true
+		return at, end, true
 	}
-	if start != nil && *start != 0 && at <= *start {
-		return false
+	if start != 0 && at <= start {
+		return start, end, false
 	}
-	*end = at
-	return true
+	return start, at, true
 }
 
 // seekableTime clamps a shortcut seek into the fragment loop.

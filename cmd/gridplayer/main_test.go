@@ -20,6 +20,62 @@ import (
 	"gridplayer-go/internal/snapshots"
 )
 
+func TestApplyDefaultEndSkipsLoopDefaultForLists(t *testing.T) {
+	a := &app{defaultEnd: endPause}
+	plain := &cell{}
+	a.applyDefaultEnd(plain)
+	if plain.endAction != endPause {
+		t.Fatalf("plain action = %q, want pause", plain.endAction)
+	}
+	// The helper never edits a list cell; newCell applies a non-loop default
+	// to list cells through its own branch.
+	list := &cell{list: []string{"a.mp4"}, endAction: endNext}
+	a.applyDefaultEnd(list)
+	if list.endAction != endNext {
+		t.Fatalf("list action = %q, want next", list.endAction)
+	}
+	// A loop default is a flag, not an action value, so it is never copied.
+	a = &app{defaultEnd: endLoop}
+	plain = &cell{}
+	a.applyDefaultEnd(plain)
+	if plain.endAction != "" {
+		t.Fatalf("loop default action = %q, want empty", plain.endAction)
+	}
+}
+
+func TestNetworkProxySettings(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		mode, url, legacy string
+		wantMode, wantURL string
+	}{
+		{name: "upstream custom", mode: "custom", url: "http://proxy:1", wantMode: "custom", wantURL: "http://proxy:1"},
+		{name: "upstream none", mode: "none", url: "http://proxy:1", wantMode: "none", wantURL: "http://proxy:1"},
+		{name: "upstream system", mode: "system", url: "http://proxy:1", wantMode: "system", wantURL: "http://proxy:1"},
+		{name: "legacy url", legacy: "http://old:2", wantMode: "custom", wantURL: "http://old:2"},
+		{name: "unknown mode with legacy", mode: "bogus", legacy: "http://old:2", wantMode: "custom", wantURL: "http://old:2"},
+		{name: "empty", wantMode: "system"},
+	} {
+		st, err := settings.Load(filepath.Join(t.TempDir(), "settings.ini"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tt.mode != "" {
+			st.Set("network/proxy_mode", tt.mode)
+		}
+		if tt.url != "" {
+			st.Set("network/proxy_url", tt.url)
+		}
+		if tt.legacy != "" {
+			st.Set("network/proxy", tt.legacy)
+		}
+		mode, url := networkProxySettings(st)
+		if mode != tt.wantMode || url != tt.wantURL {
+			t.Fatalf("%s: mode=%q url=%q, want %q %q", tt.name, mode, url, tt.wantMode, tt.wantURL)
+		}
+	}
+}
+
 func TestSwapCells(t *testing.T) {
 	a := &app{cells: []*cell{{label: "a"}, {label: "b"}, {label: "c"}}, active: 0}
 	a.swapCells(0, 2)
@@ -208,14 +264,15 @@ func TestResizeTileSnapAndOverlap(t *testing.T) {
 
 func TestSettingsDraftRoundTrip(t *testing.T) {
 	a := &app{
-		cfg:           grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 4},
-		fill:          true,
-		snap:          true,
-		overlap:       true,
-		defaultVolume: 80,
-		defaultRate:   1,
-		defaultLoop:   true,
-		cells:         []*cell{{}, {}},
+		cfg:            grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 4},
+		fill:           true,
+		snap:           true,
+		overlap:        true,
+		defaultVolume:  80,
+		defaultRate:    1,
+		defaultLoop:    true,
+		pauseMinimized: true,
+		cells:          []*cell{{}, {}},
 	}
 	defer a.screensaver.Close()
 	d := a.currentSettingsDraft()
@@ -226,7 +283,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.volume = 55
 	d.rate = 1.5
 	d.loop = false
-	d.pauseBackground = false
+	d.pauseMinimized = false
 	d.inhibitScreensaver = false
 	d.sponsorEnabled = true
 	d.sponsorModes[0] = "Show"
@@ -241,6 +298,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.scale = "1.5x"
 	d.crop = "16:9"
 	d.singleSide = "Left"
+	d.proxyMode = "Custom"
 	d.proxy = "http://proxy:8080"
 	d.cookies = "/tmp/cookies.txt"
 	d.ytdlp = "/usr/local/bin/yt-dlp"
@@ -253,8 +311,8 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	if a.defaultVolume != 55 || a.defaultRate != 1.5 || a.defaultLoop {
 		t.Fatalf("defaults volume=%d rate=%v loop=%v", a.defaultVolume, a.defaultRate, a.defaultLoop)
 	}
-	if a.pauseBackground {
-		t.Fatal("pause background not applied")
+	if a.pauseMinimized {
+		t.Fatal("pause minimized not applied")
 	}
 	if a.showGridLines {
 		t.Fatal("grid lines not applied")
@@ -264,6 +322,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if !a.sponsorEnabled.Load() || a.sponsorModes["sponsor"] != "show" {
 		t.Fatalf("sponsor settings %v %q", a.sponsorEnabled.Load(), a.sponsorModes["sponsor"])
+	}
+	if a.resolver == nil || a.resolver.ProxyMode != "custom" || a.resolver.Proxy != "http://proxy:8080" {
+		t.Fatalf("proxy applied %+v", a.resolver)
 	}
 	if !a.stayOnTop || !a.startMaximized || !a.startFullscreen {
 		t.Fatalf("window settings %v %v %v", a.stayOnTop, a.startMaximized, a.startFullscreen)
@@ -1698,13 +1759,14 @@ func TestFrozenStepConstants(t *testing.T) {
 		t.Fatal("random upper")
 	}
 	var start, end int64
-	if !setLoopPoint(&start, &end, 3000, true) || start != 3000 {
+	var ok bool
+	if start, end, ok = setLoopPoint(start, end, 3000, true); !ok || start != 3000 {
 		t.Fatal("loop start")
 	}
-	if !setLoopPoint(&start, &end, 5000, false) || end != 5000 {
+	if start, end, ok = setLoopPoint(start, end, 5000, false); !ok || end != 5000 {
 		t.Fatal("loop end")
 	}
-	if setLoopPoint(&start, &end, 6000, true) {
+	if _, _, ok = setLoopPoint(start, end, 6000, true); ok {
 		t.Fatal("start after end should fail")
 	}
 	if seekableTime(7000, start, end) != start {

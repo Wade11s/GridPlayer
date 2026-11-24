@@ -53,7 +53,7 @@ func (a *app) pauseListAtStart(c *cell) {
 	if c == nil {
 		return
 	}
-	start := c.loopStart
+	start, _ := c.loopBounds()
 	if start < 0 {
 		start = 0
 	}

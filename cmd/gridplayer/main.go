@@ -61,8 +61,7 @@ type cell struct {
 	subDelay          int64
 	externalAudio     []string
 	externalSubtitles []string
-	loopStart         int64
-	loopEnd           int64
+	segment           atomic.Pointer[loopSegment]
 	cropMargins       cropMargins
 	startAt           int
 	startPaused       bool
@@ -108,6 +107,34 @@ type cell struct {
 	endedGen      uint64
 }
 
+// loopSegment is the cell's fragment-loop bounds. It is one pointer so the
+// watch goroutine never observes a new start beside a stale end.
+type loopSegment struct {
+	start  int64
+	end    int64
+	active bool
+}
+
+func (c *cell) loopState() (start, end int64, active bool) {
+	if p := c.segment.Load(); p != nil {
+		return p.start, p.end, p.active
+	}
+	return 0, 0, false
+}
+
+func (c *cell) loopBounds() (start, end int64) {
+	start, end, _ = c.loopState()
+	return start, end
+}
+
+func (c *cell) setLoopBounds(start, end int64) {
+	c.setLoopSegment(start, end, start > 0 || end > 0)
+}
+
+func (c *cell) setLoopSegment(start, end int64, active bool) {
+	c.segment.Store(&loopSegment{start: start, end: end, active: active})
+}
+
 type app struct {
 	win                 *mygo.Window
 	resolve             func() (cv, sv uintptr, h float64, ok bool)
@@ -140,9 +167,10 @@ type app struct {
 	crop                string
 	fillLimit           int
 	zoomToCursor        bool
-	pauseBackground     bool
-	backgroundPaused    map[*cell]bool
+	pauseMinimized      bool
+	minimizePaused      map[*cell]bool
 	inhibitScreensaver  bool
+	minimized           bool
 	screensaver         screensaverGuard
 	stayOnTop           bool
 	startMaximized      bool
@@ -212,7 +240,7 @@ func newApp(paths []string) *app {
 		defaultAnchor:      "center",
 		defaultTransform:   "none",
 		fillLimit:          100,
-		pauseBackground:    true,
+		pauseMinimized:     true,
 		inhibitScreensaver: true,
 		resolver:           resolve.New(),
 		keys:               keymap.Default(),
@@ -243,10 +271,9 @@ func (a *app) loadSettings() {
 	a.settings = st
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
-	a.pauseBackground = st.Get("playlist/pause_background_videos", "true") == "true"
+	a.pauseMinimized = st.Get("playlist/pause_minimized", "true") == "true"
 	a.zoomToCursor = st.Get("player/zoom_to_cursor", "false") == "true"
 	a.inhibitScreensaver = st.Get("player/inhibit_screensaver", "true") == "true"
-	a.screensaver.Enable(a.inhibitScreensaver)
 	a.stayOnTop = st.Get("player/stay_on_top", "false") == "true"
 	a.startMaximized = st.Get("player/start_maximized", "false") == "true"
 	a.startFullscreen = st.Get("player/start_fullscreen", "false") == "true"
@@ -373,7 +400,10 @@ func (a *app) loadSettings() {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
 		c.rate = a.defaultRate
-		c.loop = a.defaultLoop
+		if len(c.list) == 0 {
+			c.loop = a.defaultLoop
+			a.applyDefaultEnd(c)
+		}
 		c.zoom = a.defaultZoom
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
 		c.transform = a.defaultTransform
@@ -423,11 +453,26 @@ func (a *app) loadNetworkSettings(st *settings.Store) {
 	if a.resolver == nil {
 		a.resolver = resolve.New()
 	}
-	a.resolver.Proxy = st.Get("network/proxy", "")
+	a.resolver.ProxyMode, a.resolver.Proxy = networkProxySettings(st)
 	a.resolver.Cookies = st.Get("network/cookies", "")
 	a.resolver.Format = st.Get("network/format", "best")
 	a.resolver.Path = st.Get("network/ytdlp_path", a.resolver.Path)
 	a.resolver.Streamlink = st.Get("network/streamlink_path", a.resolver.Streamlink)
+}
+
+// networkProxySettings reads the frozen network/proxy_mode and
+// network/proxy_url, migrating the single URL older Go builds wrote.
+func networkProxySettings(st *settings.Store) (mode, url string) {
+	mode = strings.ToLower(strings.TrimSpace(st.Get("network/proxy_mode", "")))
+	url = strings.TrimSpace(st.Get("network/proxy_url", ""))
+	switch mode {
+	case "system", "none", "custom":
+		return mode, url
+	}
+	if legacy := strings.TrimSpace(st.Get("network/proxy", "")); legacy != "" {
+		return "custom", legacy
+	}
+	return "system", ""
 }
 
 func atoi(s string, def int) int {
@@ -517,7 +562,7 @@ func (a *app) saveSettings() {
 	}
 	a.settings.Set("video_defaults/cell_view_mode", view)
 	a.settings.Set("player/language", a.language)
-	a.settings.Set("playlist/pause_background_videos", fmt.Sprint(a.pauseBackground))
+	a.settings.Set("playlist/pause_minimized", fmt.Sprint(a.pauseMinimized))
 	a.settings.Set("player/inhibit_screensaver", fmt.Sprint(a.inhibitScreensaver))
 	a.settings.Set("player/stay_on_top", fmt.Sprint(a.stayOnTop))
 	a.settings.Set("player/start_maximized", fmt.Sprint(a.startMaximized))
@@ -568,7 +613,8 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/list_fail_wait", fmt.Sprint(a.listFailWait.Load()))
 	a.settings.Set("video_defaults/auto_reload_timer", fmt.Sprint(a.autoReloadMin.Load()))
 	if a.resolver != nil {
-		a.settings.Set("network/proxy", a.resolver.Proxy)
+		a.settings.Set("network/proxy_mode", a.resolver.ProxyMode)
+		a.settings.Set("network/proxy_url", a.resolver.Proxy)
 		a.settings.Set("network/cookies", a.resolver.Cookies)
 		a.settings.Set("network/format", a.resolver.Format)
 		a.settings.Set("network/ytdlp_path", a.resolver.Path)
@@ -645,6 +691,18 @@ func comparePaths(cells []*cell, paths []string) bool {
 		}
 	}
 	return true
+}
+
+// applyDefaultEnd gives a plain file the configured end action. The helper
+// skips list cells entirely: a loop default is carried by c.loop, and newCell
+// applies a non-loop default to list cells through its own list branch.
+func (a *app) applyDefaultEnd(c *cell) {
+	if c == nil || len(c.list) > 0 {
+		return
+	}
+	if action := normalizeEndAction(a.defaultEnd); action != "" && action != endLoop {
+		c.endAction = action
+	}
 }
 
 func (a *app) paths() []string {
@@ -745,6 +803,9 @@ func (a *app) newCell(i int, p string) *cell {
 			}
 		}
 	}
+	// A plain file takes the default end action too; a loop default is
+	// carried by c.loop rather than an action value.
+	a.applyDefaultEnd(c)
 	a.fetchSponsor(c, p)
 	return c
 }
@@ -850,6 +911,7 @@ func (a *app) closeCell(c *cell) {
 	delete(a.sponsorSegments, c)
 	delete(a.sponsorLoading, c)
 	a.sponsorMu.Unlock()
+	a.refreshKeepAwake()
 }
 
 func (a *app) fetchSponsor(c *cell, raw string) {
@@ -961,7 +1023,8 @@ func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 		return
 	}
 	c.sponsorSkipEnd.Store(target)
-	eng.SeekTo(target)
+	start, end, active := c.loopState()
+	eng.SeekTo(clampSegmentSeek(start, end, s.Length, target, active))
 }
 
 // reloadCells recreates every live engine so instance-level options such as
@@ -1092,15 +1155,41 @@ func (a *app) autoReloadLoop(c *cell, eng *engine.Engine) {
 func (a *app) watch(c *cell, eng *engine.Engine) {
 	var lastRetryGen uint64
 	wasPlaying := false
+	loopSeeking := false
+	loopSeekFrom := int64(0)
+	loopSeekTries := 0
 	for {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
+			loopStart, loopEnd, loopActive := c.loopState()
+			if s.Phase == engine.Playing && loopActive {
+				end := loopEnd
+				if end <= 0 {
+					end = s.Length
+				}
+				if target, seek := loopSeekTarget(s.Time, loopStart, end); seek {
+					if !loopSeeking || (loopSeekFrom != s.Time && loopSeekTries < 2) {
+						loopSeeking = true
+						loopSeekFrom = s.Time
+						loopSeekTries++
+						log.Printf("loop segment: seek %d -> %dms", s.Time, target)
+						eng.SeekTo(target)
+					}
+				} else {
+					loopSeeking = false
+					loopSeekTries = 0
+				}
+			} else {
+				loopSeeking = false
+				loopSeekTries = 0
+			}
 			if s.Phase == engine.Playing {
 				c.retries.Store(0)
 				lastRetryGen = 0
 				if !wasPlaying {
 					mygo.RunOnMain(func() {
+						a.refreshKeepAwake()
 						c.failStreak = 0
 						c.netFailStreak = 0
 						c.skipGen = 0
@@ -1112,6 +1201,9 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				}
 				wasPlaying = true
 			} else {
+				if wasPlaying {
+					mygo.RunOnMain(func() { a.refreshKeepAwake() })
+				}
 				wasPlaying = false
 			}
 			if c.pauseOnPlay.Load() && s.Phase == engine.Playing {
@@ -1186,8 +1278,23 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 					})
 				}
 			}
-			if s.Phase == engine.Ended && c.shouldAdvance(s.Gen) {
-				mygo.RunOnMain(func() { a.finishVideo(c) })
+			if s.Phase == engine.Ended {
+				if loopActive {
+					if c.shouldAdvance(s.Gen) {
+						log.Printf("loop segment: restart at end")
+						if err := eng.Reload(); err != nil {
+							log.Printf("loop segment: reload: %v", err)
+							mygo.RunOnMain(func() {
+								a.status = "loop restart failed: " + err.Error()
+								a.finishVideo(c)
+							})
+						} else {
+							eng.SeekTo(loopStart)
+						}
+					}
+				} else if c.shouldAdvance(s.Gen) {
+					mygo.RunOnMain(func() { a.finishVideo(c) })
+				}
 			}
 			if a.win != nil && !a.closed.Load() {
 				a.win.Invalidate()
@@ -1238,6 +1345,7 @@ func (a *app) stepList(c *cell, isEnd bool) {
 	defer func() { c.advancing = false }()
 	c.listIndex = next
 	c.path = c.list[next]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1287,6 +1395,7 @@ func (a *app) previousList(c *cell) {
 	defer func() { c.advancing = false }()
 	c.listIndex = prev
 	c.path = c.list[prev]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1425,10 +1534,40 @@ func (a *app) finishVideo(c *cell) {
 			c.eng.Stop()
 		}
 	case endPause:
-		if c.eng != nil {
-			c.eng.Pause()
-		}
+		a.pauseAtStart(c)
 	}
+}
+
+// pauseAtStart is the frozen pause end action: back to the loop start, then
+// paused. libVLC can drop a pause issued before the reopened input exists,
+// so use the established paused-restore guard.
+func (a *app) pauseAtStart(c *cell) {
+	if c == nil || c.eng == nil {
+		return
+	}
+	start, _ := c.loopBounds()
+	if start < 0 {
+		start = 0
+	}
+	log.Printf("pause at start: %dms", start)
+	// A chapter jump pauses a playing input: seek and pause, as the frozen
+	// source does. An ended input has to be reopened behind the
+	// paused-restore guard instead.
+	if c.eng.Snapshot().Phase != engine.Ended {
+		a.seekCellTo(c, start)
+		c.eng.Pause()
+		return
+	}
+	c.startAt = int(start)
+	c.startPaused = true
+	c.skipGen = 0
+	c.pauseOnPlay.Store(true)
+	c.eng.SetStartPosition(start)
+	if err := c.eng.Load(c.path); err != nil {
+		a.status = err.Error()
+		return
+	}
+	c.eng.Pause()
 }
 
 func (a *app) stepOnFailure(c *cell) {
@@ -1503,6 +1642,7 @@ func (a *app) loadListIndex(c *cell, index int) {
 	defer func() { c.advancing = false }()
 	c.listIndex = index
 	c.path = c.list[index]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1833,10 +1973,10 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 				cell.eng.Toggle()
 			}
 			if ui.Button(c.Key(fmt.Sprintf("back-%d", i)), "-5s").Width(60).Clicked() && cell.eng != nil {
-				cell.eng.SeekTo(max(s.Time-5000, 0))
+				a.seekCellTo(cell, max(s.Time-5000, 0))
 			}
 			if ui.Button(c.Key(fmt.Sprintf("fwd-%d", i)), "+5s").Width(60).Clicked() && cell.eng != nil {
-				cell.eng.SeekTo(s.Time + 5000)
+				a.seekCellTo(cell, s.Time+5000)
 			}
 			mute := "Mute"
 			if s.Muted {
@@ -1903,10 +2043,10 @@ func (a *app) shortcuts(c *ui.Context) {
 		eng.Toggle()
 	}
 	if a.shortcut(c, "seek_back") && eng != nil {
-		eng.SeekTo(max(eng.Snapshot().Time-5000, 0))
+		a.seekActive(max(eng.Snapshot().Time-5000, 0))
 	}
 	if a.shortcut(c, "seek_forward") && eng != nil {
-		eng.SeekTo(eng.Snapshot().Time + 5000)
+		a.seekActive(eng.Snapshot().Time + 5000)
 	}
 	if a.shortcut(c, "seek_percent_back") {
 		a.seekPercentOffsetActive(-1)
@@ -1971,8 +2111,12 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.shortcut(c, "seek_random") {
 		if eng != nil {
 			lo, hi := int64(0), eng.Snapshot().Length
-			if cell := a.activeCell(); cell != nil && cell.loopEnd > 0 {
-				lo, hi = cell.loopStart, cell.loopEnd
+			if cell := a.activeCell(); cell != nil {
+				if start, end, active := cell.loopState(); active {
+					if l, h, ok := loopSeekBounds(start, end, hi, true); ok {
+						lo, hi = l, h
+					}
+				}
 			}
 			a.seekActive(randomSeekTarget(lo, hi, rand.Int64N))
 		}
@@ -2000,6 +2144,9 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "loop_reset") {
 		a.resetLoopPoints()
+	}
+	if a.shortcut(c, "loop_chapter") {
+		a.loopChapter()
 	}
 	if a.shortcut(c, "rate_reset") {
 		a.setRate(1)
@@ -2098,14 +2245,16 @@ func (a *app) activeSnapshot() engine.Snapshot {
 	return engine.Snapshot{}
 }
 
-func (a *app) seekActive(ms int64) {
-	if eng := a.activeEngine(); eng != nil {
-		c := a.activeCell()
-		if c != nil {
-			ms = seekableTime(ms, c.loopStart, c.loopEnd)
-		}
-		eng.SeekTo(ms)
+func (a *app) seekCellTo(c *cell, ms int64) {
+	if c == nil || c.eng == nil {
+		return
 	}
+	start, end, active := c.loopState()
+	c.eng.SeekTo(clampSegmentSeek(start, end, c.eng.Snapshot().Length, ms, active))
+}
+
+func (a *app) seekActive(ms int64) {
+	a.seekCellTo(a.activeCell(), ms)
 }
 
 func (a *app) seekPercentActive(percent float64) {
@@ -2158,28 +2307,19 @@ func (a *app) setLoopPoint(isStart bool) {
 		return
 	}
 	at := a.activeSnapshot().Time
-	var start, end *int64
-	if isStart {
-		start = &c.loopStart
-		if c.loopEnd != 0 {
-			end = &c.loopEnd
-		}
-	} else {
-		end = &c.loopEnd
-		if c.loopStart != 0 {
-			start = &c.loopStart
-		}
-	}
-	if !setLoopPoint(start, end, at, isStart) {
+	start, end := c.loopBounds()
+	start, end, ok := setLoopPoint(start, end, at, isStart)
+	if !ok {
 		return
 	}
+	c.setLoopSegment(start, end, true)
 	a.dirty = true
-	a.status = fmt.Sprintf("loop %d-%dms", c.loopStart, c.loopEnd)
+	a.status = fmt.Sprintf("loop %d-%dms", start, end)
 }
 
 func (a *app) resetLoopPoints() {
-	for _, c := range a.cells {
-		c.loopStart, c.loopEnd = 0, 0
+	if c := a.activeCell(); c != nil {
+		c.setLoopSegment(0, 0, false)
 	}
 	a.dirty = true
 	a.status = "loop reset"
@@ -2623,8 +2763,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
-		c.loopStart = v.LoopStart
-		c.loopEnd = v.LoopEnd
+		c.setLoopSegment(v.LoopStart, v.LoopEnd, loopActiveFromVideo(v))
 		if v.Anchor != "" {
 			c.anchorX, c.anchorY = parseAnchor(v.Anchor)
 		} else {
@@ -2789,6 +2928,12 @@ func (a *app) document() *playlist.Document {
 		if listFail == "" {
 			listFail = c.listFailRaw
 		}
+		loopStart, loopEnd, loopActive := c.loopState()
+		var loopActivePtr *bool
+		if loopActive && loopStart == 0 && loopEnd == 0 {
+			active := true
+			loopActivePtr = &active
+		}
 		v := playlist.Video{
 			ID:                c.id,
 			Title:             c.title,
@@ -2812,8 +2957,9 @@ func (a *app) document() *playlist.Document {
 			ExternalSubtitles: cloneStrings(c.externalSubtitles),
 			AudioDelay:        c.audioDelay,
 			SubtitleDelay:     c.subDelay,
-			LoopStart:         c.loopStart,
-			LoopEnd:           c.loopEnd,
+			LoopStart:         loopStart,
+			LoopEnd:           loopEnd,
+			LoopActive:        loopActivePtr,
 			Transform:         upstreamTransform(c.transform),
 			SponsorMode:       c.sponsorMode(),
 			SponsorModes:      a.sponsorOverridesCopy(c),
@@ -2948,27 +3094,89 @@ func (a *app) closeRequested(e *mygo.CloseEvent) {
 	}
 }
 
-func (a *app) pauseForBackground() {
-	if !a.pauseBackground || a.closed.Load() {
+// applyMinimized follows the frozen window_state away handling: entering
+// the minimized state pauses every playing cell when the setting is on, and
+// leaving it resumes only those cells the minimize paused.
+func (a *app) applyMinimized(minimized bool) {
+	if a.closed.Load() || minimized == a.minimized {
 		return
 	}
-	a.backgroundPaused = map[*cell]bool{}
-	for _, c := range a.cells {
-		if c.eng == nil || c.eng.Snapshot().Phase != engine.Playing {
-			continue
+	a.minimized = minimized
+	if minimized {
+		a.minimizePaused = nil
+		if !a.pauseMinimized {
+			return
 		}
-		c.eng.Pause()
-		a.backgroundPaused[c] = true
+		a.minimizePaused = map[*cell]bool{}
+		for _, c := range a.cells {
+			if c == nil || c.eng == nil || c.eng.Snapshot().Phase != engine.Playing {
+				continue
+			}
+			c.eng.Pause()
+			a.minimizePaused[c] = true
+		}
+		return
 	}
-}
-
-func (a *app) resumeFromBackground() {
-	for c := range a.backgroundPaused {
+	for c := range a.minimizePaused {
 		if c.eng != nil {
 			c.eng.Play()
 		}
 	}
-	a.backgroundPaused = nil
+	a.minimizePaused = nil
+}
+
+// playingCells counts cells in the Playing phase, the frozen source's
+// playing_videos_count for the keep-awake decision.
+func (a *app) playingCells() int {
+	n := 0
+	for _, c := range a.cells {
+		if c != nil && c.eng != nil && c.eng.Snapshot().Phase == engine.Playing {
+			n++
+		}
+	}
+	return n
+}
+
+// keepAwakeMode mirrors the frozen ScreensaverManager._mode: nothing while
+// no video plays, the system alone while the window is minimized (sound
+// without a picture), and the display while a video is on screen.
+func (a *app) keepAwakeMode() keepAwakeMode {
+	if !a.inhibitScreensaver || a.playingCells() == 0 {
+		return keepAwakeNone
+	}
+	if a.minimized {
+		return keepAwakeSystem
+	}
+	return keepAwakeDisplay
+}
+
+func (a *app) refreshKeepAwake() {
+	// The window is the source of truth, so a launch that starts minimized
+	// does not wait for an event that already happened. Tests without a
+	// window set the field directly.
+	if a.win != nil {
+		a.applyMinimized(a.win.IsMinimized())
+	}
+	a.screensaver.SetMode(a.keepAwakeMode())
+}
+
+// pollKeepAwake re-reads the live window state once a second. Minimize and
+// restore events are enough on their own; the poll also covers a launch that
+// starts minimized and a window state change the event path does not report.
+func (a *app) pollKeepAwake() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if a.closed.Load() {
+			return
+		}
+		mygo.RunOnMain(func() {
+			if a.closed.Load() {
+				return
+			}
+			a.refreshKeepAwake()
+		})
+	}
 }
 
 func (a *app) toggleLoop() {
@@ -3215,17 +3423,7 @@ func (a *app) disableSubtitles() {
 }
 
 func (a *app) chapter(step int) {
-	eng := a.activeEngine()
-	if eng == nil {
-		return
-	}
-	eng.RefreshTracks()
-	s := eng.Snapshot()
-	if len(s.Chapters) == 0 {
-		return
-	}
-	i := (s.Chapter + step + len(s.Chapters)) % len(s.Chapters)
-	eng.SetChapter(i)
+	a.chapterSeek(step)
 }
 
 func (a *app) setRate(rate float64) {
@@ -3294,9 +3492,7 @@ func (a *app) bookmarkName(key string) string {
 }
 
 func (a *app) jumpBookmark(pos int64) {
-	if eng := a.activeEngine(); eng != nil {
-		eng.SeekTo(pos)
-	}
+	a.seekActive(pos)
 }
 
 func (a *app) clearBookmarks() {
@@ -3487,12 +3683,12 @@ func (a *app) menu() *mygo.Menu {
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Seek -5s"), Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
-					eng.SeekTo(max(eng.Snapshot().Time-5000, 0))
+					a.seekActive(max(eng.Snapshot().Time-5000, 0))
 				}
 			}},
 			{Label: a.tr("Actions", "Seek +5s"), Accelerator: a.keys.Get("seek_forward").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
-					eng.SeekTo(eng.Snapshot().Time + 5000)
+					a.seekActive(eng.Snapshot().Time + 5000)
 				}
 			}},
 			{Type: mygo.MenuItemSeparator},
@@ -3519,6 +3715,10 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Label: a.tr("Actions", "Loop"), Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
+			{Label: a.tr("Actions", "Set Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
+			{Label: a.tr("Actions", "Set Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
+			{Label: a.tr("Actions", "Loop Chapter"), Accelerator: a.keys.Get("loop_chapter").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
+			{Label: a.tr("Actions", "Loop Reset"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},
@@ -3817,8 +4017,9 @@ func main() {
 			return nativehost.Resolve(w.NativeHandle())
 		}
 		w.OnClose(func(e *mygo.CloseEvent) { a.closeRequested(e) })
-		w.OnBlur(func() { a.pauseForBackground() })
-		w.OnFocus(func() { a.resumeFromBackground() })
+		w.OnMinimize(func() { a.refreshKeepAwake() })
+		w.OnRestore(func() { a.refreshKeepAwake() })
+		go a.pollKeepAwake()
 		w.OnFileDrop(func(e *mygo.FileDropEvent) {
 			if len(e.Paths) > 0 {
 				a.dropFiles(len(a.cells), e.Paths)
