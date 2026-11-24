@@ -3438,7 +3438,6 @@ func (a *app) menu() *mygo.Menu {
 	listFail := listFailPlayNext
 	endAction := endLoop
 	hasList := false
-	hasChapters := len(a.activeSnapshot().Chapters) > 0
 	if c := a.activeCell(); c != nil {
 		aspect, scale, crop = c.aspect, c.scale, c.crop
 		endAction = c.finishAction()
@@ -3590,7 +3589,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: a.tr("Actions", "Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
 			{Label: a.tr("Actions", "Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
 			{Label: a.tr("Actions", "Reset Loop"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
-			{Label: a.tr("Actions", "Loop Chapter"), Disabled: !hasChapters, Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
+			{Label: a.tr("Actions", "Loop Chapter"), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},
