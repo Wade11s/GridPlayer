@@ -1835,6 +1835,12 @@ func (a *app) teardown() {
 	fmt.Println("gridplayer: teardown done")
 }
 
+// fixedGrid reports a Fixed layout that is actually on show: Free Tiles,
+// Mosaic and Single Mode keep cfg.Mode but replace the grid.
+func (a *app) fixedGrid() bool {
+	return a.cfg.Mode == grid.Fixed && !a.free && !a.mosaic && !a.single
+}
+
 func (a *app) view(c *ui.Context) {
 	a.shortcuts(c)
 	defer a.handleDropped()
@@ -1889,7 +1895,28 @@ func (a *app) view(c *ui.Context) {
 	}
 	theme := c.Theme()
 	drawOrder := a.layoutDrawOrder()
+	// Every configured cell of a preallocated fixed grid has a place, the
+	// empty ones too, as the frozen grid draws its empty cells.
+	var emptyCells []grid.Rect
+	if a.fixedGrid() && a.cfg.Preallocate && len(a.cells) > 0 {
+		if rows, cols := grid.Dims(len(a.cells), a.cfg); rows*cols > len(a.cells) {
+			slots := grid.Layout(rows*cols, area, cellGap, a.cfg)
+			emptyCells = slots[len(a.cells):]
+		}
+	}
 	ui.Box(c).Fill().Background(ui.RGB(10, 10, 12)).Children(func() {
+		for i, r := range emptyCells {
+			ui.Box(c).Key(fmt.Sprintf("empty-cell-%d", i)).Absolute().
+				Left(float32(r.X)).Top(float32(r.Y)).
+				Width(float32(r.W)).Height(float32(r.H)).
+				Radius(6).Background(ui.RGB(20, 20, 24)).
+				Children(func() {
+					// The frozen empty cell paints a plus in its middle.
+					ui.Column(c).Fill().Center().Children(func() {
+						ui.Text(c, "+").FontSize(28).TextColor(ui.RGB(96, 96, 108))
+					})
+				})
+		}
 		for _, i := range drawOrder {
 			a.cellView(c, i, rects[i], theme)
 		}
@@ -2508,7 +2535,7 @@ func playableDirect(raw string) bool {
 // togglePreallocate shows every configured cell of a fixed grid, empty ones
 // included, as the frozen "Show All Cells" action does. Other modes ignore it.
 func (a *app) togglePreallocate() {
-	if a.cfg.Mode != grid.Fixed {
+	if !a.fixedGrid() {
 		return
 	}
 	a.cfg.Preallocate = !a.cfg.Preallocate
@@ -2521,11 +2548,15 @@ func (a *app) togglePreallocate() {
 }
 
 func (a *app) setGrid(cfg grid.Config) {
+	// The preallocate flag belongs to the layout, not to one mode: a preset
+	// or template switch carries it, as the frozen grid keeps the setting.
+	cfg.Preallocate = a.cfg.Preallocate
 	a.cfg = cfg
 	a.template = ""
 	a.free, a.mosaic, a.single = false, false, false
 	a.dirty = true
 	a.saveSettings()
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -2540,7 +2571,7 @@ func (a *app) setTemplate(name string) {
 		a.status = "template has no room for all cells"
 		return
 	}
-	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols}
+	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols, Preallocate: a.cfg.Preallocate}
 	a.template = name
 	a.free, a.mosaic, a.single = false, false, false
 	a.dirty = true
@@ -3777,7 +3808,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Fixed 4×4", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4})
 			}},
-			{Label: "Show All Cells", Type: mygo.MenuItemCheckbox, Checked: a.cfg.Mode == grid.Fixed && a.cfg.Preallocate, Disabled: a.cfg.Mode != grid.Fixed, Click: func(*mygo.MenuItem, *mygo.Window) {
+			{Label: "Show All Cells", Type: mygo.MenuItemCheckbox, Checked: a.fixedGrid() && a.cfg.Preallocate, Disabled: !a.fixedGrid(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.togglePreallocate()
 			}},
 			{Label: "Templates", Submenu: templateItems},

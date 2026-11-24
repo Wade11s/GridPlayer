@@ -2,18 +2,35 @@ package main
 
 import (
 	"math"
+	"path/filepath"
 	"testing"
 
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/settings"
 )
 
 // The frozen CellLayout sets spacing 0 and every Box shares its edge with
 // its neighbour, so each Go layout must hand back rects that meet exactly.
 func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
-	a := &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}}
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}}
 	a.togglePreallocate()
 	if !a.cfg.Preallocate || !a.dirty {
 		t.Fatalf("preallocate=%v dirty=%v", a.cfg.Preallocate, a.dirty)
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Get("playlist/grid_preallocate", ""); got != "true" {
+		t.Fatalf("saved preallocate = %q", got)
 	}
 	d := a.document()
 	if _, _, _, preallocate := d.GridState(); !preallocate {
@@ -24,14 +41,40 @@ func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
 	if !b.cfg.Preallocate || b.cfg.Mode != grid.Fixed {
 		t.Fatalf("restored cfg=%+v", b.cfg)
 	}
-	a.togglePreallocate()
-	if a.cfg.Preallocate {
-		t.Fatal("preallocate did not toggle off")
+
+	// Presets and mode switches carry the flag instead of clearing it.
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if !a.cfg.Preallocate {
+		t.Fatal("a size preset cleared preallocate")
 	}
-	a.cfg.Mode = grid.AutoRows
+	a.setGrid(grid.Config{Mode: grid.AutoRows})
+	if !a.cfg.Preallocate {
+		t.Fatal("a mode switch cleared preallocate")
+	}
+
+	// Free Tiles, Mosaic and Single Mode are not a fixed grid even though
+	// cfg.Mode still says Fixed.
+	a.free = true
+	if a.fixedGrid() {
+		t.Fatal("free tiles counted as a fixed grid")
+	}
+	a.free = false
+	a.mosaic = true
+	if a.fixedGrid() {
+		t.Fatal("mosaic counted as a fixed grid")
+	}
+	a.mosaic = false
+	a.single = true
+	if a.fixedGrid() {
+		t.Fatal("single mode counted as a fixed grid")
+	}
+	a.single = false
+
+	// Outside a fixed grid the action is a no-op, so a set flag stays set.
+	a.cfg = grid.Config{Mode: grid.AutoRows, Rows: 3, Cols: 3, Preallocate: true}
 	a.togglePreallocate()
-	if a.cfg.Preallocate {
-		t.Fatal("preallocate should be ignored outside a fixed grid")
+	if !a.cfg.Preallocate {
+		t.Fatal("preallocate toggled outside a fixed grid")
 	}
 }
 
