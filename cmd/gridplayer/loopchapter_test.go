@@ -154,6 +154,31 @@ func TestWholeFileSegmentSurvivesDocument(t *testing.T) {
 	}
 }
 
+func TestChapterJumpSeeksInsideSegment(t *testing.T) {
+	e := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return &chapterBackend{Backend: dummy.New(), chapters: []engine.Chapter{
+			{Time: 0}, {Time: 10000}, {Time: 20000},
+		}}, nil
+	})
+	if err := e.Load("movie.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	e.RefreshTracks()
+	defer e.Close()
+	c := &cell{eng: e}
+	a := &app{cells: []*cell{c}}
+	c.setLoopSegment(10000, 0, true)
+	a.chapter(1)
+	if got := e.Snapshot().Time; got != 10000 {
+		t.Fatalf("chapter seek = %d, want 10000", got)
+	}
+	c.setLoopSegment(20000, 0, true)
+	a.chapter(1)
+	if got := e.Snapshot().Time; got != 20000 {
+		t.Fatalf("outside chapter seek = %d, want segment start 20000", got)
+	}
+}
+
 func TestLoopChapterSetsBoundsAndReportsMissingChapters(t *testing.T) {
 	newEngine := func(chapters []engine.Chapter) *engine.Engine {
 		e := engine.New(func(string, bool, string) (engine.Backend, error) {

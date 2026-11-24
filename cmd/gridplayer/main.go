@@ -2185,6 +2185,9 @@ func (a *app) seekCellTo(c *cell, ms int64) {
 			ms = seekableTime(ms, lo, hi)
 		} else {
 			// Without a length only the lower bound is knowable.
+			if start < 0 {
+				start = 0
+			}
 			ms = seekableTime(ms, start, 0)
 		}
 	}
@@ -2857,7 +2860,7 @@ func (a *app) document() *playlist.Document {
 		}
 		loopStart, loopEnd, loopActive := c.loopState()
 		var loopActivePtr *bool
-		if loopActive {
+		if loopActive && loopStart == 0 && loopEnd == 0 {
 			active := true
 			loopActivePtr = &active
 		}
@@ -3355,7 +3358,9 @@ func (a *app) chapter(step int) {
 		return
 	}
 	i := (s.Chapter + step + len(s.Chapters)) % len(s.Chapters)
-	eng.SetChapter(i)
+	// A chapter jump is a seek in the frozen source, so the loop segment
+	// applies to it as it does to every other seek.
+	a.seekActive(s.Chapters[i].Time)
 }
 
 func (a *app) setRate(rate float64) {

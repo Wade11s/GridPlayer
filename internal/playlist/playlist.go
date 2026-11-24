@@ -148,7 +148,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 		"list_end_action", "list_fail", "list_fail_wait", "list_fail_action",
 		"list_fail_wait_sec", "aspect_ratio", "scale", "crop_ratio",
 		"end_action", "audio_delay_ms", "external_audio", "external_subtitles",
-		"subtitle_delay_ms", "loop_start", "loop_end", "transform",
+		"subtitle_delay_ms", "loop_start", "loop_end", "loop_active", "transform",
 		"sponsor_mode", "sponsor_modes", "sponsor_url", "anchor", "crop", "crop_margins"} {
 		delete(all, k)
 	}
