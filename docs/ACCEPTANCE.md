@@ -109,5 +109,16 @@ Changes need a new review; thresholds never relax in-implementation.
   `TestCaffeinateCommandModes`), not a claimed GUI run: agent-desktop AX
   minimization delivered no MyGo `OnMinimize` event in this session.
   `pause_minimized` and background-pause key semantics remain open.
+- 2026-11-24, F11 minimize-pause candidate (`079ab3b`, main `d6647b6`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-f11-pause/` with
+  isolated data read `pause_minimized=false`, wrote it back, preserved the
+  unknown `playlist/pause_background_videos` key, and exited cleanly with no
+  residual process. The minimize pause/restore itself is unit evidence
+  (`TestMinimizePausesThenRestoresPlayingCells`,
+  `TestMinimizePauseCanBeDisabled`); MyGo did not report the minimized state
+  in this session, so no GUI minimize run is claimed. Single-mode
+  `pause_background_videos` remains open with the single-mode layout work.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
