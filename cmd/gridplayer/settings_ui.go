@@ -575,7 +575,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.loadTranslator()
 	a.pauseBackground = d.pauseBackground
 	a.inhibitScreensaver = d.inhibitScreensaver
-	a.screensaver.Enable(a.inhibitScreensaver)
+	a.refreshKeepAwake()
 	a.sponsorEnabled.Store(d.sponsorEnabled)
 	a.zoomToCursor = d.zoomToCursor
 	a.stayOnTop = d.stayOnTop
