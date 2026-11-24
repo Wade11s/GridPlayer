@@ -110,19 +110,29 @@ type cell struct {
 // loopSegment is the cell's fragment-loop bounds. It is one pointer so the
 // watch goroutine never observes a new start beside a stale end.
 type loopSegment struct {
-	start int64
-	end   int64
+	start  int64
+	end    int64
+	active bool
+}
+
+func (c *cell) loopState() (start, end int64, active bool) {
+	if p := c.segment.Load(); p != nil {
+		return p.start, p.end, p.active
+	}
+	return 0, 0, false
 }
 
 func (c *cell) loopBounds() (start, end int64) {
-	if p := c.segment.Load(); p != nil {
-		return p.start, p.end
-	}
-	return 0, 0
+	start, end, _ = c.loopState()
+	return start, end
 }
 
 func (c *cell) setLoopBounds(start, end int64) {
-	c.segment.Store(&loopSegment{start: start, end: end})
+	c.setLoopSegment(start, end, start > 0 || end > 0)
+}
+
+func (c *cell) setLoopSegment(start, end int64, active bool) {
+	c.segment.Store(&loopSegment{start: start, end: end, active: active})
 }
 
 type app struct {
@@ -1120,8 +1130,8 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
-			loopStart, loopEnd := c.loopBounds()
-			if s.Phase == engine.Playing && segmentLoopActive(loopStart, loopEnd) {
+			loopStart, loopEnd, loopActive := c.loopState()
+			if s.Phase == engine.Playing && loopActive {
 				end := loopEnd
 				if end <= 0 {
 					end = s.Length
@@ -1237,7 +1247,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				}
 			}
 			if s.Phase == engine.Ended {
-				if segmentLoopActive(loopStart, loopEnd) {
+				if loopActive {
 					if c.shouldAdvance(s.Gen) {
 						log.Printf("loop segment: restart at end")
 						if err := eng.Reload(); err != nil {
@@ -1303,6 +1313,7 @@ func (a *app) stepList(c *cell, isEnd bool) {
 	defer func() { c.advancing = false }()
 	c.listIndex = next
 	c.path = c.list[next]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1352,6 +1363,7 @@ func (a *app) previousList(c *cell) {
 	defer func() { c.advancing = false }()
 	c.listIndex = prev
 	c.path = c.list[prev]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1568,6 +1580,7 @@ func (a *app) loadListIndex(c *cell, index int) {
 	defer func() { c.advancing = false }()
 	c.listIndex = index
 	c.path = c.list[index]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -2227,14 +2240,14 @@ func (a *app) setLoopPoint(isStart bool) {
 	if !ok {
 		return
 	}
-	c.setLoopBounds(start, end)
+	c.setLoopSegment(start, end, true)
 	a.dirty = true
 	a.status = fmt.Sprintf("loop %d-%dms", start, end)
 }
 
 func (a *app) resetLoopPoints() {
-	for _, c := range a.cells {
-		c.setLoopBounds(0, 0)
+	if c := a.activeCell(); c != nil {
+		c.setLoopSegment(0, 0, false)
 	}
 	a.dirty = true
 	a.status = "loop reset"
@@ -2678,7 +2691,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
-		c.setLoopBounds(v.LoopStart, v.LoopEnd)
+		c.setLoopSegment(v.LoopStart, v.LoopEnd, v.LoopStart > 0 || v.LoopEnd > 0)
 		if v.Anchor != "" {
 			c.anchorX, c.anchorY = parseAnchor(v.Anchor)
 		} else {

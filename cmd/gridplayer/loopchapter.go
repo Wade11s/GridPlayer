@@ -82,12 +82,6 @@ func chapterSpan(chapters []engine.Chapter, at, length int64) (start, end int64,
 	return start, end, true
 }
 
-// segmentLoopActive reports whether the cell carries a loop segment. A zero
-// start is a real start (the first chapter); a zero end means EOF.
-func segmentLoopActive(start, end int64) bool {
-	return start > 0 || end > 0
-}
-
 // loopSeekTarget is the frozen segment rule: a time past the end, or more
 // than 100 ms before the start, belongs back at the start.
 func loopSeekTarget(at, start, end int64) (int64, bool) {
@@ -116,7 +110,11 @@ func (a *app) loopChapter() {
 		a.status = "no chapter to loop"
 		return
 	}
-	c.setLoopBounds(start, end)
+	c.setLoopSegment(start, end, true)
 	a.dirty = true
-	a.status = fmt.Sprintf("loop chapter %d-%dms", start, end)
+	if end == 0 {
+		a.status = fmt.Sprintf("loop chapter from %dms", start)
+	} else {
+		a.status = fmt.Sprintf("loop chapter %d-%dms", start, end)
+	}
 }

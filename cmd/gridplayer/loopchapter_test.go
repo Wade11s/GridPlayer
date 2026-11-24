@@ -38,18 +38,26 @@ func TestChapterSpan(t *testing.T) {
 	if !ok || start != 10000 || end != 0 {
 		t.Fatalf("unknown length span = %d-%d ok=%v", start, end, ok)
 	}
-	for _, tt := range []struct {
-		start, end int64
-		want       bool
-	}{
-		{start: 0, end: 20000, want: true},
-		{start: 30000, end: 0, want: true},
-		{start: 0, end: 0},
-		{start: -5, end: 0},
-	} {
-		if got := segmentLoopActive(tt.start, tt.end); got != tt.want {
-			t.Fatalf("segmentLoopActive(%d,%d) = %v, want %v", tt.start, tt.end, got, tt.want)
-		}
+	var c cell
+	c.setLoopBounds(0, 20000)
+	if _, _, active := c.loopState(); !active {
+		t.Fatal("zero-start segment is not active")
+	}
+	c.setLoopBounds(30000, 0)
+	if _, _, active := c.loopState(); !active {
+		t.Fatal("start-only segment is not active")
+	}
+	c.setLoopBounds(0, 0)
+	if _, _, active := c.loopState(); active {
+		t.Fatal("empty bounds are active")
+	}
+	c.setLoopSegment(0, 0, true)
+	if _, _, active := c.loopState(); !active {
+		t.Fatal("explicit whole-file segment is not active")
+	}
+	c.setLoopSegment(0, 0, false)
+	if _, _, active := c.loopState(); active {
+		t.Fatal("reset segment is active")
 	}
 }
 
@@ -86,6 +94,26 @@ func TestLoopChapterSetsBoundsAndReportsMissingChapters(t *testing.T) {
 	a.loopChapter()
 	if a.dirty || a.status != "no chapter to loop" {
 		t.Fatalf("missing chapters: dirty=%v status=%q", a.dirty, a.status)
+	}
+}
+
+func TestListStepClearsLoopSegment(t *testing.T) {
+	e := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return dummy.New(), nil
+	})
+	if err := e.Load("a.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	c := &cell{eng: e, list: []string{"a.mp4", "b.mp4"}}
+	c.setLoopBounds(40000, 0)
+	a := &app{cells: []*cell{c}}
+	a.loadListIndex(c, 1)
+	if _, _, active := c.loopState(); active {
+		t.Fatal("new list item kept the old loop segment")
+	}
+	if c.path != "b.mp4" {
+		t.Fatalf("path = %q", c.path)
 	}
 }
 
