@@ -10,8 +10,9 @@ Fixed: a Fixed grid no longer draws empty trailing rows and columns. Frozen
 `GridLayout.displayed_size` returns the extent of the occupied cells unless
 preallocate is on, so two videos in a configured 3x3 are shown as one row of
 two big cells, not as a 3x3 with seven holes. Go also stopped growing the
-longer side: a fixed grid keeps its configured columns and takes the rows the
-cells need.
+longer side: a fixed grid packs cells in its configured columns (as far as
+the cells reach) and takes the rows the cells need, so 5 videos in a 2x2 are
+3 rows of 2 rather than 2 rows of 3.
 
 Verification on `2eca6f0` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,

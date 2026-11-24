@@ -98,4 +98,7 @@ func TestFixedCapacityGrowsOnOverflow(t *testing.T) {
 	if got := Capacity(5, c); got != 6 {
 		t.Fatalf("capacity=%d", got)
 	}
+	if rows, cols := Dims(5, c); rows != 3 || cols != 2 {
+		t.Fatalf("overflow dims = %dx%d, want 3x2", rows, cols)
+	}
 }
