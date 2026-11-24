@@ -164,7 +164,9 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	if len(a.cells) != 4 {
 		t.Fatalf("cells = %d, want 4", len(a.cells))
 	}
-	want := []string{"1.mp4", "2.mp4", "3.mp4", "4.mp4"}
+	// Survivors are re-packed in reading order, so the grid reads
+	// e,d,c,b top to bottom, as the frozen pack_flow does.
+	want := []string{"4.mp4", "3.mp4", "2.mp4", "1.mp4"}
 	for i, w := range want {
 		if a.cells[i].path != w {
 			t.Fatalf("kept %v, want %v", cellPaths(a.cells), want)
@@ -184,6 +186,38 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	}
 	if got := b.cells[b.active].path; got == "4.mp4" {
 		t.Fatalf("active still points at the closed video")
+	}
+}
+
+func TestFixedEntryPacksTiledOrderWithoutOverflow(t *testing.T) {
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{
+		cells:  cells,
+		active: 1,
+		free:   true,
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b later in reading order
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a first
+		},
+	}
+	// Reading order is a, c, b: indices 2, 0, 1.
+	if got := a.liveOrder(); len(got) != 3 || got[0] != 2 || got[1] != 0 || got[2] != 1 {
+		t.Fatalf("live order = %v, want [2 0 1]", got)
+	}
+	activePtr := a.cells[a.active]
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3})
+	want := []string{"c.mp4", "a.mp4", "b.mp4"}
+	for i, w := range want {
+		if a.cells[i].path != w {
+			t.Fatalf("packed %v, want %v", cellPaths(a.cells), want)
+		}
+	}
+	if a.cells[a.active] != activePtr {
+		t.Fatalf("active moved to %q", a.cells[a.active].path)
+	}
+	if len(a.cells) != 3 {
+		t.Fatalf("a grid that fits closed cells: %d", len(a.cells))
 	}
 }
 
