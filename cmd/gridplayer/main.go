@@ -3635,7 +3635,7 @@ func (a *app) menu() *mygo.Menu {
 			{Label: a.tr("Actions", "Loop"), Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
 			{Label: a.tr("Actions", "Set Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
 			{Label: a.tr("Actions", "Set Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
-			{Label: a.tr("Actions", "Loop Chapter"), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
+			{Label: a.tr("Actions", "Loop Chapter"), Accelerator: a.keys.Get("loop_chapter").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
 			{Label: a.tr("Actions", "Loop Reset"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},

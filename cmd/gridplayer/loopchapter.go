@@ -104,6 +104,7 @@ func (a *app) loopChapter() {
 	if c == nil || c.eng == nil {
 		return
 	}
+	c.eng.RefreshTracks()
 	s := c.eng.Snapshot()
 	start, end, ok := chapterSpan(s.Chapters, s.Time, s.Length)
 	if !ok {
