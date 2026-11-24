@@ -393,9 +393,7 @@ func (a *app) loadSettings() {
 		c.rate = a.defaultRate
 		if len(c.list) == 0 {
 			c.loop = a.defaultLoop
-		}
-		if a.defaultEnd != "" && a.defaultEnd != endLoop {
-			c.endAction = a.defaultEnd
+			a.applyDefaultEnd(c)
 		}
 		c.zoom = a.defaultZoom
 		c.anchorX, c.anchorY = parseAnchor(a.defaultAnchor)
@@ -682,6 +680,17 @@ func comparePaths(cells []*cell, paths []string) bool {
 	return true
 }
 
+// applyDefaultEnd gives a plain file the configured end action. List cells
+// always step, as the frozen list_step_action does.
+func (a *app) applyDefaultEnd(c *cell) {
+	if c == nil || len(c.list) > 0 {
+		return
+	}
+	if action := normalizeEndAction(a.defaultEnd); action != "" && action != endLoop {
+		c.endAction = action
+	}
+}
+
 func (a *app) paths() []string {
 	out := make([]string, len(a.cells))
 	for i, c := range a.cells {
@@ -782,11 +791,7 @@ func (a *app) newCell(i int, p string) *cell {
 	}
 	// A plain file takes the default end action too; a loop default is
 	// carried by c.loop rather than an action value.
-	if c.endAction == "" {
-		if action := normalizeEndAction(a.defaultEnd); action != "" && action != endLoop {
-			c.endAction = action
-		}
-	}
+	a.applyDefaultEnd(c)
 	a.fetchSponsor(c, p)
 	return c
 }
@@ -1531,6 +1536,14 @@ func (a *app) pauseAtStart(c *cell) {
 		start = 0
 	}
 	log.Printf("pause at start: %dms", start)
+	// A chapter jump pauses a playing input: seek and pause, as the frozen
+	// source does. An ended input has to be reopened behind the
+	// paused-restore guard instead.
+	if c.eng.Snapshot().Phase != engine.Ended {
+		a.seekCellTo(c, start)
+		c.eng.Pause()
+		return
+	}
 	c.startAt = int(start)
 	c.startPaused = true
 	c.skipGen = 0

@@ -20,6 +20,20 @@ import (
 	"gridplayer-go/internal/snapshots"
 )
 
+func TestApplyDefaultEndSkipsLists(t *testing.T) {
+	a := &app{defaultEnd: endPause}
+	plain := &cell{}
+	a.applyDefaultEnd(plain)
+	if plain.endAction != endPause {
+		t.Fatalf("plain action = %q, want pause", plain.endAction)
+	}
+	list := &cell{list: []string{"a.mp4"}, endAction: endNext}
+	a.applyDefaultEnd(list)
+	if list.endAction != endNext {
+		t.Fatalf("list action = %q, want next", list.endAction)
+	}
+}
+
 func TestNetworkProxySettings(t *testing.T) {
 	for _, tt := range []struct {
 		name              string

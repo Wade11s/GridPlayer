@@ -221,8 +221,8 @@ func TestChapterNextPastLastRunsEndAction(t *testing.T) {
 	if got := pause.Snapshot().Phase; got != engine.Paused {
 		t.Fatalf("pause end action phase = %s, want paused", got)
 	}
-	if !c.pauseOnPlay.Load() || !c.startPaused || c.startAt != 0 {
-		t.Fatalf("pause guard = %v startPaused=%v startAt=%d", c.pauseOnPlay.Load(), c.startPaused, c.startAt)
+	if got := pause.Snapshot().Time; got != 0 {
+		t.Fatalf("pause end action seek = %d, want 0", got)
 	}
 }
 
