@@ -151,13 +151,15 @@ func TestProxyNoneClearsInheritedEnvironment(t *testing.T) {
 	t.Setenv("HTTP_PROXY", "http://env-proxy:1")
 	tool := fakeTool(t, "yt-dlp", "echo \"proxy=$HTTP_PROXY\"")
 	for _, tt := range []struct {
-		mode string
-		want string
+		mode  string
+		proxy string
+		want  string
 	}{
 		{mode: "none", want: "proxy="},
+		{mode: "custom", want: "proxy="},
 		{mode: "system", want: "proxy=http://env-proxy:1"},
 	} {
-		r := &Resolver{Path: tool, ProxyMode: tt.mode}
+		r := &Resolver{Path: tool, ProxyMode: tt.mode, Proxy: tt.proxy}
 		got, err := r.Resolve(context.Background(), "https://example.com/watch")
 		if err != nil {
 			t.Fatalf("mode %q: %v", tt.mode, err)

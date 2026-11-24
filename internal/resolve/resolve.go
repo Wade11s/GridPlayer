@@ -85,6 +85,15 @@ func (r *Resolver) proxyMode() string {
 	}
 }
 
+// mustRefuseProxyEnv reports whether the child must not inherit a proxy
+// from the environment. None refuses one, and so does custom with nothing
+// filled in: the frozen source reads that as no proxy rather than as the
+// machine's.
+func (r *Resolver) mustRefuseProxyEnv() bool {
+	mode := r.proxyMode()
+	return mode == "none" || (mode == "custom" && strings.TrimSpace(r.Proxy) == "")
+}
+
 // proxyURL is the proxy the resolver requests; system and none leave the
 // client on its environment or with no proxy at all.
 func (r *Resolver) proxyURL() string {
@@ -272,7 +281,7 @@ func (r *Resolver) run(ctx context.Context, path string, args []string) (string,
 	defer cancel()
 
 	cmd := exec.CommandContext(cctx, path, args...)
-	if r.proxyMode() == "none" {
+	if r.mustRefuseProxyEnv() {
 		cmd.Env = withoutProxyEnv(os.Environ())
 	}
 	var stdout, stderr limitedBuffer
