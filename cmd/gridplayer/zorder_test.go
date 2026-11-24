@@ -54,3 +54,14 @@ func TestMosaicLockRestacksAndPersistsOrder(t *testing.T) {
 		t.Fatalf("unlock changed relative order: locked=%v order=%v", b.mosaicLocked, b.mosaicOrder)
 	}
 }
+
+func TestMosaicLockKeepsLockedTierOrder(t *testing.T) {
+	a := &app{cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}, mosaic: true}
+	a.ensureMosaic()
+	a.toggleMosaicLock()
+	a.active = 1
+	a.toggleMosaicLock()
+	if !a.mosaicLocked[0] || !a.mosaicLocked[1] || !reflect.DeepEqual(a.mosaicOrder, []int{2, 1, 0}) {
+		t.Fatalf("locking reordered the locked tier: locked=%v order=%v", a.mosaicLocked, a.mosaicOrder)
+	}
+}

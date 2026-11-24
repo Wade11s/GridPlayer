@@ -28,6 +28,9 @@ func TestStackKeepsLockedTierInFront(t *testing.T) {
 	if got := Stack([]int{0, 1, 2, 3}, 3, false, locked); !reflect.DeepEqual(got, []int{0, 2, 3, 1}) {
 		t.Fatalf("back locked order %v", got)
 	}
+	if got := Stack([]int{0, 1, 2, 3}, 1, true, locked); !reflect.DeepEqual(got, []int{0, 2, 3, 1}) {
+		t.Fatalf("front locked order %v", got)
+	}
 }
 
 func TestCanStackRequiresSameTierOverlap(t *testing.T) {

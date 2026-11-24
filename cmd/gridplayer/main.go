@@ -1761,7 +1761,9 @@ func (a *app) toggleMosaicLock() {
 		a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 	} else {
 		a.mosaicLocked[a.active] = true
-		a.mosaicOrder = grid.Stack(a.mosaicOrder, a.active, true, a.mosaicLocked)
+		// Locking changes the tier, not the front-to-back order: the tile
+		// joins the locked tier and the locked tiles keep their order.
+		a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 	}
 	a.dirty = true
 	a.saveSettings()
