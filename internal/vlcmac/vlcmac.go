@@ -279,6 +279,7 @@ type Track struct {
 type Chapter struct {
 	Index int
 	Name  string
+	Time  int64 // milliseconds from the start
 }
 
 // registry routes libVLC callbacks (which carry the player pointer) to the
@@ -688,7 +689,7 @@ func (p *Player) Chapters() (out []Chapter) {
 			if arr[i] != nil && arr[i].psz_name != nil {
 				name = strings.TrimSpace(C.GoString(arr[i].psz_name))
 			}
-			out = append(out, Chapter{Index: i, Name: name})
+			out = append(out, Chapter{Index: i, Name: name, Time: int64(arr[i].i_time_offset)})
 		}
 	})
 	return out

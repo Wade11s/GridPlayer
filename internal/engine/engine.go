@@ -75,6 +75,7 @@ type Track struct {
 type Chapter struct {
 	Index int
 	Name  string
+	Time  int64 // milliseconds from the start
 }
 
 // BackendState is the subset of player states the engine distinguishes.

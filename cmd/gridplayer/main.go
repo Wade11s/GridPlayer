@@ -1096,10 +1096,27 @@ func (a *app) autoReloadLoop(c *cell, eng *engine.Engine) {
 func (a *app) watch(c *cell, eng *engine.Engine) {
 	var lastRetryGen uint64
 	wasPlaying := false
+	loopSeeking := false
 	for {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
+			if s.Phase == engine.Playing && (c.loopStart > 0 || c.loopEnd > 0) {
+				end := c.loopEnd
+				if end <= 0 {
+					end = s.Length
+				}
+				if target, seek := loopSeekTarget(s.Time, c.loopStart, end); seek {
+					if !loopSeeking {
+						loopSeeking = true
+						eng.SeekTo(target)
+					}
+				} else {
+					loopSeeking = false
+				}
+			} else {
+				loopSeeking = false
+			}
 			if s.Phase == engine.Playing {
 				c.retries.Store(0)
 				lastRetryGen = 0
@@ -2001,6 +2018,9 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "loop_reset") {
 		a.resetLoopPoints()
+	}
+	if a.shortcut(c, "loop_chapter") {
+		a.loopChapter()
 	}
 	if a.shortcut(c, "rate_reset") {
 		a.setRate(1)
@@ -3418,6 +3438,7 @@ func (a *app) menu() *mygo.Menu {
 	listFail := listFailPlayNext
 	endAction := endLoop
 	hasList := false
+	hasChapters := len(a.activeSnapshot().Chapters) > 0
 	if c := a.activeCell(); c != nil {
 		aspect, scale, crop = c.aspect, c.scale, c.crop
 		endAction = c.finishAction()
@@ -3566,6 +3587,10 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Label: a.tr("Actions", "Loop"), Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
+			{Label: a.tr("Actions", "Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
+			{Label: a.tr("Actions", "Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
+			{Label: a.tr("Actions", "Reset Loop"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
+			{Label: a.tr("Actions", "Loop Chapter"), Disabled: !hasChapters, Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},
