@@ -111,6 +111,33 @@ func TestLoopActiveFromDocument(t *testing.T) {
 	}
 }
 
+func TestSeekCellToClampsSegment(t *testing.T) {
+	e := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return dummy.New(), nil
+	})
+	if err := e.Load("movie.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	c := &cell{eng: e}
+	a := &app{cells: []*cell{c}}
+	c.setLoopSegment(40000, 0, true)
+	a.seekCellTo(c, 1000)
+	if got := e.Snapshot().Time; got != 40000 {
+		t.Fatalf("before start seek = %d, want 40000", got)
+	}
+	c.setLoopSegment(0, 20000, true)
+	a.seekCellTo(c, 25000)
+	if got := e.Snapshot().Time; got != 0 {
+		t.Fatalf("past end seek = %d, want 0", got)
+	}
+	c.setLoopSegment(0, 0, false)
+	a.seekCellTo(c, 25000)
+	if got := e.Snapshot().Time; got != 25000 {
+		t.Fatalf("no segment seek = %d, want 25000", got)
+	}
+}
+
 func TestWholeFileSegmentSurvivesDocument(t *testing.T) {
 	a := &app{cells: []*cell{{}}}
 	a.cells[0].setLoopSegment(0, 0, true)

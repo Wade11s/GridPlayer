@@ -2183,6 +2183,9 @@ func (a *app) seekCellTo(c *cell, ms int64) {
 	if start, end, active := c.loopState(); active {
 		if lo, hi, ok := loopSeekBounds(start, end, c.eng.Snapshot().Length, true); ok {
 			ms = seekableTime(ms, lo, hi)
+		} else {
+			// Without a length only the lower bound is knowable.
+			ms = seekableTime(ms, start, 0)
 		}
 	}
 	c.eng.SeekTo(ms)
