@@ -18,7 +18,9 @@ func TestDims(t *testing.T) {
 		{9, Config{Mode: AutoRows}, 3, 3},
 		{5, Config{Mode: AutoCols}, 3, 2},
 		{4, Config{Mode: Fixed, Rows: 2, Cols: 2}, 2, 2},
-		{5, Config{Mode: Fixed, Rows: 2, Cols: 2}, 2, 3},
+		// A fixed grid keeps its columns and takes the rows the cells need;
+		// the old Go-only rule grew the longer side.
+		{5, Config{Mode: Fixed, Rows: 2, Cols: 2}, 3, 2},
 		{0, Config{Mode: AutoRows}, 0, 0},
 	}
 	for _, c := range cases {
@@ -74,7 +76,24 @@ func TestLayoutRejectsEmpty(t *testing.T) {
 	}
 }
 
-func TestFixedCapacityGrows(t *testing.T) {
+func TestFixedShowsOnlyUsedCells(t *testing.T) {
+	c := Config{Mode: Fixed, Rows: 3, Cols: 3}
+	if rows, cols := Dims(2, c); rows != 1 || cols != 2 {
+		t.Fatalf("two cells in a 3x3 grid = %dx%d, want 1x2", rows, cols)
+	}
+	if rows, cols := Dims(4, c); rows != 2 || cols != 3 {
+		t.Fatalf("four cells in a 3x3 grid = %dx%d, want 2x3", rows, cols)
+	}
+	if rows, cols := Dims(1, c); rows != 1 || cols != 1 {
+		t.Fatalf("one cell in a 3x3 grid = %dx%d, want 1x1", rows, cols)
+	}
+	rects := Layout(2, Rect{W: 300, H: 300}, 0, c)
+	if len(rects) != 2 || rects[0].W != 150 || rects[0].H != 300 || rects[1].X != 150 {
+		t.Fatalf("two cells in a 3x3 grid = %+v", rects)
+	}
+}
+
+func TestFixedCapacityGrowsOnOverflow(t *testing.T) {
 	c := Config{Mode: Fixed, Rows: 2, Cols: 2}
 	if got := Capacity(5, c); got != 6 {
 		t.Fatalf("capacity=%d", got)

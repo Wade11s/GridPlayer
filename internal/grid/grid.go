@@ -35,16 +35,12 @@ func Dims(n int, c Config) (rows, cols int) {
 	switch c.Mode {
 	case Fixed:
 		rows, cols = max(c.Rows, 1), max(c.Cols, 1)
-		for rows*cols < n {
-			// A fixed grid grows along its longer side, as the upstream
-			// fixed layout does when videos exceed its cells.
-			if cols <= rows {
-				cols++
-			} else {
-				rows++
-			}
-		}
-		return rows, cols
+		// The frozen displayed_size draws only the cells in use: cells pack
+		// row-major and the empty rows and columns past the last one are not
+		// shown. Overflow still grows the grid until the frozen close rule
+		// (confirm, then remove the extra videos) lands.
+		cols = min(cols, n)
+		return (n + cols - 1) / cols, cols
 	case AutoCols:
 		rows = int(math.Ceil(math.Sqrt(float64(n))))
 		cols = int(math.Ceil(float64(n) / float64(rows)))
