@@ -94,6 +94,24 @@ func TestFixedShowsOnlyUsedCells(t *testing.T) {
 	}
 }
 
+func TestFixedPreallocateShowsEveryCell(t *testing.T) {
+	c := Config{Mode: Fixed, Rows: 3, Cols: 3, Preallocate: true}
+	if rows, cols := Dims(2, c); rows != 3 || cols != 3 {
+		t.Fatalf("preallocated 3x3 with two cells = %dx%d", rows, cols)
+	}
+	if got := Capacity(2, c); got != 9 {
+		t.Fatalf("preallocated capacity = %d", got)
+	}
+	rects := Layout(2, Rect{W: 300, H: 300}, 0, c)
+	if len(rects) != 2 || rects[0].W != 100 || rects[0].H != 100 {
+		t.Fatalf("preallocated rects = %+v", rects)
+	}
+	// Overflow still grows the rows instead of dropping cells.
+	if rows, cols := Dims(10, c); rows != 4 || cols != 3 {
+		t.Fatalf("preallocated overflow = %dx%d", rows, cols)
+	}
+}
+
 func TestFixedCapacityGrowsOnOverflow(t *testing.T) {
 	c := Config{Mode: Fixed, Rows: 2, Cols: 2}
 	if got := Capacity(5, c); got != 6 {

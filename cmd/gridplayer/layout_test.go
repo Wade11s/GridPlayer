@@ -2,13 +2,214 @@ package main
 
 import (
 	"math"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/settings"
 )
 
 // The frozen CellLayout sets spacing 0 and every Box shares its edge with
 // its neighbour, so each Go layout must hand back rects that meet exactly.
+func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}}
+	a.togglePreallocate()
+	if !a.cfg.Preallocate || !a.dirty {
+		t.Fatalf("preallocate=%v dirty=%v", a.cfg.Preallocate, a.dirty)
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Get("playlist/grid_preallocate", ""); got != "true" {
+		t.Fatalf("saved preallocate = %q", got)
+	}
+	d := a.document()
+	if _, _, _, preallocate := d.GridState(); !preallocate {
+		t.Fatal("the document lost preallocate")
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1}
+	b.applyDocument(d, "")
+	if !b.cfg.Preallocate || b.cfg.Mode != grid.Fixed {
+		t.Fatalf("restored cfg=%+v", b.cfg)
+	}
+
+	// Presets and mode switches carry the flag instead of clearing it.
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if !a.cfg.Preallocate {
+		t.Fatal("a size preset cleared preallocate")
+	}
+	a.setGrid(grid.Config{Mode: grid.AutoRows})
+	if !a.cfg.Preallocate {
+		t.Fatal("a mode switch cleared preallocate")
+	}
+
+	// Free Tiles, Mosaic and Single Mode are not a fixed grid even though
+	// cfg.Mode still says Fixed.
+	a.free = true
+	if a.fixedGrid() {
+		t.Fatal("free tiles counted as a fixed grid")
+	}
+	a.free = false
+	a.mosaic = true
+	if a.fixedGrid() {
+		t.Fatal("mosaic counted as a fixed grid")
+	}
+	a.mosaic = false
+	a.single = true
+	if a.fixedGrid() {
+		t.Fatal("single mode counted as a fixed grid")
+	}
+	a.single = false
+
+	// Outside a fixed grid the action is a no-op, so a set flag stays set.
+	a.cfg = grid.Config{Mode: grid.AutoRows, Rows: 3, Cols: 3, Preallocate: true}
+	a.togglePreallocate()
+	if !a.cfg.Preallocate {
+		t.Fatal("preallocate toggled outside a fixed grid")
+	}
+}
+
+func TestSettingsLayoutSwitchKeepsShowAllCells(t *testing.T) {
+	for _, layout := range []string{"Auto Rows", "Auto Columns", "Fit Shapes", "Fixed", "Free Tiles", "Mosaic", "Single Mode"} {
+		a := &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+		a.applyGridDraft(settingsDraft{layout: layout, rows: "3", cols: "3", showAllCells: true})
+		if !a.cfg.Preallocate {
+			t.Fatalf("%s cleared preallocate", layout)
+		}
+	}
+	a := &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+	a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "3", cols: "3", showAllCells: false})
+	if a.cfg.Preallocate {
+		t.Fatal("a cleared checkbox kept preallocate on")
+	}
+}
+
+func TestShowAllCellsTurnsOffCleanly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+	a.togglePreallocate()
+	if a.cfg.Preallocate {
+		t.Fatal("preallocate did not toggle off")
+	}
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := reloaded.Get("playlist/grid_preallocate", ""); got != "false" {
+		t.Fatalf("saved preallocate = %q, want false", got)
+	}
+	d := a.document()
+	if _, _, _, preallocate := d.GridState(); preallocate {
+		t.Fatal("the document kept preallocate after turning it off")
+	}
+	if raw, ok := d.Settings["grid_state"]; ok && strings.Contains(string(raw), "preallocate") {
+		t.Fatalf("grid_state kept the key: %s", raw)
+	}
+}
+
+func TestEmptyCellsFollowTheLayout(t *testing.T) {
+	area := grid.Rect{W: 900, H: 600}
+	a := &app{
+		cfg:   grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true},
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+	}
+	empties := a.emptyCellRects(area)
+	if len(empties) != 7 {
+		t.Fatalf("empty cells = %d, want 7", len(empties))
+	}
+	live := grid.Layout(2, area, cellGap, a.cfg)
+	for _, e := range empties {
+		for _, l := range live {
+			if e.X < l.X+l.W && l.X < e.X+e.W && e.Y < l.Y+l.H && l.Y < e.Y+e.H {
+				t.Fatalf("empty cell %+v covers a live cell %+v", e, l)
+			}
+		}
+	}
+
+	// A template's empty cells follow its places, not uniform slots.
+	a = &app{
+		cfg:      grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4, Preallocate: true},
+		template: "1 + 12",
+		cells:    []*cell{{path: "a.mp4"}},
+	}
+	template, ok := grid.FindTemplate("1 + 12")
+	if !ok {
+		t.Fatal("missing template 1 + 12")
+	}
+	places := template.Places()
+	empties = a.emptyCellRects(area)
+	if len(empties) != len(places)-1 {
+		t.Fatalf("template empty cells = %d, want %d", len(empties), len(places)-1)
+	}
+	live = grid.TemplateLayout(1, area, cellGap, template)
+	big := [4]float64{live[0].X, live[0].Y, live[0].X + live[0].W, live[0].Y + live[0].H}
+	for _, e := range empties {
+		if e.X < big[2] && big[0] < e.X+e.W && e.Y < big[3] && big[1] < e.Y+e.H {
+			t.Fatalf("template empty cell %+v covers the big cell", e)
+		}
+	}
+
+	// A free big place becomes one empty per position, as the frozen grid
+	// draws them; the occupied big place is covered and stays empty-free.
+	a = &app{
+		cfg:      grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4, Preallocate: true},
+		template: "2 + 8",
+		cells:    []*cell{{path: "a.mp4"}},
+	}
+	template, ok = grid.FindTemplate("2 + 8")
+	if !ok {
+		t.Fatal("missing template 2 + 8")
+	}
+	empties = a.emptyCellRects(area)
+	if len(empties) != 12 {
+		t.Fatalf("2 + 8 empty cells = %d, want 12", len(empties))
+	}
+	unit := grid.CellRect(template, 0, 0, area, cellGap)
+	for _, e := range empties {
+		if math.Abs(e.W-unit.W) > 1e-9 || math.Abs(e.H-unit.H) > 1e-9 {
+			t.Fatalf("empty cell %+v is not one position", e)
+		}
+	}
+	live = grid.TemplateLayout(1, area, cellGap, template)
+	big = [4]float64{live[0].X, live[0].Y, live[0].X + live[0].W, live[0].Y + live[0].H}
+	for _, e := range empties {
+		if e.X < big[2] && big[0] < e.X+e.W && e.Y < big[3] && big[1] < e.Y+e.H {
+			t.Fatalf("2 + 8 empty cell %+v covers the occupied big cell", e)
+		}
+	}
+
+	// No preallocate, no fixed grid, or no cells means no empty places.
+	a = &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}, cells: []*cell{{path: "a.mp4"}}}
+	if got := a.emptyCellRects(area); got != nil {
+		t.Fatalf("empty cells without preallocate = %d", len(got))
+	}
+	a = &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}, single: true, cells: []*cell{{path: "a.mp4"}}}
+	if got := a.emptyCellRects(area); got != nil {
+		t.Fatalf("empty cells in single mode = %d", len(got))
+	}
+	a = &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3, Preallocate: true}}
+	if got := a.emptyCellRects(area); got != nil {
+		t.Fatalf("empty cells with no videos = %d", len(got))
+	}
+}
+
 func TestCellsMeetWithoutGap(t *testing.T) {
 	area := grid.Rect{X: 10, Y: 20, W: 300, H: 200}
 	const eps = 1e-9

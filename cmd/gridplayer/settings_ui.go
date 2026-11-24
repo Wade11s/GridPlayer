@@ -43,6 +43,7 @@ type settingsDraft struct {
 	snap          bool
 	overlap       bool
 	showGridLines bool
+	showAllCells  bool
 	singleSide    string
 
 	view         string
@@ -296,6 +297,9 @@ func (a *app) settingsGrid(c *ui.Context, d *settingsDraft) {
 			ui.Field(c, a.tr("SettingsDialog", "Columns"), func() {
 				ui.Select(c, &d.cols, sizeOptions)
 			})
+			ui.Field(c, a.tr("SettingsDialog", "Show all cells"), func() {
+				ui.Checkbox(c, &d.showAllCells, "Show every fixed cell, empty ones included")
+			})
 		}
 		if d.layout == "Single Mode" {
 			ui.Field(c, a.tr("SettingsDialog", "Strip side"), func() {
@@ -506,6 +510,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.snap = a.snap
 	d.overlap = a.overlap
 	d.showGridLines = a.showGridLines
+	d.showAllCells = a.cfg.Preallocate
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
 	d.cols = fmt.Sprint(clampInt(a.cfg.Cols, 1, 8))
 	switch {
@@ -571,6 +576,35 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	}
 	d.keys = keyBindingDrafts(a.keys)
 	return d
+}
+
+// applyGridDraft applies the Grid tab's layout, rows, columns and
+// Show All Cells. The flag is a grid setting, not a property of one mode:
+// switching layout must not clear it or overwrite the stored key with false.
+func (a *app) applyGridDraft(d settingsDraft) {
+	a.template = ""
+	switch d.layout {
+	case "Auto Columns":
+		a.cfg = grid.Config{Mode: grid.AutoCols}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Fit Shapes":
+		a.cfg = grid.Config{Mode: grid.Shapes}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Fixed":
+		a.cfg = grid.Config{Mode: grid.Fixed, Rows: clampInt(atoi(d.rows, 3), 1, maxFixedSize), Cols: clampInt(atoi(d.cols, 3), 1, maxFixedSize)}
+		a.free, a.mosaic, a.single = false, false, false
+	case "Free Tiles":
+		a.free, a.mosaic, a.single = true, false, false
+	case "Mosaic":
+		a.free, a.mosaic, a.single = false, true, false
+		a.ensureMosaic()
+	case "Single Mode":
+		a.free, a.mosaic, a.single = false, false, true
+	default:
+		a.cfg = grid.Config{Mode: grid.AutoRows}
+		a.free, a.mosaic, a.single = false, false, false
+	}
+	a.cfg.Preallocate = d.showAllCells
 }
 
 func (a *app) applySettingsDraft(d settingsDraft) {
@@ -656,28 +690,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		}
 	}
 	oldCfg, oldFree, oldMosaic, oldSingle := a.cfg, a.free, a.mosaic, a.single
-	a.template = ""
-	switch d.layout {
-	case "Auto Columns":
-		a.cfg = grid.Config{Mode: grid.AutoCols}
-		a.free, a.mosaic, a.single = false, false, false
-	case "Fit Shapes":
-		a.cfg = grid.Config{Mode: grid.Shapes}
-		a.free, a.mosaic, a.single = false, false, false
-	case "Fixed":
-		a.cfg = grid.Config{Mode: grid.Fixed, Rows: atoi(d.rows, 3), Cols: atoi(d.cols, 3)}
-		a.free, a.mosaic, a.single = false, false, false
-	case "Free Tiles":
-		a.free, a.mosaic, a.single = true, false, false
-	case "Mosaic":
-		a.free, a.mosaic, a.single = false, true, false
-		a.ensureMosaic()
-	case "Single Mode":
-		a.free, a.mosaic, a.single = false, false, true
-	default:
-		a.cfg = grid.Config{Mode: grid.AutoRows}
-		a.free, a.mosaic, a.single = false, false, false
-	}
+	a.applyGridDraft(d)
 	for _, c := range a.cells {
 		c.viewMode = viewModeName(a.fill, a.stretch)
 		c.aspect = a.aspect

@@ -52,6 +52,24 @@ func (t Template) Places() [][4]int {
 	return places
 }
 
+// CellRect returns the rect of one 1x1 position of the template's grid.
+// The frozen grid places an empty cell per free position, so a free big
+// place becomes as many of these as it covers.
+func CellRect(t Template, row, col int, area Rect, gap float64) Rect {
+	if row < 0 || col < 0 || row >= t.Rows || col >= t.Cols || area.W <= 0 || area.H <= 0 {
+		return Rect{}
+	}
+	gap = max(gap, 0)
+	cellW := (area.W - gap*float64(t.Cols-1)) / float64(t.Cols)
+	cellH := (area.H - gap*float64(t.Rows-1)) / float64(t.Rows)
+	return Rect{
+		X: area.X + float64(col)*(cellW+gap),
+		Y: area.Y + float64(row)*(cellH+gap),
+		W: cellW,
+		H: cellH,
+	}
+}
+
 // TemplateLayout lays out n cells in the template's places.
 func TemplateLayout(n int, area Rect, gap float64, template Template) []Rect {
 	if n <= 0 || area.W <= 0 || area.H <= 0 {

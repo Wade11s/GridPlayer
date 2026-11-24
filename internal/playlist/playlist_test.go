@@ -32,11 +32,19 @@ func TestRoundTripPreservesUnknownFields(t *testing.T) {
 	if !d.Videos[0].IsMuted || d.Videos[0].CurrentPosition != 3000 {
 		t.Fatalf("video %+v", d.Videos[0])
 	}
-	mode, rows, cols := d.GridState()
-	if mode != "fixed" || rows != 2 || cols != 3 {
-		t.Fatalf("grid %q %d %d", mode, rows, cols)
+	mode, rows, cols, preallocate := d.GridState()
+	if mode != "fixed" || rows != 2 || cols != 3 || preallocate {
+		t.Fatalf("grid %q %d %d %v", mode, rows, cols, preallocate)
 	}
-	d.SetGridState("auto_rows", 0, 0)
+	d.SetGridState("fixed", 2, 3, true)
+	if _, _, _, preallocate := d.GridState(); !preallocate {
+		t.Fatal("preallocate did not round-trip")
+	}
+	d.SetGridState("fixed", 2, 3, false)
+	if _, _, _, preallocate := d.GridState(); preallocate {
+		t.Fatal("clearing preallocate did not round-trip")
+	}
+	d.SetGridState("auto_rows", 0, 0, false)
 	if err := d.Save(path); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +65,7 @@ func TestRoundTripPreservesUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mode2, _, _ := d2.GridState()
+	mode2, _, _, _ := d2.GridState()
 	if mode2 != "auto_rows" {
 		t.Fatalf("grid mode after save %q", mode2)
 	}

@@ -935,7 +935,7 @@ func TestApplyDocumentClearsStaleLayouts(t *testing.T) {
 		Version: 1,
 		Videos:  []playlist.Video{{URI: "a.mp4"}},
 	}
-	d.SetGridState("auto_rows", 0, 0)
+	d.SetGridState("auto_rows", 0, 0, false)
 	a.applyDocument(d, "")
 	if a.free || a.mosaic || a.single {
 		t.Fatalf("stale layout free=%v mosaic=%v single=%v", a.free, a.mosaic, a.single)
@@ -1211,7 +1211,7 @@ func TestApplyDocumentRestoresSnapshot(t *testing.T) {
 			{URI: "b.mp4", CellViewMode: "fit"},
 		},
 	}
-	d.SetGridState("fixed", 2, 3)
+	d.SetGridState("fixed", 2, 3, false)
 	a := &app{defaultVolume: 80, defaultRate: 1, defaultLoop: true, resolver: resolve.New()}
 	a.applyDocument(d, "")
 	if len(a.cells) != 2 {
