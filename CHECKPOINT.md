@@ -1,5 +1,39 @@
 # Migration Checkpoints
 
+## 2026-11-25 tiled-close-order candidate
+
+Frozen source is unchanged. Base/main is `92c744d` (after PR #86). Code
+candidate is `5973e254d565f5128f03b2b49633b29614b42e7b` on
+`fix/f5-tiled-close-order`; the PR binds the final reviewed head.
+
+Fixed: which videos a smaller grid closes now follows the frozen live order.
+`read_in_rows` reads tiled layouts row by row (a tile joins a row when it
+starts above that row's bottom, then left to right), and `_live_order` uses
+that order for Free Tiles and Mosaic; Go closed by playlist index instead.
+`grid.ReadInRows` is that reader, and `closeBeyond` keeps the first
+capacity entries of `liveOrder()` for free, mosaic and grid layouts alike;
+closing a cell before the active one decrements the active index, so the
+same video stays active.
+
+Verification on `5973e25` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run at `/tmp/gridplayer-closeorder2/` loaded five videos
+in Free Tiles whose reading order was e,d,c,b,a (opposite of playlist order)
+and chose Grid > Fixed 2x2: the confirm appeared (`dialog.png`), and Close
+Videos kept B,C,D,E while closing A, the spatially last tile and the active
+one; plane-b became the active cell (`closed.png`). The saved playlist holds
+plane-b..e with `settings.grid_state` 2x2 fixed; `vlc.log` has the five decode
+lines from launch; teardown finished and no process remained. Unit: `TestReadInRowsReadsTilesRowByRow` and
+`TestOverflowCloseFollowsTheTiledReadingOrder`.
+
+Still open: survivors keep playlist order where upstream re-packs them in
+reading order; a big-cell template closes by place order rather than the
+frozen visual row order; a loaded document with more videos than its grid
+extends the rows instead of leaving the extras unplaced; closed videos are
+not remembered for a Reopen Closed Video action; the frozen grid undo is
+absent.
+
 ## 2026-11-25 overflow-close candidate
 
 Frozen source is unchanged. Base/main is `2bfdda8` (after PR #85). Code

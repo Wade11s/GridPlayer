@@ -1,5 +1,10 @@
 package grid
 
+import (
+	"math"
+	"sort"
+)
+
 // Tile is a video's box as shares of the page (left, top, right, bottom).
 type Tile struct {
 	Box [4]float64 `json:"box"`
@@ -31,6 +36,51 @@ func (t Tile) Rect(area Rect, gap float64) Rect {
 		r = inset(r, gap/2)
 	}
 	return r
+}
+
+// tileHair is the frozen _HAIR: how far a tile may overlap a row's band
+// and still count as part of it.
+const tileHair = 1e-6
+
+// ReadInRows returns the tile indices as the tiles are read, row by row: a
+// tile joins the row of the one before it when it starts above that row's
+// bottom, and each row reads left to right. It is the frozen read_in_rows,
+// which decides the order a tiled grid closes videos in.
+func ReadInRows(tiles []Tile) []int {
+	if len(tiles) == 0 {
+		return nil
+	}
+	order := make([]int, len(tiles))
+	for i := range order {
+		order[i] = i
+	}
+	sort.SliceStable(order, func(i, j int) bool {
+		a, b := tiles[order[i]].Box, tiles[order[j]].Box
+		if a[1] != b[1] {
+			return a[1] < b[1]
+		}
+		return a[0] < b[0]
+	})
+	var rows [][]int
+	rowBottom := 0.0
+	for _, index := range order {
+		box := tiles[index].Box
+		if len(rows) > 0 && box[1] < rowBottom-tileHair {
+			rows[len(rows)-1] = append(rows[len(rows)-1], index)
+			rowBottom = math.Min(rowBottom, box[3])
+			continue
+		}
+		rows = append(rows, []int{index})
+		rowBottom = box[3]
+	}
+	out := make([]int, 0, len(tiles))
+	for _, row := range rows {
+		sort.SliceStable(row, func(i, j int) bool {
+			return tiles[row[i]].Box[0] < tiles[row[j]].Box[0]
+		})
+		out = append(out, row...)
+	}
+	return out
 }
 
 // MoveTile shifts tile i by dx/dy DIPs, keeping it inside the unit area.
