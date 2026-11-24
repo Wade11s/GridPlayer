@@ -3,9 +3,11 @@
 ## 2026-11-24 chapter-stops candidate
 
 Frozen source is unchanged. Base/main is `6ee09d7` (post PR #81). Code
-candidate is `0f9b723478dcf353f46da45052ae325c0c61724f` on
-`fix/f12-chapter-stops`. A checkpoint-only commit follows; the PR binds the
-final reviewed head.
+candidate is `d4096d0d33790d25456c77b3d2e955dedbb0d1a0` on
+`fix/f12-chapter-stops`; the earlier `0f9b723` run did not cover the final
+head, and `34ceccb` changed pause and default-end-action code, so that
+evidence is superseded rather than carried forward. The PR binds the final
+reviewed head.
 
 Fixed: chapter jumps now use the frozen stop list instead of the adjacent
 chapter. Stops are the segment start plus chapter starts strictly inside it;
@@ -25,6 +27,15 @@ stopping. A pause-action run at `/tmp/gridplayer-f12-chapters13/` logged
 `pause at start: 0ms` and saved `playback_state=paused` at time 0 after the
 reopen (two VideoToolbox lines), with a clean exit. The specific stop
 selection and 3 s Previous rule are unit evidence.
+
+Re-verified on `d4096d0` after the gate-3 review: the suite and app smoke
+PASS with 4 VideoToolbox lines. The bundled app repeated the chapter sequence
+at `/tmp/gridplayer-f12-chapters18/` on the live pause path: `SET_TIME to
+20000000`, `40000000`, then `0` at the last stop with
+`end_action=pause`, followed by `pause at start: 0ms` and
+`keep awake: none`, saved `playback_state=paused`, one VideoToolbox line
+(no reopen), clean teardown, no residual process. `34ceccb` reproduced the
+same sequence at `/tmp/gridplayer-f12-chapters17/`.
 
 ## 2026-11-24 segment-seek candidate
 

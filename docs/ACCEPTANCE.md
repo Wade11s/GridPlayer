@@ -178,5 +178,22 @@ Changes need a new review; thresholds never relax in-implementation.
   the 250 ms tolerance and the 3 s Previous rule are unit evidence
   (`TestChapterStopSelection`, `TestChapterNextPastLastRunsEndAction`,
   `TestChapterJumpSeeksInsideSegment`).
+- 2026-11-25, F12 chapter-stops head (`d4096d0`, main `6ee09d7`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines at `d4096d0`. The bundled app played the generated 60 s
+  chaptered fixture (0/20/40 s) at `/tmp/gridplayer-f12-loop/loopchapter.mkv`
+  with isolated data at `/tmp/gridplayer-f12-chapters18/`; three
+  Tracks > Next Chapter clicks logged `SET_TIME to 20000000`, `40000000`,
+  then `0` at the last stop with the default `end_action=pause`, and the app
+  logged `pause at start: 0ms` followed by `keep awake: none`. The saved
+  playlist is `playback_state=paused` with `end_action=pause`; the log has
+  one VideoToolbox line, so the pause path seeks and pauses the live input
+  instead of reopening it. Teardown finished with no residual
+  `gridplayer`/`poc-hw` process. The parent code candidate `34ceccb`
+  reproduced the sequence at `/tmp/gridplayer-f12-chapters17/`. The frozen
+  boundaries are asserted in `TestChapterStopSelection` (250 ms next
+  boundary, 3 s Previous boundary) and the end-action helper scope in
+  `TestApplyDefaultEndSkipsLoopDefaultForLists`.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.
