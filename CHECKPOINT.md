@@ -3,7 +3,7 @@
 ## 2026-11-24 chapter-stops candidate
 
 Frozen source is unchanged. Base/main is `6ee09d7` (post PR #81). Code
-candidate is `d0311ac4b38c5a008f04ce3cf9f0555c047dd0de` on
+candidate is `674c4b25d4c02fa20f244516eb17b2f2c83b98d8` on
 `fix/f12-chapter-stops`. A checkpoint-only commit follows; the PR binds the
 final reviewed head.
 

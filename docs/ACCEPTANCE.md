@@ -165,7 +165,7 @@ Changes need a new review; thresholds never relax in-implementation.
   `TestUpstreamWholeFileLoopPresence`; chapter reachability is
   `TestChapterStopSelection`; one run
   is not proof of every seek path.
-- 2026-11-24, F12 chapter-stops candidate (`d0311ac`, main `6ee09d7`):
+- 2026-11-24, F12 chapter-stops candidate (`674c4b2`, main `6ee09d7`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with isolated data at
