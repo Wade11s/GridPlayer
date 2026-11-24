@@ -3357,7 +3357,19 @@ func (a *app) chapter(step int) {
 	if len(s.Chapters) == 0 {
 		return
 	}
-	i := (s.Chapter + step + len(s.Chapters)) % len(s.Chapters)
+	current := s.Chapter
+	if current < 0 || current >= len(s.Chapters) {
+		current = 0
+	}
+	var start, end int64
+	active := false
+	if c := a.activeCell(); c != nil {
+		start, end, active = c.loopState()
+	}
+	i, ok := nextChapter(s.Chapters, current, step, start, end, active)
+	if !ok {
+		return
+	}
 	// A chapter jump is a seek in the frozen source, so the loop segment
 	// applies to it as it does to every other seek.
 	a.seekActive(s.Chapters[i].Time)

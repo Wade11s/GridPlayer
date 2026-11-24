@@ -109,6 +109,28 @@ func loopActiveFromVideo(v playlist.Video) bool {
 	return (v.LoopActive != nil && *v.LoopActive) || v.LoopStart > 0 || v.LoopEnd > 0
 }
 
+// nextChapter returns the next chapter in the given direction whose start
+// is reachable inside the segment. It skips the current one and reports no
+// candidate when the segment holds no other start, as the frozen reachable
+// chapter list does.
+func nextChapter(chapters []engine.Chapter, current, step int, start, end int64, active bool) (int, bool) {
+	n := len(chapters)
+	if n == 0 || step == 0 {
+		return 0, false
+	}
+	for k := 1; k <= n; k++ {
+		i := ((current+step*k)%n + n) % n
+		if i == current {
+			continue
+		}
+		at := chapters[i].Time
+		if !active || (at >= start && (end <= 0 || at < end)) {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
 // loopSeekTarget is the frozen segment rule: a time past the end, or more
 // than 100 ms before the start, belongs back at the start.
 func loopSeekTarget(at, start, end int64) (int64, bool) {

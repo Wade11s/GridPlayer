@@ -154,6 +154,30 @@ func TestWholeFileSegmentSurvivesDocument(t *testing.T) {
 	}
 }
 
+func TestNextChapterSkipsUnreachable(t *testing.T) {
+	chapters := []engine.Chapter{{Time: 0}, {Time: 10000}, {Time: 20000}, {Time: 30000}}
+	for _, tt := range []struct {
+		name    string
+		current int
+		start   int64
+		end     int64
+		active  bool
+		want    int
+		wantOK  bool
+	}{
+		{name: "next in segment", current: 0, start: 10000, end: 20000, active: true, want: 1, wantOK: true},
+		{name: "wrap to reachable", current: 2, start: 10000, end: 20000, active: true, want: 1, wantOK: true},
+		{name: "skip before start", current: 0, start: 20000, end: 30000, active: true, want: 2, wantOK: true},
+		{name: "none reachable", current: 0, start: 40000, end: 0, active: true},
+		{name: "no segment", current: 0, want: 1, wantOK: true},
+	} {
+		got, ok := nextChapter(chapters, tt.current, 1, tt.start, tt.end, tt.active)
+		if ok != tt.wantOK || got != tt.want {
+			t.Fatalf("%s: index=%d ok=%v, want %d %v", tt.name, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
 func TestChapterJumpSeeksInsideSegment(t *testing.T) {
 	e := engine.New(func(string, bool, string) (engine.Backend, error) {
 		return &chapterBackend{Backend: dummy.New(), chapters: []engine.Chapter{

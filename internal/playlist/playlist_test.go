@@ -226,6 +226,23 @@ func TestExplicitEmptyViewShapeSurvivesJSON(t *testing.T) {
 	}
 }
 
+func TestUpstreamWholeFileLoopPresence(t *testing.T) {
+	d, err := Parse([]byte(`{"format":"gridplayer-playlist","version":1,"videos":[{"uri":"a.mp4","loop_start":0}]}`), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Videos[0]; v.LoopActive == nil || !*v.LoopActive {
+		t.Fatalf("loop_start presence lost: %+v", v.LoopActive)
+	}
+	d, err = Parse([]byte(`{"format":"gridplayer-playlist","version":1,"videos":[{"uri":"a.mp4"}]}`), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Videos[0]; v.LoopActive != nil {
+		t.Fatal("absent loop_start became active")
+	}
+}
+
 func TestLoopActiveResetDropsExtension(t *testing.T) {
 	d, err := Parse([]byte(`{"format":"gridplayer-playlist","version":1,"videos":[{"uri":"a.mp4","loop_active":true}]}`), "")
 	if err != nil {

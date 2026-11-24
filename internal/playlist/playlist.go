@@ -143,6 +143,7 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	if _, present := all["list_fail_wait_sec"]; !present {
 		v.ListFailWait = legacy.ListFailWait
 	}
+	_, loopStartPresent := all["loop_start"]
 	for _, k := range []string{"id", "uri", "title", "current_position", "is_muted",
 		"volume", "rate", "cell_view_mode", "playback_state", "list_index", "list_end",
 		"list_end_action", "list_fail", "list_fail_wait", "list_fail_action",
@@ -154,6 +155,13 @@ func (v *Video) UnmarshalJSON(data []byte) error {
 	}
 	if len(all) > 0 {
 		v.Extra = all
+	}
+	// Upstream writes a whole-file loop as loop_start=0 with no end; the
+	// key's presence carries the segment that the zero value cannot.
+	if loopStartPresent && v.LoopStart == 0 && v.LoopEnd == 0 &&
+		(v.LoopActive == nil || !*v.LoopActive) {
+		active := true
+		v.LoopActive = &active
 	}
 	return nil
 }
