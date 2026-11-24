@@ -18,8 +18,9 @@ func TestDims(t *testing.T) {
 		{9, Config{Mode: AutoRows}, 3, 3},
 		{5, Config{Mode: AutoCols}, 3, 2},
 		{4, Config{Mode: Fixed, Rows: 2, Cols: 2}, 2, 2},
-		// A fixed grid keeps its columns and takes the rows the cells need;
-		// the old Go-only rule grew the longer side.
+		// A fixed grid packs in its configured columns (as far as the cells
+		// reach) and takes the rows the cells need; the old Go-only rule
+		// grew toward a square, adding columns on a tie.
 		{5, Config{Mode: Fixed, Rows: 2, Cols: 2}, 3, 2},
 		{0, Config{Mode: AutoRows}, 0, 0},
 	}

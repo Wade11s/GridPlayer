@@ -84,8 +84,8 @@ func Layout(n int, area Rect, gap float64, c Config) []Rect {
 }
 
 // Capacity returns the number of cell slots the reported grid has: rows*cols
-// for the dimensions Dims picks, which for a fixed grid is the used extent
-// (and can exceed n).
+// for the dimensions Dims picks. That can exceed n; for a fixed grid it is
+// the used extent.
 func Capacity(n int, c Config) int {
 	rows, cols := Dims(n, c)
 	return rows * cols
