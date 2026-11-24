@@ -109,6 +109,21 @@ func loopActiveFromVideo(v playlist.Video) bool {
 	return (v.LoopActive != nil && *v.LoopActive) || v.LoopStart > 0 || v.LoopEnd > 0
 }
 
+// clampSegmentSeek keeps ms inside the segment; without a length only the
+// lower bound is knowable.
+func clampSegmentSeek(start, end, length, ms int64, active bool) int64 {
+	if !active {
+		return ms
+	}
+	if lo, hi, ok := loopSeekBounds(start, end, length, true); ok {
+		return seekableTime(ms, lo, hi)
+	}
+	if start < 0 {
+		start = 0
+	}
+	return seekableTime(ms, start, 0)
+}
+
 // nextChapter returns the next chapter in the given direction whose start
 // is reachable inside the segment. It skips the current one and reports no
 // candidate when the segment holds no other start, as the frozen reachable

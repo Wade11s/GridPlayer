@@ -136,6 +136,12 @@ func TestSeekCellToClampsSegment(t *testing.T) {
 	if got := e.Snapshot().Time; got != 25000 {
 		t.Fatalf("no segment seek = %d, want 25000", got)
 	}
+	e.Pause()
+	c.setLoopSegment(10000, 20000, true)
+	a.seekCellTo(c, 25000)
+	if got := e.Snapshot().Time; got != 10000 {
+		t.Fatalf("paused past-end seek = %d, want 10000", got)
+	}
 }
 
 func TestWholeFileSegmentSurvivesDocument(t *testing.T) {

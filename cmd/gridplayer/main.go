@@ -992,7 +992,8 @@ func (a *app) maybeSkipSponsor(c *cell, eng *engine.Engine, s engine.Snapshot) {
 		return
 	}
 	c.sponsorSkipEnd.Store(target)
-	a.seekCellTo(c, target)
+	start, end, active := c.loopState()
+	eng.SeekTo(clampSegmentSeek(start, end, s.Length, target, active))
 }
 
 // reloadCells recreates every live engine so instance-level options such as
@@ -2180,18 +2181,8 @@ func (a *app) seekCellTo(c *cell, ms int64) {
 	if c == nil || c.eng == nil {
 		return
 	}
-	if start, end, active := c.loopState(); active {
-		if lo, hi, ok := loopSeekBounds(start, end, c.eng.Snapshot().Length, true); ok {
-			ms = seekableTime(ms, lo, hi)
-		} else {
-			// Without a length only the lower bound is knowable.
-			if start < 0 {
-				start = 0
-			}
-			ms = seekableTime(ms, start, 0)
-		}
-	}
-	c.eng.SeekTo(ms)
+	start, end, active := c.loopState()
+	c.eng.SeekTo(clampSegmentSeek(start, end, c.eng.Snapshot().Length, ms, active))
 }
 
 func (a *app) seekActive(ms int64) {
