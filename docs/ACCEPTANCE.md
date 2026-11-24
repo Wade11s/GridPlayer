@@ -148,5 +148,17 @@ Changes need a new review; thresholds never relax in-implementation.
   that pass produced two VideoToolbox lines. Cleaning, the 250 ms boundary
   tolerance, start/end/reset, clearing on a new list item, chapters before
   the playhead, and the no-chapter paths are unit evidence.
+- 2026-11-24, F2/F12 segment-seek candidate (`0d3de2f`, main `ce98aa2`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with isolated data at
+  `/tmp/gridplayer-f12-seek/` selected chapter Three, chose Loop Chapter,
+  pressed random seek, and saved `loop_active=true`, `loop_start=40000`,
+  `current_position=52646`; the log shows the EOF restart and post-reload
+  seek, two VideoToolbox lines, a clean exit, and no residual process.
+  Seek clamping is unit evidence (`TestLoopSeekBounds`,
+  `TestSeekCellToClampsSegment`) and whole-file persistence is
+  `TestWholeFileSegmentSurvivesDocument` / `TestLoopActiveFromDocument`;
+  one random sample is not proof of every seek path.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

@@ -1,5 +1,29 @@
 # Migration Checkpoints
 
+## 2026-11-24 segment-seek candidate
+
+Frozen source is unchanged. Base/main is `ce98aa2` (post PR #80). Code
+candidate is `0d3de2f21cb9bddbe29b84acb8627992fbb264ad` on
+`fix/f12-segment-seeks`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: shortcut, overlay and menu seeks, bookmark jumps, seek-bar drags and
+SponsorBlock skips now go through one clamp, so a loop segment holds while
+playing or paused. A start-only segment uses the file length as its end and
+clamps the lower bound before a length is known. A whole-file `(0,0)`
+segment persists through the Go-only `loop_active` playlist field and is
+restored on load; upstream ignores the field.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A bundled-app run at `/tmp/gridplayer-f12-seek/` selected chapter
+Three, chose Loop Chapter, pressed random seek, and saved
+`loop_active=true`, `loop_start=40000`, `current_position=52646`; the log
+shows the EOF restart and post-reload seek, VideoToolbox lines, a clean exit,
+and no residual process. One random sample is not proof of every seek path;
+the clamp itself is unit-tested.
+
 ## 2026-11-24 loop-chapter candidate
 
 Frozen source is unchanged. Base/main is `45be973` (post PR #79). Code
