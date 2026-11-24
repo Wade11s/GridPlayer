@@ -131,20 +131,20 @@ Changes need a new review; thresholds never relax in-implementation.
   process. Resolver mode/argument/environment behavior is unit evidence
   (`TestProxyModesSelectFlag`, `TestProxyNoneClearsInheritedEnvironment`);
   VLC playback proxying and the relay path remain open.
-- 2026-11-24, F12 loop-chapter candidate (`b0472c3`, main `45be973`):
+- 2026-11-24, F12 loop-chapter candidate (`7bcabab`, main `45be973`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A generated 60 s chaptered H.264/AAC fixture
   (chapters at 0/20/40 s) at `/tmp/gridplayer-f12-loop/` was played through
   the bundled app with isolated data. Choosing Playback > Loop Chapter saved
   `loop_end=20000` (start 0 omitted by the empty-field rule); a second 35 s
-  run logged `loop segment: seek 20004 -> 0ms` and saved
-  `current_position=12606` after wrapping inside that segment. Both logs show
+  run logged `loop segment: seek 20011 -> 0ms` and saved
+  `current_position=12524` after wrapping inside that segment. Both logs show
   VideoToolbox, clean teardown, and no residual process. A last-chapter run
   with isolated data and `end_action=stop`, `loop=false` chose chapter Three
   (`loop_start=40000`, no end), logged `loop segment: restart at end` followed
-  by `seek 0 -> 40000ms`, and saved at `current_position=56566` while playing
-  (`/tmp/gridplayer-f12-loop/last6/`); the ended restart reopens the media, so
+  by `seek 0 -> 40000ms`, and saved at `current_position=56687` while playing
+  (`/tmp/gridplayer-f12-loop/last7/`); the ended restart reopens the media, so
   that pass produced two VideoToolbox lines. Cleaning, the 250 ms boundary
   tolerance, start/end/reset, clearing on a new list item, chapters before
   the playhead, and the no-chapter paths are unit evidence.
