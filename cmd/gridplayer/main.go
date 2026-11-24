@@ -61,8 +61,7 @@ type cell struct {
 	subDelay          int64
 	externalAudio     []string
 	externalSubtitles []string
-	loopStart         int64
-	loopEnd           int64
+	segment           atomic.Pointer[loopSegment]
 	cropMargins       cropMargins
 	startAt           int
 	startPaused       bool
@@ -106,6 +105,34 @@ type cell struct {
 	loop          bool
 	advancing     bool
 	endedGen      uint64
+}
+
+// loopSegment is the cell's fragment-loop bounds. It is one pointer so the
+// watch goroutine never observes a new start beside a stale end.
+type loopSegment struct {
+	start  int64
+	end    int64
+	active bool
+}
+
+func (c *cell) loopState() (start, end int64, active bool) {
+	if p := c.segment.Load(); p != nil {
+		return p.start, p.end, p.active
+	}
+	return 0, 0, false
+}
+
+func (c *cell) loopBounds() (start, end int64) {
+	start, end, _ = c.loopState()
+	return start, end
+}
+
+func (c *cell) setLoopBounds(start, end int64) {
+	c.setLoopSegment(start, end, start > 0 || end > 0)
+}
+
+func (c *cell) setLoopSegment(start, end int64, active bool) {
+	c.segment.Store(&loopSegment{start: start, end: end, active: active})
 }
 
 type app struct {
@@ -1096,10 +1123,35 @@ func (a *app) autoReloadLoop(c *cell, eng *engine.Engine) {
 func (a *app) watch(c *cell, eng *engine.Engine) {
 	var lastRetryGen uint64
 	wasPlaying := false
+	loopSeeking := false
+	loopSeekFrom := int64(0)
+	loopSeekTries := 0
 	for {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
+			loopStart, loopEnd, loopActive := c.loopState()
+			if s.Phase == engine.Playing && loopActive {
+				end := loopEnd
+				if end <= 0 {
+					end = s.Length
+				}
+				if target, seek := loopSeekTarget(s.Time, loopStart, end); seek {
+					if !loopSeeking || (loopSeekFrom != s.Time && loopSeekTries < 2) {
+						loopSeeking = true
+						loopSeekFrom = s.Time
+						loopSeekTries++
+						log.Printf("loop segment: seek %d -> %dms", s.Time, target)
+						eng.SeekTo(target)
+					}
+				} else {
+					loopSeeking = false
+					loopSeekTries = 0
+				}
+			} else {
+				loopSeeking = false
+				loopSeekTries = 0
+			}
 			if s.Phase == engine.Playing {
 				c.retries.Store(0)
 				lastRetryGen = 0
@@ -1194,8 +1246,23 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 					})
 				}
 			}
-			if s.Phase == engine.Ended && c.shouldAdvance(s.Gen) {
-				mygo.RunOnMain(func() { a.finishVideo(c) })
+			if s.Phase == engine.Ended {
+				if loopActive {
+					if c.shouldAdvance(s.Gen) {
+						log.Printf("loop segment: restart at end")
+						if err := eng.Reload(); err != nil {
+							log.Printf("loop segment: reload: %v", err)
+							mygo.RunOnMain(func() {
+								a.status = "loop restart failed: " + err.Error()
+								a.finishVideo(c)
+							})
+						} else {
+							eng.SeekTo(loopStart)
+						}
+					}
+				} else if c.shouldAdvance(s.Gen) {
+					mygo.RunOnMain(func() { a.finishVideo(c) })
+				}
 			}
 			if a.win != nil && !a.closed.Load() {
 				a.win.Invalidate()
@@ -1246,6 +1313,7 @@ func (a *app) stepList(c *cell, isEnd bool) {
 	defer func() { c.advancing = false }()
 	c.listIndex = next
 	c.path = c.list[next]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1295,6 +1363,7 @@ func (a *app) previousList(c *cell) {
 	defer func() { c.advancing = false }()
 	c.listIndex = prev
 	c.path = c.list[prev]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1511,6 +1580,7 @@ func (a *app) loadListIndex(c *cell, index int) {
 	defer func() { c.advancing = false }()
 	c.listIndex = index
 	c.path = c.list[index]
+	c.setLoopSegment(0, 0, false)
 	c.startAt = 0
 	c.retries.Store(0)
 	a.resetSponsor(c, c.path)
@@ -1972,8 +2042,10 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.shortcut(c, "seek_random") {
 		if eng != nil {
 			lo, hi := int64(0), eng.Snapshot().Length
-			if cell := a.activeCell(); cell != nil && cell.loopEnd > 0 {
-				lo, hi = cell.loopStart, cell.loopEnd
+			if cell := a.activeCell(); cell != nil {
+				if start, end := cell.loopBounds(); end > 0 {
+					lo, hi = start, end
+				}
 			}
 			a.seekActive(randomSeekTarget(lo, hi, rand.Int64N))
 		}
@@ -2001,6 +2073,9 @@ func (a *app) shortcuts(c *ui.Context) {
 	}
 	if a.shortcut(c, "loop_reset") {
 		a.resetLoopPoints()
+	}
+	if a.shortcut(c, "loop_chapter") {
+		a.loopChapter()
 	}
 	if a.shortcut(c, "rate_reset") {
 		a.setRate(1)
@@ -2103,7 +2178,8 @@ func (a *app) seekActive(ms int64) {
 	if eng := a.activeEngine(); eng != nil {
 		c := a.activeCell()
 		if c != nil {
-			ms = seekableTime(ms, c.loopStart, c.loopEnd)
+			start, end := c.loopBounds()
+			ms = seekableTime(ms, start, end)
 		}
 		eng.SeekTo(ms)
 	}
@@ -2159,28 +2235,19 @@ func (a *app) setLoopPoint(isStart bool) {
 		return
 	}
 	at := a.activeSnapshot().Time
-	var start, end *int64
-	if isStart {
-		start = &c.loopStart
-		if c.loopEnd != 0 {
-			end = &c.loopEnd
-		}
-	} else {
-		end = &c.loopEnd
-		if c.loopStart != 0 {
-			start = &c.loopStart
-		}
-	}
-	if !setLoopPoint(start, end, at, isStart) {
+	start, end := c.loopBounds()
+	start, end, ok := setLoopPoint(start, end, at, isStart)
+	if !ok {
 		return
 	}
+	c.setLoopSegment(start, end, true)
 	a.dirty = true
-	a.status = fmt.Sprintf("loop %d-%dms", c.loopStart, c.loopEnd)
+	a.status = fmt.Sprintf("loop %d-%dms", start, end)
 }
 
 func (a *app) resetLoopPoints() {
-	for _, c := range a.cells {
-		c.loopStart, c.loopEnd = 0, 0
+	if c := a.activeCell(); c != nil {
+		c.setLoopSegment(0, 0, false)
 	}
 	a.dirty = true
 	a.status = "loop reset"
@@ -2624,8 +2691,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
-		c.loopStart = v.LoopStart
-		c.loopEnd = v.LoopEnd
+		c.setLoopSegment(v.LoopStart, v.LoopEnd, v.LoopStart > 0 || v.LoopEnd > 0)
 		if v.Anchor != "" {
 			c.anchorX, c.anchorY = parseAnchor(v.Anchor)
 		} else {
@@ -2779,6 +2845,7 @@ func (a *app) document() *playlist.Document {
 		if listFail == "" {
 			listFail = c.listFailRaw
 		}
+		loopStart, loopEnd := c.loopBounds()
 		v := playlist.Video{
 			ID:                c.id,
 			Title:             c.title,
@@ -2802,8 +2869,8 @@ func (a *app) document() *playlist.Document {
 			ExternalSubtitles: cloneStrings(c.externalSubtitles),
 			AudioDelay:        c.audioDelay,
 			SubtitleDelay:     c.subDelay,
-			LoopStart:         c.loopStart,
-			LoopEnd:           c.loopEnd,
+			LoopStart:         loopStart,
+			LoopEnd:           loopEnd,
 			Transform:         upstreamTransform(c.transform),
 			SponsorMode:       c.sponsorMode(),
 			SponsorModes:      a.sponsorOverridesCopy(c),
@@ -3566,6 +3633,10 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Label: a.tr("Actions", "Loop"), Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
+			{Label: a.tr("Actions", "Set Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
+			{Label: a.tr("Actions", "Set Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
+			{Label: a.tr("Actions", "Loop Chapter"), Accelerator: a.keys.Get("loop_chapter").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
+			{Label: a.tr("Actions", "Loop Reset"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},

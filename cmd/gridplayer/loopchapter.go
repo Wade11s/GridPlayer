@@ -1,0 +1,121 @@
+package main
+
+import (
+	"fmt"
+	"sort"
+
+	"gridplayer-go/internal/engine"
+)
+
+// chapterToleranceMS is the frozen tolerance: VLC reports a time a hair
+// short of where a seek landed, so anything this close to a chapter's start
+// counts as being in it.
+const chapterToleranceMS = 250
+
+// cleanChapters drops what a broken file says: negative, past-the-end,
+// out-of-order and duplicate starts. A start within the tolerance snaps to
+// zero, and a file whose only chapter starts at zero has no chapter at all.
+func cleanChapters(chapters []engine.Chapter, length int64) []engine.Chapter {
+	sorted := append([]engine.Chapter(nil), chapters...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Time < sorted[j].Time })
+	seen := map[int64]bool{}
+	out := make([]engine.Chapter, 0, len(sorted))
+	for _, ch := range sorted {
+		start := ch.Time
+		if start < 0 || (length > 0 && start >= length) {
+			continue
+		}
+		if start < chapterToleranceMS {
+			start = 0
+		}
+		if seen[start] {
+			continue
+		}
+		seen[start] = true
+		ch.Time = start
+		out = append(out, ch)
+	}
+	for _, ch := range out {
+		if ch.Time > 0 {
+			return out
+		}
+	}
+	return nil
+}
+
+// chapterSpan returns the chapter that contains at, and where the next one
+// starts. The last chapter runs to length. Before the first chapter the
+// stretch from the file start is the span, as in the frozen span_at.
+func chapterSpan(chapters []engine.Chapter, at, length int64) (start, end int64, ok bool) {
+	cleaned := cleanChapters(chapters, length)
+	if len(cleaned) == 0 {
+		return 0, 0, false
+	}
+	idx := -1
+	for i := range cleaned {
+		if cleaned[i].Time <= at+chapterToleranceMS {
+			idx = i
+		}
+	}
+	if idx < 0 {
+		start, end = 0, cleaned[0].Time
+	} else {
+		start = cleaned[idx].Time
+		if idx+1 < len(cleaned) {
+			end = cleaned[idx+1].Time
+		} else {
+			// The last chapter runs to the file end. Frozen leaves the end
+			// unset for it, so an unknown length still gives a start-only
+			// segment rather than no chapter.
+			end = 0
+		}
+	}
+	if end == 0 {
+		if start <= 0 {
+			return 0, 0, false
+		}
+		return start, 0, true
+	}
+	if end <= start {
+		return 0, 0, false
+	}
+	return start, end, true
+}
+
+// loopSeekTarget is the frozen segment rule: a time past the end, or more
+// than 100 ms before the start, belongs back at the start.
+func loopSeekTarget(at, start, end int64) (int64, bool) {
+	if start < 0 {
+		start = 0
+	}
+	if end <= start {
+		return 0, false
+	}
+	if at < start-100 || at > end {
+		return start, true
+	}
+	return 0, false
+}
+
+// loopChapter turns the chapter under the playhead into the cell's loop
+// segment. The last chapter ends at the file's end.
+func (a *app) loopChapter() {
+	c := a.activeCell()
+	if c == nil || c.eng == nil {
+		return
+	}
+	c.eng.RefreshTracks()
+	s := c.eng.Snapshot()
+	start, end, ok := chapterSpan(s.Chapters, s.Time, s.Length)
+	if !ok {
+		a.status = "no chapter to loop"
+		return
+	}
+	c.setLoopSegment(start, end, true)
+	a.dirty = true
+	if end == 0 {
+		a.status = fmt.Sprintf("loop chapter from %dms", start)
+	} else {
+		a.status = fmt.Sprintf("loop chapter %d-%dms", start, end)
+	}
+}

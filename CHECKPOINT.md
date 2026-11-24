@@ -1,5 +1,41 @@
 # Migration Checkpoints
 
+## 2026-11-24 loop-chapter candidate
+
+Frozen source is unchanged. Base/main is `45be973` (post PR #79). Code
+candidate is `7bcabab013db30c60550c823e4642d1654ba789e` on
+`feat/f12-loop-chapter`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: libVLC chapter times now reach the engine, the frozen Loop Chapter
+action sets the chapter under the playhead as the cell's loop segment, and
+the Playback menu exposes loop start/end/reset plus Loop Chapter. The watch
+loop returns a segment that runs past its end or more than 100 ms before its
+start, matching the frozen rule; the last chapter ends at the file end, and
+a segment loops whatever the end action says. Chapter starts are sorted,
+de-duplicated, filtered, and snapped within the frozen 250 ms tolerance; a
+file whose only chapter starts at zero has none. The loop bounds are one
+atomic pointer, so the watch goroutine never sees a half-updated segment;
+they carry an explicit active flag and are cleared when a list item loads,
+so a shorter next file cannot inherit a 40 s start. Loop Reset clears the
+active cell, as the frozen action does; the all-cells variant remains open.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). A generated 60 s chaptered fixture (0/20/40 s) at
+`/tmp/gridplayer-f12-loop/` was played with isolated data; Loop Chapter
+from the Playback menu saved `loop_end=20000` (start 0 omitted), and a
+35 s run logged `loop segment: seek 20011 -> 0ms` and saved
+`current_position=12524` after wrapping inside that segment. A last-chapter
+run with `end_action=stop` and `loop=false` chose chapter Three
+(`loop_start=40000`, no end), logged `loop segment: restart at end` and then
+`seek 0 -> 40000ms`, and saved at `current_position=56687` while playing.
+The ended restart reopens the media because VLC 3's input is over, so that
+pass re-initializes decode (two VideoToolbox lines). All runs exited
+cleanly. Chapters before the playhead and live files are unit/no-op
+evidence.
+
 ## 2026-11-24 proxy-mode candidate
 
 Frozen source is unchanged. Base/main is `8ef2a54` (post PR #78). Code

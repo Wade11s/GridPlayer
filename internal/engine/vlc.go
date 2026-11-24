@@ -169,7 +169,7 @@ func (b *vlcBackend) Chapters() []Chapter {
 	}
 	out := make([]Chapter, len(in))
 	for i, c := range in {
-		out[i] = Chapter{Index: c.Index, Name: c.Name}
+		out[i] = Chapter{Index: c.Index, Name: c.Name, Time: c.Time}
 	}
 	return out
 }

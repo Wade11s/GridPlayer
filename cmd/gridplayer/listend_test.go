@@ -96,8 +96,9 @@ func TestListEndPauseReloadsLoopStartOnEngine(t *testing.T) {
 	eng.SeekTo(9000)
 	c := &cell{
 		list: []string{"a.mp4", "b.mp4"}, listIndex: 1,
-		listEnd: listEndPause, path: "b.mp4", loopStart: 2000, eng: eng,
+		listEnd: listEndPause, path: "b.mp4", eng: eng,
 	}
+	c.setLoopBounds(2000, 0)
 	a := &app{cells: []*cell{c}}
 	a.advanceList(c)
 	s := eng.Snapshot()

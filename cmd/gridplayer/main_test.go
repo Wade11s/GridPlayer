@@ -1736,13 +1736,14 @@ func TestFrozenStepConstants(t *testing.T) {
 		t.Fatal("random upper")
 	}
 	var start, end int64
-	if !setLoopPoint(&start, &end, 3000, true) || start != 3000 {
+	var ok bool
+	if start, end, ok = setLoopPoint(start, end, 3000, true); !ok || start != 3000 {
 		t.Fatal("loop start")
 	}
-	if !setLoopPoint(&start, &end, 5000, false) || end != 5000 {
+	if start, end, ok = setLoopPoint(start, end, 5000, false); !ok || end != 5000 {
 		t.Fatal("loop end")
 	}
-	if setLoopPoint(&start, &end, 6000, true) {
+	if _, _, ok = setLoopPoint(start, end, 6000, true); ok {
 		t.Fatal("start after end should fail")
 	}
 	if seekableTime(7000, start, end) != start {
