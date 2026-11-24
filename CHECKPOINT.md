@@ -1,5 +1,32 @@
 # Migration Checkpoints
 
+## 2026-11-25 show-all-cells candidate
+
+Frozen source is unchanged. Base/main is `38a54a0` (after PR #84). Code
+candidate is `3c1db7bb5fba60105b39cab6534d5083fd205d17` on
+`fix/f5-show-all-cells`; the PR binds the final reviewed head.
+
+Added: `grid_preallocate`/"Show All Cells". Frozen `displayed_size` shows
+every configured cell while preallocate is on, and the Grid action toggles it
+only in Fixed mode and persists it. Go now has `grid.Config.Preallocate`,
+the `Show All Cells` checkable Grid item (disabled outside Fixed), the
+settings checkbox, `playlist/grid_preallocate` persistence, and
+`grid_state.preallocate` in the document, written only when set.
+
+Verification on `3c1db7b` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run with two generated fixtures and a saved 3x3 fixed
+`grid_state` at `/tmp/gridplayer-showall/` showed two one-third cells in the
+top row (`show-all-cells.png`) after choosing Grid > Show All Cells; the
+saved playlist kept `grid_state.preallocate` true, `settings.ini` kept
+`grid_preallocate=true`, both cells played, and autoquit left no process.
+Geometry is asserted by `TestFixedPreallocateShowsEveryCell` and the
+document/settings round-trip by `TestShowAllCellsTogglesInFixedMode`.
+
+Still open: overflow (more videos than cells) grows rows where upstream
+confirms and closes the extras.
+
 ## 2026-11-25 fixed-cells candidate
 
 Frozen source is unchanged. Base/main is `5b43599` (after PR #83). Code

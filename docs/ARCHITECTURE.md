@@ -96,8 +96,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per
   cell, partial last row allowed). A Fixed grid packs cells row-major in its
   configured columns (as far as the cells reach) and draws only the cells in
-  use, as the frozen `displayed_size` does without preallocate; more videos
-  than cells still extend the rows. The UI renders
+  use; "Show All Cells" (`grid_preallocate`, persisted in settings and
+  `grid_state.preallocate`) draws every configured cell, empty ones included,
+  as the frozen `displayed_size` does. More videos than cells still extend
+  the rows. The UI renders
   those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
