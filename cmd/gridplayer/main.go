@@ -41,6 +41,11 @@ import (
 	"gridplayer-go/internal/vlcmac"
 )
 
+// cellGap is the space left between cells. The frozen CellLayout sets
+// spacing 0 and every grid Box shares its edge with its neighbour, so cells
+// meet edge to edge; any positive value is a Go-only gap.
+const cellGap = 0.0
+
 type cell struct {
 	label   string
 	source  string
@@ -1834,7 +1839,7 @@ func (a *app) view(c *ui.Context) {
 	w, h := c.Size()
 	area := grid.Rect{W: float64(w), H: float64(h)}
 	a.freeArea = [2]float64{float64(w), float64(h)}
-	rects := grid.Layout(len(a.cells), area, 4, a.cfg)
+	rects := grid.Layout(len(a.cells), area, cellGap, a.cfg)
 	if a.cfg.Mode == grid.Shapes && !a.free && !a.mosaic && !a.single {
 		shapes := make([]float64, len(a.cells))
 		for i, c := range a.cells {
@@ -1842,11 +1847,11 @@ func (a *app) view(c *ui.Context) {
 				shapes[i] = a.pictureShape(c, c.eng.Snapshot())
 			}
 		}
-		rects = grid.FitShapes(len(a.cells), area, 4, shapes)
+		rects = grid.FitShapes(len(a.cells), area, cellGap, shapes)
 	}
 	if a.template != "" {
 		if template, ok := grid.FindTemplate(a.template); ok {
-			if templateRects := grid.TemplateLayout(len(a.cells), area, 4, template); templateRects != nil {
+			if templateRects := grid.TemplateLayout(len(a.cells), area, cellGap, template); templateRects != nil {
 				rects = templateRects
 			}
 		}
@@ -1856,7 +1861,7 @@ func (a *app) view(c *ui.Context) {
 		tiles := a.mosaicTiles
 		rects = make([]grid.Rect, len(tiles))
 		for i, t := range tiles {
-			rects[i] = t.Rect(area, 4)
+			rects[i] = t.Rect(area, cellGap)
 		}
 	} else if a.free {
 		if len(a.freeTiles) != len(a.cells) {
@@ -1865,11 +1870,11 @@ func (a *app) view(c *ui.Context) {
 		tiles := a.freeTiles
 		rects = make([]grid.Rect, len(tiles))
 		for i, t := range tiles {
-			rects[i] = t.Rect(area, 4)
+			rects[i] = t.Rect(area, cellGap)
 		}
 	}
 	if a.single && len(a.cells) > 1 {
-		rects, _ = grid.SingleLayout(len(a.cells), a.active, area, 4, a.singleSide, a.singleShare, 16.0/9.0)
+		rects, _ = grid.SingleLayout(len(a.cells), a.active, area, cellGap, a.singleSide, a.singleShare, 16.0/9.0)
 	}
 	if len(rects) == 0 {
 		ui.Column(c).Fill().Center().Gap(8).Children(func() {
