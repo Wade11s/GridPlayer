@@ -149,13 +149,16 @@ type app struct {
 	singleShare         *float64
 	free                bool
 	freeTiles           []grid.Tile
+	freeOrder           []int
 	mosaic              bool
 	mosaicTiles         []grid.Tile
+	mosaicOrder         []int
 	mosaicLocked        map[int]bool
 	snap                bool
 	overlap             bool
 	showGridLines       bool
 	freeArea            [2]float64
+	nativeClips         []uintptr
 	moveIdx             int
 	moveLast            [2]float32
 	moveOK              bool
@@ -314,6 +317,12 @@ func (a *app) loadSettings() {
 					a.mosaicLocked[i] = true
 				}
 			}
+		}
+	}
+	if raw := st.Get("playlist/grid_mosaic_order", ""); raw != "" {
+		var order []int
+		if err := json.Unmarshal([]byte(raw), &order); err == nil {
+			a.mosaicOrder = grid.Restack(order, len(a.cells), a.mosaicLocked)
 		}
 	}
 	switch st.Get("playlist/single_mode_strip_side", "auto") {
@@ -520,9 +529,13 @@ func (a *app) saveSettings() {
 		if raw, err := json.Marshal(locked); err == nil {
 			a.settings.Set("playlist/grid_mosaic_locked", string(raw))
 		}
+		if raw, err := json.Marshal(a.mosaicOrder); err == nil {
+			a.settings.Set("playlist/grid_mosaic_order", string(raw))
+		}
 	} else {
 		a.settings.Delete("playlist/grid_mosaic_tiles")
 		a.settings.Delete("playlist/grid_mosaic_locked")
+		a.settings.Delete("playlist/grid_mosaic_order")
 	}
 	strip := "off"
 	if a.single {
@@ -739,7 +752,7 @@ func (a *app) setPlaylist(paths []string) {
 	}
 	a.cells = next
 	// Free tiles are re-laid out for the new playlist.
-	a.freeTiles = grid.FreeLayout(len(a.cells))
+	a.resetFreeTiles()
 	a.resetMosaic()
 	a.dirty = true
 	if a.active >= len(a.cells) {
@@ -825,7 +838,7 @@ func (a *app) insertCells(at int, files []string) {
 	}
 	next = append(next, a.cells[at:]...)
 	a.cells = next
-	a.freeTiles = grid.FreeLayout(len(a.cells))
+	a.resetFreeTiles()
 	a.resetMosaic()
 	a.active = at
 	a.dirty = true
@@ -1677,16 +1690,17 @@ func (a *app) setListFail(mode string) {
 
 func (a *app) ensureMosaic() {
 	if len(a.mosaicTiles) != len(a.cells) {
-		a.mosaicTiles = grid.Mosaic(len(a.cells))
-		a.mosaicLocked = map[int]bool{}
+		a.resetMosaic()
 	}
 	if a.mosaicLocked == nil {
 		a.mosaicLocked = map[int]bool{}
 	}
+	a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 }
 
 func (a *app) resetMosaic() {
 	a.mosaicTiles = grid.Mosaic(len(a.cells))
+	a.mosaicOrder = grid.DefaultOrder(len(a.cells))
 	a.mosaicLocked = map[int]bool{}
 }
 
@@ -1744,8 +1758,12 @@ func (a *app) toggleMosaicLock() {
 	a.ensureMosaic()
 	if a.mosaicLocked[a.active] {
 		delete(a.mosaicLocked, a.active)
+		a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 	} else {
 		a.mosaicLocked[a.active] = true
+		// Locking changes the tier, not the front-to-back order: the tile
+		// joins the locked tier and the locked tiles keep their order.
+		a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 	}
 	a.dirty = true
 	a.saveSettings()
@@ -1760,6 +1778,7 @@ func (a *app) unlockMosaic() {
 		return
 	}
 	a.mosaicLocked = map[int]bool{}
+	a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 	a.dirty = true
 	a.saveSettings()
 	a.refreshMenu()
@@ -1841,7 +1860,7 @@ func (a *app) view(c *ui.Context) {
 		}
 	} else if a.free {
 		if len(a.freeTiles) != len(a.cells) {
-			a.freeTiles = grid.FreeLayout(len(a.cells))
+			a.resetFreeTiles()
 		}
 		tiles := a.freeTiles
 		rects = make([]grid.Rect, len(tiles))
@@ -1862,12 +1881,15 @@ func (a *app) view(c *ui.Context) {
 		return
 	}
 	theme := c.Theme()
+	drawOrder := a.layoutDrawOrder()
 	ui.Box(c).Fill().Background(ui.RGB(10, 10, 12)).Children(func() {
-		for i, r := range rects {
-			a.cellView(c, i, r, theme)
+		for _, i := range drawOrder {
+			a.cellView(c, i, rects[i], theme)
 		}
+		a.syncNativeOrder(drawOrder)
 		if a.free || a.mosaic {
-			for i, r := range rects {
+			for _, i := range drawOrder {
+				r := rects[i]
 				if a.mosaic && a.mosaicLocked[i] {
 					continue
 				}
@@ -1881,6 +1903,9 @@ func (a *app) view(c *ui.Context) {
 						a.mosaicTiles = a.resizeTile(a.mosaicTiles, i, float64(dx), float64(dy), true)
 					}
 					a.dirty = true
+				}
+				if _, _, ended := h.DragEnded(); ended {
+					a.refreshMenu()
 				}
 			}
 		}
@@ -1983,6 +2008,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 			a.mosaicTiles = a.moveTile(a.mosaicTiles, i, float64(dx), float64(dy), true)
 			a.dirty = true
 		}
+	}
+	if _, _, ended := el.DragEnded(); (a.free || a.mosaic) && ended {
+		a.refreshMenu()
 	}
 	// In grid modes the cell stays a drag-swap source; Free and Mosaic move
 	// their own tile instead.
@@ -2835,7 +2863,13 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		if getRawSetting(d, "grid_free_tiles", &tiles) && len(tiles) == len(a.cells) && validTiles(tiles) {
 			a.freeTiles = tiles
 		} else {
-			a.freeTiles = grid.FreeLayout(len(a.cells))
+			a.resetFreeTiles()
+		}
+		var order []int
+		if getRawSetting(d, "grid_free_order", &order) {
+			a.freeOrder = grid.NormalizeOrder(order, len(a.cells))
+		} else {
+			a.freeOrder = grid.DefaultOrder(len(a.cells))
 		}
 	}
 	if a.mosaic {
@@ -2853,6 +2887,11 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 				}
 			}
 		}
+		var order []int
+		if !getRawSetting(d, "grid_mosaic_order", &order) {
+			order = grid.DefaultOrder(len(a.cells))
+		}
+		a.mosaicOrder = grid.Restack(order, len(a.cells), a.mosaicLocked)
 	}
 	a.playlistPath = path
 	a.dirty = false
@@ -2958,9 +2997,12 @@ func (a *app) document() *playlist.Document {
 		delete(d.Settings, "single_share")
 	}
 	if a.free {
+		a.freeOrder = grid.NormalizeOrder(a.freeOrder, len(a.cells))
 		setRawSetting(d, "grid_free_tiles", a.freeTiles)
+		setRawSetting(d, "grid_free_order", a.freeOrder)
 	} else {
 		delete(d.Settings, "grid_free_tiles")
+		delete(d.Settings, "grid_free_order")
 	}
 	if a.mosaic {
 		a.ensureMosaic()
@@ -2971,9 +3013,11 @@ func (a *app) document() *playlist.Document {
 		}
 		sort.Ints(locked)
 		setRawSetting(d, "grid_mosaic_locked", locked)
+		setRawSetting(d, "grid_mosaic_order", a.mosaicOrder)
 	} else {
 		delete(d.Settings, "grid_mosaic_tiles")
 		delete(d.Settings, "grid_mosaic_locked")
+		delete(d.Settings, "grid_mosaic_order")
 	}
 	return d
 }
@@ -3746,6 +3790,12 @@ func (a *app) menu() *mygo.Menu {
 				}},
 			{Label: "Unlock All Tiles", Disabled: !a.mosaic, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.unlockMosaic()
+			}},
+			{Label: "Bring to Front", Disabled: !a.canStackActive(true), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.stackActive(true)
+			}},
+			{Label: "Send to Back", Disabled: !a.canStackActive(false), Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.stackActive(false)
 			}},
 			{Label: "Snap to Edges", Type: mygo.MenuItemCheckbox, Checked: a.snap, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.snap = !a.snap

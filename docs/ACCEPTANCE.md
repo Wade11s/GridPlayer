@@ -96,6 +96,13 @@ Changes need a new review; thresholds never relax in-implementation.
   `/tmp/gridplayer-metadata-app/` preserved a synthetic UUID, title,
   `custom_field`, and raw `audio_selection`. This verifies persistence;
   the swap/insert cases are unit evidence, not a claimed GUI drag run.
+- 2026-11-23, z-order candidate: pure permutation/tier/topmost and app
+  persistence tests pass. Real overlapping Free Tiles evidence at
+  `/tmp/gridplayer-zorder-app/`: `before.png` shows B covering A; Grid →
+  Bring to Front produced `after.png` with A covering B. `saved.gpls`
+  persisted `grid_free_order:[1,0]`; VideoToolbox played and autoquit left
+  no process. Captures contain only the test app window. This is targeted
+  native stacking evidence, not PUSH/optimizer or full occlusion acceptance.
 - 2026-11-24, F11 keep-awake candidate (`751c7a1`, main `f51faf3`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`, and
   `scripts/build_app.sh` PASS; `scripts/smoke_app.sh` PASS with 4

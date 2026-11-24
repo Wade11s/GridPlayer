@@ -170,6 +170,18 @@ func AddBelow(contentView, surfaceView, view uintptr) {
 	send(id(contentView), "addSubview:positioned:relativeTo:", id(view), nsWindowBelow, id(surfaceView))
 }
 
+// ReorderBelow places existing native clips back-to-front below surfaceView.
+// Re-adding an existing subview changes its z-order without detaching its
+// player or changing ownership.
+func ReorderBelow(contentView, surfaceView uintptr, views []uintptr) {
+	once.Do(initAppKit)
+	for _, view := range views {
+		if view != 0 {
+			send(id(contentView), "addSubview:positioned:relativeTo:", id(view), nsWindowBelow, id(surfaceView))
+		}
+	}
+}
+
 // SetFrame moves a native view (AppKit points, bottom-left).
 func SetFrame(view uintptr, frame NSRect) {
 	once.Do(initAppKit)

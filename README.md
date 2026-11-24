@@ -20,7 +20,8 @@ Working locally (macOS/arm64):
   per-video enable and category overrides.
 - Grid modes: auto rows, auto columns, fixed (incl. six built-in templates),
   Fit Shapes (justified per-video shapes), Free Tiles (drag/resize, snapping,
-  optional overlap), Mosaic (lock/arrange), Single Mode.
+  optional overlap, front/back stacking), Mosaic (lock/arrange, locked-front
+  stacking), Single Mode.
 - Per-cell view state persists in `.gpls`: view mode, aspect, scale, crop,
   anchor, upstream crop margins, transform, audio/subtitle delay, loop points,
   end/list actions, SponsorBlock overrides.
@@ -35,8 +36,9 @@ Still open:
 
 - Grid editor: manual lines/weights, user templates; Fit Shapes size steps,
   reorder and crop share; "match shapes" for Auto Rows/Columns.
-- Free/mosaic: PUSH overlap, z-order, optimizer/reorder-to-fit, equal-gap and
-  video-shape snap.
+- Free/mosaic: PUSH overlap, optimizer/reorder-to-fit, equal-gap and
+  video-shape snap. Front/back stacking and locked-front ordering are
+  implemented with unit, persistence, and real native-app evidence.
 - Playlist parity: selected track/language/device, deinterlace/color/header
   fields, rich list identity, and adaptive stream quality. External
   audio/subtitle file arrays now persist, reattach on reopen, and clear on

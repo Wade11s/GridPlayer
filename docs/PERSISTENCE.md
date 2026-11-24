@@ -84,6 +84,11 @@ Rules:
   Previous wrap regardless of that policy. Closing with unsaved structural
   changes asks Save / Discard / Cancel; `--autoquit` skips the prompt for
   automation.
+- Free/Mosaic documents store back-to-front `grid_free_order` and
+  `grid_mosaic_order` permutations beside their tile boxes. Invalid orders
+  fall back to cell order without dropping a tile; Mosaic orders are
+  normalized so locked tiles remain in front. Mosaic settings persist the
+  same order as `playlist/grid_mosaic_order`.
 
 ## Settings (`settings.ini`)
 
