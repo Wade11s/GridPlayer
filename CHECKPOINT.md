@@ -2,11 +2,11 @@
 
 ## 2026-11-23 Free/Mosaic z-order candidate
 
-Frozen source is unchanged. Base/main is
-`f51faf3925e5ce3029662289f4c11d7dfc67a92b` (post PR #75); code candidate
-is `24886ed0dde0fa0834995b584a63c64a5c12a2c9` on
-`feat/free-tile-zorder` in `/tmp/gridplayer-zorder`. A checkpoint-only
-commit follows; the PR binds the final reviewed head.
+Frozen source is unchanged. Base/main is `a05f925` (after PR #82), merged
+into the branch as `39798d5`; the original candidate was
+`24886ed0dde0fa0834995b584a63c64a5c12a2c9`. The PR binds head `34feb66`
+on `feat/free-tile-zorder` in `/tmp/gridplayer-zorder`; this entry and the
+PR body name that head, and any later commit on the branch is docs-only.
 
 Implemented: validated back-to-front permutations, same-tier overlap-gated
 Bring to Front/Send to Back, locked-front Mosaic tiers, draw/hit order,
@@ -14,14 +14,19 @@ document/settings persistence, and clip-signature-gated native NSView
 reordering. PUSH, optimizer/reorder-to-fit, advanced snapping, and full
 occlusion/Retina acceptance remain open.
 
-Verification on the candidate tree: `go vet ./...`,
+Verification at head `34feb66`: `go vet ./...`,
 `go test ./... -race -count=1`, `go build ./...`, `scripts/build_app.sh`, and
 `scripts/smoke_app.sh` PASS (4 VideoToolbox lines). Real overlapping playback
-at `/tmp/gridplayer-zorder-app/`: `before.png` has B over A, `after.png` has A
-over B after Bring to Front; `saved.gpls` stores `grid_free_order:[1,0]` and
-autoquit left no process. App:
-`/tmp/gridplayer-zorder/dist/darwin-arm64/GridPlayer.app`. This is targeted
-stacking evidence, not full layout acceptance.
+at `/tmp/gridplayer-zorder-head/`: `before.png` has B over A at 7160 ms,
+`after.png` has A over B while both cells kept advancing, `saved.gpls`
+stores `grid_free_order:[1,0]`, and autoquit left no process; the earlier
+`022d1e0` run is at `/tmp/gridplayer-zorder-app/`. Gate-3 review of
+`cfff06a` returned PASS with two medium findings -- an untested
+`Stack` front-locked branch and a lock action that raised a Mosaic tile
+above previously locked tiles -- both fixed at `34feb66` (`Restack` on lock,
+`TestStackKeepsLockedTierInFront`, `TestMosaicLockKeepsLockedTierOrder`).
+This is targeted stacking evidence, not full layout acceptance.
+
 ## 2026-11-24 chapter-stops candidate
 
 Frozen source is unchanged. Base/main is `6ee09d7` (post PR #81). Code
