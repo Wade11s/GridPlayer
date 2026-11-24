@@ -9,6 +9,32 @@ import (
 
 // The frozen CellLayout sets spacing 0 and every Box shares its edge with
 // its neighbour, so each Go layout must hand back rects that meet exactly.
+func TestShowAllCellsTogglesInFixedMode(t *testing.T) {
+	a := &app{cfg: grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3}}
+	a.togglePreallocate()
+	if !a.cfg.Preallocate || !a.dirty {
+		t.Fatalf("preallocate=%v dirty=%v", a.cfg.Preallocate, a.dirty)
+	}
+	d := a.document()
+	if _, _, _, preallocate := d.GridState(); !preallocate {
+		t.Fatal("the document lost preallocate")
+	}
+	b := &app{defaultVolume: 80, defaultRate: 1}
+	b.applyDocument(d, "")
+	if !b.cfg.Preallocate || b.cfg.Mode != grid.Fixed {
+		t.Fatalf("restored cfg=%+v", b.cfg)
+	}
+	a.togglePreallocate()
+	if a.cfg.Preallocate {
+		t.Fatal("preallocate did not toggle off")
+	}
+	a.cfg.Mode = grid.AutoRows
+	a.togglePreallocate()
+	if a.cfg.Preallocate {
+		t.Fatal("preallocate should be ignored outside a fixed grid")
+	}
+}
+
 func TestCellsMeetWithoutGap(t *testing.T) {
 	area := grid.Rect{X: 10, Y: 20, W: 300, H: 200}
 	const eps = 1e-9

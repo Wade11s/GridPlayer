@@ -43,6 +43,7 @@ type settingsDraft struct {
 	snap          bool
 	overlap       bool
 	showGridLines bool
+	showAllCells  bool
 	singleSide    string
 
 	view         string
@@ -296,6 +297,9 @@ func (a *app) settingsGrid(c *ui.Context, d *settingsDraft) {
 			ui.Field(c, a.tr("SettingsDialog", "Columns"), func() {
 				ui.Select(c, &d.cols, sizeOptions)
 			})
+			ui.Field(c, a.tr("SettingsDialog", "Show all cells"), func() {
+				ui.Checkbox(c, &d.showAllCells, "Show every fixed cell, empty ones included")
+			})
 		}
 		if d.layout == "Single Mode" {
 			ui.Field(c, a.tr("SettingsDialog", "Strip side"), func() {
@@ -506,6 +510,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.snap = a.snap
 	d.overlap = a.overlap
 	d.showGridLines = a.showGridLines
+	d.showAllCells = a.cfg.Preallocate
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
 	d.cols = fmt.Sprint(clampInt(a.cfg.Cols, 1, 8))
 	switch {
@@ -665,7 +670,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 		a.cfg = grid.Config{Mode: grid.Shapes}
 		a.free, a.mosaic, a.single = false, false, false
 	case "Fixed":
-		a.cfg = grid.Config{Mode: grid.Fixed, Rows: atoi(d.rows, 3), Cols: atoi(d.cols, 3)}
+		a.cfg = grid.Config{Mode: grid.Fixed, Rows: atoi(d.rows, 3), Cols: atoi(d.cols, 3), Preallocate: d.showAllCells}
 		a.free, a.mosaic, a.single = false, false, false
 	case "Free Tiles":
 		a.free, a.mosaic, a.single = true, false, false
@@ -675,7 +680,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	case "Single Mode":
 		a.free, a.mosaic, a.single = false, false, true
 	default:
-		a.cfg = grid.Config{Mode: grid.AutoRows}
+		a.cfg = grid.Config{Mode: grid.AutoRows, Preallocate: d.showAllCells}
 		a.free, a.mosaic, a.single = false, false, false
 	}
 	for _, c := range a.cells {

@@ -284,9 +284,10 @@ func (a *app) loadSettings() {
 	a.startFullscreen = st.Get("player/start_fullscreen", "false") == "true"
 	a.keys = keymap.Load(func(k string) string { return st.Get(k, "") })
 	a.cfg = grid.Config{
-		Mode: parseMode(st.Get("playlist/grid_mode", "auto_rows")),
-		Rows: atoi(st.Get("playlist/grid_rows", "3"), 3),
-		Cols: atoi(st.Get("playlist/grid_cols", "3"), 3),
+		Mode:        parseMode(st.Get("playlist/grid_mode", "auto_rows")),
+		Rows:        atoi(st.Get("playlist/grid_rows", "3"), 3),
+		Cols:        atoi(st.Get("playlist/grid_cols", "3"), 3),
+		Preallocate: st.Get("playlist/grid_preallocate", "false") == "true",
 	}
 	a.template = st.Get("playlist/grid_template", "")
 	if _, ok := grid.FindTemplate(a.template); !ok || a.cfg.Mode != grid.Fixed {
@@ -515,6 +516,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_mode", modeName(a.cfg.Mode))
 	a.settings.Set("playlist/grid_rows", fmt.Sprint(a.cfg.Rows))
 	a.settings.Set("playlist/grid_cols", fmt.Sprint(a.cfg.Cols))
+	a.settings.Set("playlist/grid_preallocate", fmt.Sprint(a.cfg.Preallocate))
 	a.settings.Set("playlist/grid_template", a.template)
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
@@ -2503,6 +2505,21 @@ func playableDirect(raw string) bool {
 	return false
 }
 
+// togglePreallocate shows every configured cell of a fixed grid, empty ones
+// included, as the frozen "Show All Cells" action does. Other modes ignore it.
+func (a *app) togglePreallocate() {
+	if a.cfg.Mode != grid.Fixed {
+		return
+	}
+	a.cfg.Preallocate = !a.cfg.Preallocate
+	a.dirty = true
+	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
 func (a *app) setGrid(cfg grid.Config) {
 	a.cfg = cfg
 	a.template = ""
@@ -2825,8 +2842,8 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 			}
 		}
 	}
-	if mode, rows, cols := d.GridState(); mode != "" {
-		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols}
+	if mode, rows, cols, preallocate := d.GridState(); mode != "" {
+		a.cfg = grid.Config{Mode: parseMode(mode), Rows: rows, Cols: cols, Preallocate: preallocate}
 	}
 	a.template = ""
 	var templateName string
@@ -2983,7 +3000,7 @@ func (a *app) document() *playlist.Document {
 		}
 		d.Videos[i] = v
 	}
-	d.SetGridState(modeName(a.cfg.Mode), a.cfg.Rows, a.cfg.Cols)
+	d.SetGridState(modeName(a.cfg.Mode), a.cfg.Rows, a.cfg.Cols, a.cfg.Preallocate && a.cfg.Mode == grid.Fixed)
 	if a.template != "" {
 		setRawSetting(d, "grid_template", a.template)
 	} else {
@@ -3759,6 +3776,9 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Label: "Fixed 4×4", Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 4, Cols: 4})
+			}},
+			{Label: "Show All Cells", Type: mygo.MenuItemCheckbox, Checked: a.cfg.Mode == grid.Fixed && a.cfg.Preallocate, Disabled: a.cfg.Mode != grid.Fixed, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.togglePreallocate()
 			}},
 			{Label: "Templates", Submenu: templateItems},
 			{Label: "Free Tiles", Type: mygo.MenuItemCheckbox, Checked: a.free, Click: func(*mygo.MenuItem, *mygo.Window) {

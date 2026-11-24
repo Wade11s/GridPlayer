@@ -22,6 +22,9 @@ type Config struct {
 	Mode Mode
 	Rows int
 	Cols int
+	// Preallocate shows every configured cell of a fixed grid, the empty
+	// ones included, as the frozen grid_preallocate setting does.
+	Preallocate bool
 }
 
 // Rect is a DIP rectangle with a top-left origin.
@@ -34,12 +37,21 @@ func Dims(n int, c Config) (rows, cols int) {
 	}
 	switch c.Mode {
 	case Fixed:
-		// The frozen displayed_size draws only the cells in use: cells pack
+		// The frozen displayed_size draws every configured cell when
+		// preallocate is on, and otherwise only the cells in use: cells pack
 		// row-major, the configured columns bound the packing, and the empty
 		// rows and columns past the last cell are not shown. The configured
 		// rows do not bound anything while videos overflow their cells: rows
 		// grow until the frozen close rule (confirm, then remove the extra
 		// videos) lands.
+		if c.Preallocate {
+			rows = max(c.Rows, 1)
+			cols = max(c.Cols, 1)
+			if rows*cols < n {
+				rows = (n + cols - 1) / cols
+			}
+			return rows, cols
+		}
 		cols = min(max(c.Cols, 1), n)
 		return (n + cols - 1) / cols, cols
 	case AutoCols:

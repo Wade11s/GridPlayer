@@ -298,22 +298,23 @@ func (d *Document) Save(path string) error {
 }
 
 // GridState reads our grid subset from settings ("grid_state").
-func (d *Document) GridState() (mode string, rows, cols int) {
+func (d *Document) GridState() (mode string, rows, cols int, preallocate bool) {
 	raw, ok := d.Settings["grid_state"]
 	if !ok {
-		return "", 0, 0
+		return "", 0, 0, false
 	}
 	var s struct {
-		Mode string `json:"mode"`
-		Rows int    `json:"rows"`
-		Cols int    `json:"cols"`
+		Mode        string `json:"mode"`
+		Rows        int    `json:"rows"`
+		Cols        int    `json:"cols"`
+		Preallocate bool   `json:"preallocate"`
 	}
 	_ = json.Unmarshal(raw, &s)
-	return s.Mode, s.Rows, s.Cols
+	return s.Mode, s.Rows, s.Cols, s.Preallocate
 }
 
 // SetGridState writes the grid subset, preserving other grid fields.
-func (d *Document) SetGridState(mode string, rows, cols int) {
+func (d *Document) SetGridState(mode string, rows, cols int, preallocate bool) {
 	if d.Settings == nil {
 		d.Settings = map[string]json.RawMessage{}
 	}
@@ -324,5 +325,12 @@ func (d *Document) SetGridState(mode string, rows, cols int) {
 	m["mode"], _ = json.Marshal(mode)
 	m["rows"], _ = json.Marshal(rows)
 	m["cols"], _ = json.Marshal(cols)
+	if preallocate {
+		m["preallocate"], _ = json.Marshal(true)
+	} else {
+		// Written as upstream does only when set; a false value is the
+		// default and stays out of the document.
+		delete(m, "preallocate")
+	}
 	d.Settings["grid_state"], _ = json.Marshal(m)
 }
