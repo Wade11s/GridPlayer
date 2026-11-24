@@ -160,6 +160,7 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	if got := a.liveOrder(); len(got) != 5 || got[0] != 4 || got[1] != 3 || got[2] != 2 || got[3] != 1 || got[4] != 0 {
 		t.Fatalf("live order = %v, want [4 3 2 1 0]", got)
 	}
+	activePtr := a.cells[a.active]
 	a.closeOverflow(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
 	if len(a.cells) != 4 {
 		t.Fatalf("cells = %d, want 4", len(a.cells))
@@ -172,9 +173,9 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 			t.Fatalf("kept %v, want %v", cellPaths(a.cells), want)
 		}
 	}
-	// The active video was index 2 and is still itself after index 0 closed.
-	if got := a.cells[a.active].path; got != "2.mp4" {
-		t.Fatalf("active is %q, want 2.mp4", got)
+	// The active video is still the same cell, by identity.
+	if a.cells[a.active] != activePtr {
+		t.Fatalf("active is %q, want %q", a.cells[a.active].path, activePtr.path)
 	}
 
 	// Closing the active cell itself leaves a valid active index on a
@@ -218,6 +219,39 @@ func TestFixedEntryPacksTiledOrderWithoutOverflow(t *testing.T) {
 	}
 	if len(a.cells) != 3 {
 		t.Fatalf("a grid that fits closed cells: %d", len(a.cells))
+	}
+}
+
+func TestFixedEntryClearsTilesAndLocks(t *testing.T) {
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{
+		cells:  cells,
+		active: 1,
+		mosaic: true,
+		mosaicTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a
+		},
+		mosaicLocked: map[int]bool{1: true},
+	}
+	activePtr := a.cells[a.active]
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3})
+	// The frozen _apply_fixed clears the free layout: no tiles, no locks.
+	if a.mosaicLocked != nil {
+		t.Fatalf("locks survived the fixed entry: %v", a.mosaicLocked)
+	}
+	if a.mosaicTiles != nil || a.freeTiles != nil {
+		t.Fatal("tiles survived the fixed entry")
+	}
+	want := []string{"c.mp4", "a.mp4", "b.mp4"}
+	for i, w := range want {
+		if a.cells[i].path != w {
+			t.Fatalf("packed %v, want %v", cellPaths(a.cells), want)
+		}
+	}
+	if a.cells[a.active] != activePtr {
+		t.Fatalf("active moved to %q", a.cells[a.active].path)
 	}
 }
 

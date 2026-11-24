@@ -8,10 +8,11 @@ candidate is `556d2bc5de65e7c2623330459f18886d540da160` on
 
 Fixed: entering a fixed grid from Free Tiles or Mosaic now packs the
 survivors in the frozen reading order, as `_apply_fixed` does with
-`pack_flow(keep_ids)`, instead of leaving playlist order in the grid. Cells
-and their tiles move together, the active cell follows its video, the
-stacking permutations reset to the new reading order, and the close then
-drops the tail. A grid that holds every video packs without closing.
+`pack_flow(keep_ids)`, instead of leaving playlist order in the grid. The
+active cell follows its video, and the free layout is cleared on the way in
+(`_free.clear()`): tiles, stacking order and mosaic locks go, so no
+index-keyed lock can land on another video after the permutation. A grid that
+holds every video packs without closing.
 
 Verification on `556d2bc` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
@@ -28,11 +29,13 @@ and the updated `TestOverflowCloseFollowsTheTiledReadingOrder`.
 Note: Go's cells are the playlist, so the saved .gpls video order now follows
 the grid order; upstream keeps a separate video order and grid cells.
 
-Still open: a big-cell template closes and packs by place order rather than
-the frozen visual row order; a loaded document with more videos than its grid
-extends the rows instead of leaving the extras unplaced; closed videos are
-not remembered for a Reopen Closed Video action; the frozen grid undo is
-absent.
+Still open: cells keep place order after a big-cell template, so a later
+smaller fixed grid closes by place order rather than the frozen visual row
+order; leaving Free Tiles or Mosaic for a plain grid keeps playlist order
+where the frozen re-reads the tiles; a loaded document with more videos than
+its grid extends the rows instead of leaving the extras unplaced; closed
+videos are not remembered for a Reopen Closed Video action; the frozen grid
+undo is absent.
 
 ## 2026-11-25 tiled-close-order candidate
 

@@ -2698,21 +2698,16 @@ func (a *app) repackForFixed() {
 	for slot, from := range order {
 		next[slot] = a.cells[from]
 	}
-	if a.free && len(a.freeTiles) == n {
-		tiles := make([]grid.Tile, n)
-		for slot, from := range order {
-			tiles[slot] = a.freeTiles[from]
-		}
-		a.freeTiles = tiles
-	}
-	if a.mosaic && len(a.mosaicTiles) == n {
-		tiles := make([]grid.Tile, n)
-		for slot, from := range order {
-			tiles[slot] = a.mosaicTiles[from]
-		}
-		a.mosaicTiles = tiles
-	}
 	a.cells = next
+	// The frozen _apply_fixed clears the free layout on the way in:
+	// _free.clear() drops the tiles and the locked set. Keeping them would
+	// leave index-keyed locks and boxes pointing at other videos after the
+	// permutation.
+	a.freeTiles = nil
+	a.mosaicTiles = nil
+	a.freeOrder = nil
+	a.mosaicOrder = nil
+	a.mosaicLocked = nil
 	if active != nil {
 		for i, c := range a.cells {
 			if c == active {
@@ -2721,11 +2716,6 @@ func (a *app) repackForFixed() {
 			}
 		}
 	}
-	// The stacking permutations were index lists over the old order; the
-	// tiles now follow their videos, so the default order is the reading
-	// order the frozen pack leaves.
-	a.freeOrder = grid.DefaultOrder(n)
-	a.mosaicOrder = grid.DefaultOrder(n)
 }
 
 // liveOrder is the order the videos are laid out in: playlist order for the
