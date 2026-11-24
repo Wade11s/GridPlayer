@@ -202,7 +202,7 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
-- 2026-11-25, F5 show-all-cells candidate (code `3c1db7b`, main `38a54a0`):
+- 2026-11-25, F5 show-all-cells candidate (main `38a54a0`, exact head in the PR):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with two generated fixtures and a
@@ -216,7 +216,8 @@ Changes need a new review; thresholds never relax in-implementation.
   and the save are exercised in the app; the toggle-off path, the disabled
   state outside Fixed, the settings write and the carry across presets are
   unit evidence (`TestShowAllCellsTogglesInFixedMode`,
-  `TestFixedPreallocateShowsEveryCell`).
+  `TestShowAllCellsTurnsOffCleanly`, `TestFixedPreallocateShowsEveryCell`,
+  `TestEmptyCellsFollowTheLayout`).
 - 2026-11-25, F5 fixed-cells candidate (`2eca6f0`, main `5b43599`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

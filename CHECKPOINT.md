@@ -13,8 +13,10 @@ the `Show All Cells` checkable Grid item (disabled outside Fixed), the
 settings checkbox, `playlist/grid_preallocate` persistence, and
 `grid_state.preallocate` in the document, written only when set.
 
-An empty cell is drawn the way the frozen `EmptyCell` does: a cell-shaped
-background with a plus in its middle. Free Tiles, Mosaic and Single Mode are
+An empty cell is drawn as a cell-shaped background with a plus in its middle,
+approximating the frozen `EmptyCell` (no dashed outline, size-scaled bars or
+drop target yet); with a template active the empty cells follow the
+template's places, including under a big cell. Free Tiles, Mosaic and Single Mode are
 not fixed grids even though `cfg.Mode` stays Fixed, so the action is disabled
 and ignored there; a size preset, template or mode switch carries the flag
 instead of clearing it.
