@@ -1508,7 +1508,8 @@ func (a *app) finishVideo(c *cell) {
 }
 
 // pauseAtStart is the frozen pause end action: back to the loop start, then
-// paused. An ended engine has to be reopened before it will seek and pause.
+// paused. libVLC can drop a pause issued before the reopened input exists,
+// so use the established paused-restore guard.
 func (a *app) pauseAtStart(c *cell) {
 	if c == nil || c.eng == nil {
 		return
@@ -1517,13 +1518,15 @@ func (a *app) pauseAtStart(c *cell) {
 	if start < 0 {
 		start = 0
 	}
-	if c.eng.Snapshot().Phase == engine.Ended {
-		if err := c.eng.Reload(); err != nil {
-			a.status = err.Error()
-			return
-		}
+	c.startAt = int(start)
+	c.startPaused = true
+	c.skipGen = 0
+	c.pauseOnPlay.Store(true)
+	c.eng.SetStartPosition(start)
+	if err := c.eng.Load(c.path); err != nil {
+		a.status = err.Error()
+		return
 	}
-	a.seekCellTo(c, start)
 	c.eng.Pause()
 }
 
