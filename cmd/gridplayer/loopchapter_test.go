@@ -17,7 +17,7 @@ func TestChapterSpan(t *testing.T) {
 	}{
 		{name: "first", at: 0, length: 60000, wantStart: 0, wantEnd: 10000, wantOK: true},
 		{name: "middle", at: 15000, length: 60000, wantStart: 10000, wantEnd: 30000, wantOK: true},
-		{name: "last", at: 45000, length: 60000, wantStart: 30000, wantEnd: 60000, wantOK: true},
+		{name: "last runs to EOF", at: 45000, length: 60000, wantStart: 30000, wantEnd: 0, wantOK: true},
 		{name: "at boundary", at: 10000, length: 60000, wantStart: 10000, wantEnd: 30000, wantOK: true},
 		{name: "before first", at: -1, length: 60000, wantStart: 0, wantEnd: 10000, wantOK: true},
 		{name: "within tolerance", at: 9900, length: 60000, wantStart: 10000, wantEnd: 30000, wantOK: true},
@@ -32,6 +32,23 @@ func TestChapterSpan(t *testing.T) {
 	}
 	if _, _, ok := chapterSpan([]engine.Chapter{{Time: 10000}}, 10000, 10000); ok {
 		t.Fatal("zero-length last chapter produced a span")
+	}
+	start, end, ok := chapterSpan([]engine.Chapter{{Time: 10000}}, 12000, 0)
+	if !ok || start != 10000 || end != 0 {
+		t.Fatalf("unknown length span = %d-%d ok=%v", start, end, ok)
+	}
+	for _, tt := range []struct {
+		start, end int64
+		want       bool
+	}{
+		{start: 0, end: 20000, want: true},
+		{start: 30000, end: 0, want: true},
+		{start: 0, end: 0},
+		{start: -5, end: 0},
+	} {
+		if got := segmentLoopActive(tt.start, tt.end); got != tt.want {
+			t.Fatalf("segmentLoopActive(%d,%d) = %v, want %v", tt.start, tt.end, got, tt.want)
+		}
 	}
 }
 

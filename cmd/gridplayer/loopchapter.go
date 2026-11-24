@@ -64,13 +64,28 @@ func chapterSpan(chapters []engine.Chapter, at, length int64) (start, end int64,
 		if idx+1 < len(cleaned) {
 			end = cleaned[idx+1].Time
 		} else {
-			end = length
+			// The last chapter runs to the file end. Frozen leaves the end
+			// unset for it, so an unknown length still gives a start-only
+			// segment rather than no chapter.
+			end = 0
 		}
+	}
+	if end == 0 {
+		if start <= 0 {
+			return 0, 0, false
+		}
+		return start, 0, true
 	}
 	if end <= start {
 		return 0, 0, false
 	}
 	return start, end, true
+}
+
+// segmentLoopActive reports whether the cell carries a loop segment. A zero
+// start is a real start (the first chapter); a zero end means EOF.
+func segmentLoopActive(start, end int64) bool {
+	return start > 0 || end > 0
 }
 
 // loopSeekTarget is the frozen segment rule: a time past the end, or more

@@ -35,7 +35,7 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   applies at the next `Load`. Runtime loop changes reload in the UI layer.
 - Tracks and chapters: `AudioTracks/VideoTracks/SubtitleTracks` return
   `{ID,Name}` from libVLC's description lists; `Chapters` returns
-  `{Index,Name}` from its full chapter descriptions. Selection goes through
+  `{Index,Name,Time}` (time in milliseconds) from its full chapter descriptions. Selection goes through
   the same mutex-guarded player; `RefreshTracks` updates the snapshot when a
   menu opens or a load settles.
 - View and external tracks: `SetAspectRatio/SetScale/SetCrop` map to libVLC's

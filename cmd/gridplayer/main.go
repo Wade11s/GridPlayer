@@ -1097,28 +1097,35 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 	var lastRetryGen uint64
 	wasPlaying := false
 	loopSeeking := false
+	loopSeekFrom := int64(0)
+	loopSeekTries := 0
 	for {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
-			if s.Phase == engine.Playing && (c.loopStart > 0 || c.loopEnd > 0) {
+			if s.Phase == engine.Playing && segmentLoopActive(c.loopStart, c.loopEnd) {
 				end := c.loopEnd
 				if end <= 0 {
 					end = s.Length
 				}
 				if target, seek := loopSeekTarget(s.Time, c.loopStart, end); seek {
-					if !loopSeeking {
+					if !loopSeeking || (loopSeekFrom != s.Time && loopSeekTries < 2) {
 						loopSeeking = true
+						loopSeekFrom = s.Time
+						loopSeekTries++
 						log.Printf("loop segment: seek %d -> %dms", s.Time, target)
 						eng.SeekTo(target)
 					}
 				} else {
 					loopSeeking = false
+					loopSeekTries = 0
 				}
 			} else {
 				loopSeeking = false
+				loopSeekTries = 0
 			}
 			if s.Phase == engine.Playing {
+				c.endedGen = 0
 				c.retries.Store(0)
 				lastRetryGen = 0
 				if !wasPlaying {
@@ -1212,8 +1219,17 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 					})
 				}
 			}
-			if s.Phase == engine.Ended && c.shouldAdvance(s.Gen) {
-				mygo.RunOnMain(func() { a.finishVideo(c) })
+			if s.Phase == engine.Ended {
+				if segmentLoopActive(c.loopStart, c.loopEnd) {
+					if c.shouldAdvance(s.Gen) {
+						log.Printf("loop segment: restart at end")
+						if err := eng.Reload(); err == nil {
+							eng.SeekTo(c.loopStart)
+						}
+					}
+				} else if c.shouldAdvance(s.Gen) {
+					mygo.RunOnMain(func() { a.finishVideo(c) })
+				}
 			}
 			if a.win != nil && !a.closed.Load() {
 				a.win.Invalidate()
@@ -3587,10 +3603,10 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Label: a.tr("Actions", "Loop"), Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
-			{Label: a.tr("Actions", "Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
-			{Label: a.tr("Actions", "Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
+			{Label: a.tr("Actions", "Set Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
+			{Label: a.tr("Actions", "Set Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
 			{Label: a.tr("Actions", "Loop Chapter"), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
-			{Label: a.tr("Actions", "Reset Loop"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
+			{Label: a.tr("Actions", "Loop Reset"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},
