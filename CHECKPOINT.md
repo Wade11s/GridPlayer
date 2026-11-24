@@ -3,14 +3,15 @@
 ## 2026-11-24 proxy-mode candidate
 
 Frozen source is unchanged. Base/main is `8ef2a54` (post PR #78). Code
-candidate is `7edea657fa73336b6f8b821a768324cc077f7a4b` on
+candidate is `e136a87aaacb7af53fbde24340b110b61df63821` on
 `fix/f9-proxy-mode`. A checkpoint-only commit follows; the PR binds the
 final reviewed head.
 
 Fixed: resolver requests now read the frozen `network/proxy_mode` and
 `network/proxy_url`. System inherits the environment, none clears inherited
 proxy variables for the child, and custom passes the configured URL to
-yt-dlp and streamlink. The single `network/proxy` URL older Go builds wrote
+yt-dlp and streamlink; custom with no URL is read as no proxy rather than
+the machine's. The single `network/proxy` URL older Go builds wrote
 migrates to custom, and Settings exposes the mode beside the URL.
 
 Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
