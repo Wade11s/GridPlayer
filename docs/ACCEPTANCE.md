@@ -215,8 +215,9 @@ Changes need a new review; thresholds never relax in-implementation.
   (`template-closed.png`). `saved.gpls` holds plane-a..c with
   `settings.grid_state` 2x3 fixed and `grid_template` "1 + 2", `vlc.log`
   carries the five decode lines from launch, teardown finished, and
-  no `gridplayer`/`poc-hw` process remained. The dialog text, the closed
-  count, the cancel path and the non-fixed guard are also unit evidence
+  no `gridplayer`/`poc-hw` process remained. The dialog text is the
+  screenshot above; the ask's count and capacity, the cancel path, the
+  kept-cell identity and the non-fixed guard are unit evidence
   (`TestFixedOverflowAsksBeforeClosing`, `TestOverflowCount`,
   `TestGridDraftOverflowCancelKeepsLayout`, `TestNonFixedLayoutsNeverAsk`).
 - 2026-11-25, F5 show-all-cells candidate (`865e723`, main `38a54a0`):

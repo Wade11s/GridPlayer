@@ -2613,10 +2613,12 @@ func (a *app) overflowCount(cfg grid.Config) int {
 	if cfg.Mode != grid.Fixed {
 		return 0
 	}
-	if over := len(a.cells) - fixedCapacity(cfg); over > 0 {
-		return over
-	}
-	return 0
+	return a.overflowCountFor(fixedCapacity(cfg))
+}
+
+// overflowCountFor is how many cells past capacity the app holds.
+func (a *app) overflowCountFor(capacity int) int {
+	return max(len(a.cells)-capacity, 0)
 }
 
 // confirmOverflow asks before a fixed grid loses the videos it cannot hold.
@@ -2631,7 +2633,7 @@ func (a *app) confirmOverflow(cfg grid.Config) bool {
 // the open videos. The frozen dialog makes Cancel the default button for a
 // destructive confirm, so this does too.
 func (a *app) confirmClose(capacity int) bool {
-	over := len(a.cells) - capacity
+	over := a.overflowCountFor(capacity)
 	if over <= 0 {
 		return true
 	}

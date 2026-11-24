@@ -156,6 +156,23 @@ func TestNonFixedLayoutsNeverAsk(t *testing.T) {
 	if !a.confirmOverflow(grid.Config{Mode: grid.AutoRows}) || len(a.cells) != 5 {
 		t.Fatal("a non-fixed config changed the cells")
 	}
+
+	// The Settings tab's own guard: cfg still says Fixed with less capacity
+	// than the cells, but Free Tiles, Mosaic and Single Mode must not ask or
+	// close anything.
+	for _, layout := range []string{"Free Tiles", "Mosaic", "Single Mode"} {
+		a := &app{
+			cells:       make([]*cell, 5),
+			cfg:         grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2},
+			askOverflow: func(int, int) bool { t.Fatalf("%s asked to close videos", layout); return false },
+		}
+		if ok := a.applyGridDraft(settingsDraft{layout: layout, rows: "2", cols: "2"}); !ok {
+			t.Fatalf("%s reported declined", layout)
+		}
+		if len(a.cells) != 5 {
+			t.Fatalf("%s dropped cells: %d", layout, len(a.cells))
+		}
+	}
 }
 
 func TestOverflowCount(t *testing.T) {
