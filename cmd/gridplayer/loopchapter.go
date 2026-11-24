@@ -116,7 +116,7 @@ func (a *app) loopChapter() {
 		a.status = "no chapter to loop"
 		return
 	}
-	c.loopStart, c.loopEnd = start, end
+	c.setLoopBounds(start, end)
 	a.dirty = true
 	a.status = fmt.Sprintf("loop chapter %d-%dms", start, end)
 }

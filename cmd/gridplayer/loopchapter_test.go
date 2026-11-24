@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"gridplayer-go/internal/dummy"
 	"gridplayer-go/internal/engine"
 )
 
@@ -49,6 +50,42 @@ func TestChapterSpan(t *testing.T) {
 		if got := segmentLoopActive(tt.start, tt.end); got != tt.want {
 			t.Fatalf("segmentLoopActive(%d,%d) = %v, want %v", tt.start, tt.end, got, tt.want)
 		}
+	}
+}
+
+type chapterBackend struct {
+	*dummy.Backend
+	chapters []engine.Chapter
+}
+
+func (b *chapterBackend) Chapters() []engine.Chapter { return b.chapters }
+
+func TestLoopChapterSetsBoundsAndReportsMissingChapters(t *testing.T) {
+	newEngine := func(chapters []engine.Chapter) *engine.Engine {
+		e := engine.New(func(string, bool, string) (engine.Backend, error) {
+			return &chapterBackend{Backend: dummy.New(), chapters: chapters}, nil
+		})
+		if err := e.Load("movie.mkv"); err != nil {
+			t.Fatal(err)
+		}
+		e.RefreshTracks()
+		return e
+	}
+	withChapters := newEngine([]engine.Chapter{{Time: 0, Name: "one"}, {Time: 10000, Name: "two"}})
+	defer withChapters.Close()
+	a := &app{cells: []*cell{{eng: withChapters}}}
+	a.loopChapter()
+	start, end := a.cells[0].loopBounds()
+	if start != 0 || end != 10000 || !a.dirty {
+		t.Fatalf("chapter loop = %d-%d dirty=%v", start, end, a.dirty)
+	}
+
+	without := newEngine(nil)
+	defer without.Close()
+	a = &app{cells: []*cell{{eng: without}}}
+	a.loopChapter()
+	if a.dirty || a.status != "no chapter to loop" {
+		t.Fatalf("missing chapters: dirty=%v status=%q", a.dirty, a.status)
 	}
 }
 

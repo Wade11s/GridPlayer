@@ -137,7 +137,7 @@ var Labels = map[string]string{
 	"loop_start":                 "Set Loop Start",
 	"loop_end":                   "Set Loop End",
 	"loop_reset":                 "Loop Reset",
-	"loop_chapter":               "Loop chapter",
+	"loop_chapter":               "Loop Chapter",
 	"rate_reset":                 "Reset rate",
 	"zoom_in":                    "Zoom in",
 	"zoom_out":                   "Zoom out",

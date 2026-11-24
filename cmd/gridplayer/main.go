@@ -61,8 +61,7 @@ type cell struct {
 	subDelay          int64
 	externalAudio     []string
 	externalSubtitles []string
-	loopStart         int64
-	loopEnd           int64
+	segment           atomic.Pointer[loopSegment]
 	cropMargins       cropMargins
 	startAt           int
 	startPaused       bool
@@ -106,6 +105,24 @@ type cell struct {
 	loop          bool
 	advancing     bool
 	endedGen      uint64
+}
+
+// loopSegment is the cell's fragment-loop bounds. It is one pointer so the
+// watch goroutine never observes a new start beside a stale end.
+type loopSegment struct {
+	start int64
+	end   int64
+}
+
+func (c *cell) loopBounds() (start, end int64) {
+	if p := c.segment.Load(); p != nil {
+		return p.start, p.end
+	}
+	return 0, 0
+}
+
+func (c *cell) setLoopBounds(start, end int64) {
+	c.segment.Store(&loopSegment{start: start, end: end})
 }
 
 type app struct {
@@ -1103,12 +1120,13 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 		select {
 		case <-eng.Updates():
 			s := eng.Snapshot()
-			if s.Phase == engine.Playing && segmentLoopActive(c.loopStart, c.loopEnd) {
-				end := c.loopEnd
+			loopStart, loopEnd := c.loopBounds()
+			if s.Phase == engine.Playing && segmentLoopActive(loopStart, loopEnd) {
+				end := loopEnd
 				if end <= 0 {
 					end = s.Length
 				}
-				if target, seek := loopSeekTarget(s.Time, c.loopStart, end); seek {
+				if target, seek := loopSeekTarget(s.Time, loopStart, end); seek {
 					if !loopSeeking || (loopSeekFrom != s.Time && loopSeekTries < 2) {
 						loopSeeking = true
 						loopSeekFrom = s.Time
@@ -1125,7 +1143,6 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				loopSeekTries = 0
 			}
 			if s.Phase == engine.Playing {
-				c.endedGen = 0
 				c.retries.Store(0)
 				lastRetryGen = 0
 				if !wasPlaying {
@@ -1220,11 +1237,17 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				}
 			}
 			if s.Phase == engine.Ended {
-				if segmentLoopActive(c.loopStart, c.loopEnd) {
+				if segmentLoopActive(loopStart, loopEnd) {
 					if c.shouldAdvance(s.Gen) {
 						log.Printf("loop segment: restart at end")
-						if err := eng.Reload(); err == nil {
-							eng.SeekTo(c.loopStart)
+						if err := eng.Reload(); err != nil {
+							log.Printf("loop segment: reload: %v", err)
+							mygo.RunOnMain(func() {
+								a.status = "loop restart failed: " + err.Error()
+								a.finishVideo(c)
+							})
+						} else {
+							eng.SeekTo(loopStart)
 						}
 					}
 				} else if c.shouldAdvance(s.Gen) {
@@ -2006,8 +2029,10 @@ func (a *app) shortcuts(c *ui.Context) {
 	if a.shortcut(c, "seek_random") {
 		if eng != nil {
 			lo, hi := int64(0), eng.Snapshot().Length
-			if cell := a.activeCell(); cell != nil && cell.loopEnd > 0 {
-				lo, hi = cell.loopStart, cell.loopEnd
+			if cell := a.activeCell(); cell != nil {
+				if start, end := cell.loopBounds(); end > 0 {
+					lo, hi = start, end
+				}
 			}
 			a.seekActive(randomSeekTarget(lo, hi, rand.Int64N))
 		}
@@ -2140,7 +2165,8 @@ func (a *app) seekActive(ms int64) {
 	if eng := a.activeEngine(); eng != nil {
 		c := a.activeCell()
 		if c != nil {
-			ms = seekableTime(ms, c.loopStart, c.loopEnd)
+			start, end := c.loopBounds()
+			ms = seekableTime(ms, start, end)
 		}
 		eng.SeekTo(ms)
 	}
@@ -2196,28 +2222,19 @@ func (a *app) setLoopPoint(isStart bool) {
 		return
 	}
 	at := a.activeSnapshot().Time
-	var start, end *int64
-	if isStart {
-		start = &c.loopStart
-		if c.loopEnd != 0 {
-			end = &c.loopEnd
-		}
-	} else {
-		end = &c.loopEnd
-		if c.loopStart != 0 {
-			start = &c.loopStart
-		}
-	}
-	if !setLoopPoint(start, end, at, isStart) {
+	start, end := c.loopBounds()
+	start, end, ok := setLoopPoint(start, end, at, isStart)
+	if !ok {
 		return
 	}
+	c.setLoopBounds(start, end)
 	a.dirty = true
-	a.status = fmt.Sprintf("loop %d-%dms", c.loopStart, c.loopEnd)
+	a.status = fmt.Sprintf("loop %d-%dms", start, end)
 }
 
 func (a *app) resetLoopPoints() {
 	for _, c := range a.cells {
-		c.loopStart, c.loopEnd = 0, 0
+		c.setLoopBounds(0, 0)
 	}
 	a.dirty = true
 	a.status = "loop reset"
@@ -2661,8 +2678,7 @@ func (a *app) applyDocument(d *playlist.Document, path string) {
 		}
 		c.audioDelay = engine.ClampAudioDelay(v.AudioDelay)
 		c.subDelay = engine.ClampSubtitleDelay(v.SubtitleDelay)
-		c.loopStart = v.LoopStart
-		c.loopEnd = v.LoopEnd
+		c.setLoopBounds(v.LoopStart, v.LoopEnd)
 		if v.Anchor != "" {
 			c.anchorX, c.anchorY = parseAnchor(v.Anchor)
 		} else {
@@ -2816,6 +2832,7 @@ func (a *app) document() *playlist.Document {
 		if listFail == "" {
 			listFail = c.listFailRaw
 		}
+		loopStart, loopEnd := c.loopBounds()
 		v := playlist.Video{
 			ID:                c.id,
 			Title:             c.title,
@@ -2839,8 +2856,8 @@ func (a *app) document() *playlist.Document {
 			ExternalSubtitles: cloneStrings(c.externalSubtitles),
 			AudioDelay:        c.audioDelay,
 			SubtitleDelay:     c.subDelay,
-			LoopStart:         c.loopStart,
-			LoopEnd:           c.loopEnd,
+			LoopStart:         loopStart,
+			LoopEnd:           loopEnd,
 			Transform:         upstreamTransform(c.transform),
 			SponsorMode:       c.sponsorMode(),
 			SponsorModes:      a.sponsorOverridesCopy(c),
