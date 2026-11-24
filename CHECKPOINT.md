@@ -1,5 +1,29 @@
 # Migration Checkpoints
 
+## 2026-11-24 minimize-pause candidate
+
+Frozen source is unchanged. Base/main is
+`d6647b6` (post PR #77). Code candidate is
+`079ab3bceae0bb99de5b183890ece2c8adea3e77` on `fix/f11-pause-minimized`.
+A checkpoint-only commit follows; the PR binds the final reviewed head.
+
+Fixed: `playlist/pause_minimized` (frozen default true) now pauses every
+Playing cell when the window is minimized and resumes only the cells it
+paused on return; a cell the user had paused stays paused. Removed the
+focus-loss pause Go had bound to `playlist/pause_background_videos`; in the
+frozen source that key pauses hidden cells in single mode without a strip,
+which Go's layout does not have yet, so the key is left preserved for that
+slice.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). Bundled-app run at `/tmp/gridplayer-f11-pause/` loaded
+`pause_minimized=false`, saved it back unchanged, preserved the unknown
+`pause_background_videos` key, produced 4 VideoToolbox lines, and exited
+cleanly with no residual process. Minimize pause/restore is unit evidence
+only: MyGo still does not report the minimized state in this environment.
+
 ## 2026-11-24 keep-awake candidate
 
 Frozen source is unchanged. Base/main is

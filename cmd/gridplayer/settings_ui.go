@@ -29,7 +29,7 @@ type settingsDraft struct {
 	rate               float64
 	loop               bool
 	language           string
-	pauseBackground    bool
+	pauseMinimized     bool
 	inhibitScreensaver bool
 	sponsorEnabled     bool
 	sponsorModes       []string
@@ -107,7 +107,7 @@ func defaultSettingsDraft() settingsDraft {
 		rate:               1,
 		loop:               true,
 		language:           "English",
-		pauseBackground:    true,
+		pauseMinimized:     true,
 		inhibitScreensaver: true,
 		sponsorModes:       defaultSponsorModes(),
 		stayOnTop:          false,
@@ -225,7 +225,7 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 			ui.Checkbox(c, &d.muted, "Start new cells muted")
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Pause videos when minimized"), func() {
-			ui.Checkbox(c, &d.pauseBackground, "Pause when the window loses focus")
+			ui.Checkbox(c, &d.pauseMinimized, a.tr("SettingsDialog", "Pause while the window is minimized"))
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Disable screensaver while playing"), func() {
 			ui.Checkbox(c, &d.inhibitScreensaver, a.tr("SettingsDialog", "Keep the display awake"))
@@ -487,7 +487,7 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.rate = a.defaultRate
 	d.loop = a.defaultLoop
 	d.language = i18n.Name(a.language)
-	d.pauseBackground = a.pauseBackground
+	d.pauseMinimized = a.pauseMinimized
 	d.inhibitScreensaver = a.inhibitScreensaver
 	d.stayOnTop = a.stayOnTop
 	d.startMaximized = a.startMaximized
@@ -573,7 +573,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultRate = clampPlaybackRate(d.rate)
 	a.language = i18n.Code(d.language)
 	a.loadTranslator()
-	a.pauseBackground = d.pauseBackground
+	a.pauseMinimized = d.pauseMinimized
 	a.inhibitScreensaver = d.inhibitScreensaver
 	a.refreshKeepAwake()
 	a.sponsorEnabled.Store(d.sponsorEnabled)

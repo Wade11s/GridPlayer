@@ -208,14 +208,15 @@ func TestResizeTileSnapAndOverlap(t *testing.T) {
 
 func TestSettingsDraftRoundTrip(t *testing.T) {
 	a := &app{
-		cfg:           grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 4},
-		fill:          true,
-		snap:          true,
-		overlap:       true,
-		defaultVolume: 80,
-		defaultRate:   1,
-		defaultLoop:   true,
-		cells:         []*cell{{}, {}},
+		cfg:            grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 4},
+		fill:           true,
+		snap:           true,
+		overlap:        true,
+		defaultVolume:  80,
+		defaultRate:    1,
+		defaultLoop:    true,
+		pauseMinimized: true,
+		cells:          []*cell{{}, {}},
 	}
 	defer a.screensaver.Close()
 	d := a.currentSettingsDraft()
@@ -226,7 +227,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.volume = 55
 	d.rate = 1.5
 	d.loop = false
-	d.pauseBackground = false
+	d.pauseMinimized = false
 	d.inhibitScreensaver = false
 	d.sponsorEnabled = true
 	d.sponsorModes[0] = "Show"
@@ -253,8 +254,8 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	if a.defaultVolume != 55 || a.defaultRate != 1.5 || a.defaultLoop {
 		t.Fatalf("defaults volume=%d rate=%v loop=%v", a.defaultVolume, a.defaultRate, a.defaultLoop)
 	}
-	if a.pauseBackground {
-		t.Fatal("pause background not applied")
+	if a.pauseMinimized {
+		t.Fatal("pause minimized not applied")
 	}
 	if a.showGridLines {
 		t.Fatal("grid lines not applied")
