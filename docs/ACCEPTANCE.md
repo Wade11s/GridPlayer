@@ -163,17 +163,17 @@ Changes need a new review; thresholds never relax in-implementation.
   whole-file persistence is `TestWholeFileSegmentSurvivesDocument`,
   `TestLoopActiveFromDocument`, `TestLoopActiveResetDropsExtension`,
   `TestUpstreamWholeFileLoopPresence`; chapter reachability is
-  `TestNextChapterSkipsUnreachable`; one run
+  `TestChapterStopSelection`; one run
   is not proof of every seek path.
 - 2026-11-24, F12 chapter-stops candidate (`d0311ac`, main `6ee09d7`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with isolated data at
   `/tmp/gridplayer-f12-chapters2/` used a pause end action and pressed Next
-  Chapter on the last chapter; it saved `playback_state=idle` instead of
-  wrapping to chapter One and playing, with VideoToolbox, a clean exit, and
-  no residual process. Stop selection, the 250 ms tolerance and the 3 s
-  Previous rule are unit evidence (`TestChapterStopSelection`,
-  `TestChapterJumpSeeksInsideSegment`).
+  Chapter on the last chapter; it saved `playback_state=idle`, and the VLC
+  log has no seek after chapter Three, so it did not wrap to chapter One.
+  VideoToolbox, clean exit, no residual. Stop selection, the 250 ms tolerance
+  and the 3 s Previous rule are unit evidence (`TestChapterStopSelection`,
+  `TestChapterNextPastLastRunsEndAction`, `TestChapterJumpSeeksInsideSegment`).
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

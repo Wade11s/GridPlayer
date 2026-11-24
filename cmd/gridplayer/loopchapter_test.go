@@ -185,6 +185,43 @@ func TestChapterStopSelection(t *testing.T) {
 	}
 }
 
+func TestChapterNextPastLastRunsEndAction(t *testing.T) {
+	newEngine := func() *engine.Engine {
+		e := engine.New(func(string, bool, string) (engine.Backend, error) {
+			return &chapterBackend{Backend: dummy.New(), chapters: []engine.Chapter{
+				{Time: 0}, {Time: 10000}, {Time: 20000},
+			}}, nil
+		})
+		if err := e.Load("movie.mkv"); err != nil {
+			t.Fatal(err)
+		}
+		e.Play()
+		e.SeekTo(25000)
+		return e
+	}
+
+	loop := newEngine()
+	defer loop.Close()
+	c := &cell{eng: loop, endAction: endLoop}
+	a := &app{cells: []*cell{c}}
+	a.chapter(1)
+	if got := loop.Snapshot().Time; got != 0 {
+		t.Fatalf("loop end action seek = %d, want 0", got)
+	}
+
+	pause := newEngine()
+	defer pause.Close()
+	c = &cell{eng: pause, endAction: endPause}
+	a = &app{cells: []*cell{c}}
+	a.chapter(1)
+	if got := pause.Snapshot().Phase; got != engine.Paused {
+		t.Fatalf("pause end action phase = %s, want paused", got)
+	}
+	if got := pause.Snapshot().Time; got != 0 {
+		t.Fatalf("pause end action seek = %d, want 0", got)
+	}
+}
+
 func TestChapterJumpSeeksInsideSegment(t *testing.T) {
 	e := engine.New(func(string, bool, string) (engine.Backend, error) {
 		return &chapterBackend{Backend: dummy.New(), chapters: []engine.Chapter{

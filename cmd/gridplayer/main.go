@@ -1503,10 +1503,28 @@ func (a *app) finishVideo(c *cell) {
 			c.eng.Stop()
 		}
 	case endPause:
-		if c.eng != nil {
-			c.eng.Pause()
+		a.pauseAtStart(c)
+	}
+}
+
+// pauseAtStart is the frozen pause end action: back to the loop start, then
+// paused. An ended engine has to be reopened before it will seek and pause.
+func (a *app) pauseAtStart(c *cell) {
+	if c == nil || c.eng == nil {
+		return
+	}
+	start, _ := c.loopBounds()
+	if start < 0 {
+		start = 0
+	}
+	if c.eng.Snapshot().Phase == engine.Ended {
+		if err := c.eng.Reload(); err != nil {
+			a.status = err.Error()
+			return
 		}
 	}
+	a.seekCellTo(c, start)
+	c.eng.Pause()
 }
 
 func (a *app) stepOnFailure(c *cell) {

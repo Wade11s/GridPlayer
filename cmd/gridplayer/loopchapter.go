@@ -143,7 +143,12 @@ func (a *app) chapterSeek(step int) {
 			a.seekActive(start)
 			return
 		}
-		a.finishVideo(a.activeCell())
+		c := a.activeCell()
+		if c != nil && c.finishAction() == endLoop {
+			a.seekActive(0)
+			return
+		}
+		a.finishVideo(c)
 		return
 	}
 	a.seekActive(previousStop(chapters, s.Time, start, end))
