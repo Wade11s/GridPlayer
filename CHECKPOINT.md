@@ -1,5 +1,28 @@
 # Migration Checkpoints
 
+## 2026-11-24 proxy-mode candidate
+
+Frozen source is unchanged. Base/main is `8ef2a54` (post PR #78). Code
+candidate is `7edea657fa73336b6f8b821a768324cc077f7a4b` on
+`fix/f9-proxy-mode`. A checkpoint-only commit follows; the PR binds the
+final reviewed head.
+
+Fixed: resolver requests now read the frozen `network/proxy_mode` and
+`network/proxy_url`. System inherits the environment, none clears inherited
+proxy variables for the child, and custom passes the configured URL to
+yt-dlp and streamlink. The single `network/proxy` URL older Go builds wrote
+migrates to custom, and Settings exposes the mode beside the URL.
+
+Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
+3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
+lines). Two isolated bundled-app runs at `/tmp/gridplayer-f9-proxy/`: a
+legacy `network/proxy` URL loaded and saved back as
+`proxy_mode=custom` + `proxy_url`, with the legacy key preserved; an
+upstream `proxy_mode=none` + `proxy_url` pair stayed unchanged. Both
+produced 4 VideoToolbox lines and exited cleanly. VLC playback proxying and
+the relay path remain open.
+
 ## 2026-11-24 minimize-pause candidate
 
 Frozen source is unchanged. Base/main is
