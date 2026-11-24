@@ -108,8 +108,9 @@ func TestReadInRowsReadsTilesRowByRow(t *testing.T) {
 		t.Fatalf("shrunk band read = %v, want [0 1 2]", got)
 	}
 
-	// Exactly at the band's bottom minus the frozen hair joins; below it
-	// does not.
+	// The comparison is strict: a tile starting just above the band's
+	// bottom minus the frozen hair joins it, while one exactly at that
+	// line starts a new row.
 	base := 0.3
 	tiles = []Tile{
 		{Box: [4]float64{0.02, 0.02, 0.4, base}},
@@ -118,6 +119,16 @@ func TestReadInRowsReadsTilesRowByRow(t *testing.T) {
 	}
 	if got := ReadInRows(tiles); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
 		t.Fatalf("hair boundary read = %v, want tile 1 in the band and 2 out", got)
+	}
+
+	// A tile that joins a row later still sorts by left within it: B joins
+	// A's band with a smaller left, so the row reads B then A.
+	tiles = []Tile{
+		{Box: [4]float64{0.30, 0.02, 0.9, 0.5}},
+		{Box: [4]float64{0.05, 0.05, 0.2, 0.2}},
+	}
+	if got := ReadInRows(tiles); len(got) != 2 || got[0] != 1 || got[1] != 0 {
+		t.Fatalf("row left sort = %v, want [1 0]", got)
 	}
 
 	// Identical boxes keep their index order; a single tile reads alone.

@@ -187,6 +187,24 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	}
 }
 
+func TestLiveOrderUsesMosaicTilesAndFallsBack(t *testing.T) {
+	mosaicTiles := []grid.Tile{
+		{Box: [4]float64{0.5, 0.5, 0.95, 0.95}},
+		{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},
+	}
+	a := &app{cells: make([]*cell, 2), mosaic: true, mosaicTiles: mosaicTiles}
+	if got := a.liveOrder(); len(got) != 2 || got[0] != 1 || got[1] != 0 {
+		t.Fatalf("mosaic live order = %v, want [1 0]", got)
+	}
+
+	// A tile slice that does not match the cells falls back to playlist
+	// order instead of dropping or duplicating videos.
+	a = &app{cells: make([]*cell, 3), free: true, freeTiles: mosaicTiles}
+	if got := a.liveOrder(); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("mismatched tiles live order = %v, want [0 1 2]", got)
+	}
+}
+
 func cellPaths(cells []*cell) []string {
 	out := make([]string, len(cells))
 	for i, c := range cells {

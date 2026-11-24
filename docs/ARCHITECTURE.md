@@ -100,11 +100,12 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   `grid_state.preallocate`) draws every configured cell, empty ones included,
   as the frozen `displayed_size` does -- except with no videos open, which
   keeps the empty-state message. Sizes clamp to the frozen 100. Choosing a
-  grid or template that holds fewer videos than are open asks first and
-  closes the extras in the frozen live order (playlist order for plain
-  grids, tiles read row by row for Free Tiles and Mosaic); survivors keep
-  playlist order rather than upstream's re-pack. A loaded document with more
-  videos than cells still extends the rows. The UI renders
+  grid that holds fewer videos than are open asks first and closes the
+  extras in the frozen live order (playlist order for plain grids, tiles read
+  row by row for Free Tiles and Mosaic); survivors keep playlist order rather
+  than upstream's re-pack, and a template closes by its place order rather
+  than the frozen visual row order. A loaded document with more videos than
+  cells still extends the rows. The UI renders
   those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
