@@ -3,7 +3,7 @@
 ## 2026-11-24 chapter-stops candidate
 
 Frozen source is unchanged. Base/main is `6ee09d7` (post PR #81). Code
-candidate is `c01f02d900eed1b542cfa61761ffe1c31d38ccf5` on
+candidate is `0f9b723478dcf353f46da45052ae325c0c61724f` on
 `fix/f12-chapter-stops`. A checkpoint-only commit follows; the PR binds the
 final reviewed head.
 
@@ -18,10 +18,10 @@ clamp.
 Verification on the candidate tree (macOS 27.2.1 arm64, Go 1.27.4, VLC
 3.0.24): `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS (4 VideoToolbox
-lines). A bundled-app run at `/tmp/gridplayer-f12-chapters5/` (default loop
+lines). A bundled-app run at `/tmp/gridplayer-f12-chapters12/` (default loop
 end action) pressed Next Chapter on the last chapter; VLC logged
-`SET_TIME to 0` and the cell saved playing at 10768, so it looped instead of
-stopping. A pause-action run at `/tmp/gridplayer-f12-chapters11/` logged
+`SET_TIME to 0` and the cell saved playing at 10245, so it looped instead of
+stopping. A pause-action run at `/tmp/gridplayer-f12-chapters13/` logged
 `pause at start: 0ms` and saved `playback_state=paused` at time 0 after the
 reopen (two VideoToolbox lines), with a clean exit. The specific stop
 selection and 3 s Previous rule are unit evidence.

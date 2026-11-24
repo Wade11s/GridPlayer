@@ -165,14 +165,14 @@ Changes need a new review; thresholds never relax in-implementation.
   `TestUpstreamWholeFileLoopPresence`; chapter reachability is
   `TestChapterStopSelection`; one run
   is not proof of every seek path.
-- 2026-11-24, F12 chapter-stops candidate (`c01f02d`, main `6ee09d7`):
+- 2026-11-24, F12 chapter-stops candidate (`0f9b723`, main `6ee09d7`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with isolated data at
-  `/tmp/gridplayer-f12-chapters5/` used the default loop end action and
+  `/tmp/gridplayer-f12-chapters12/` used the default loop end action and
   pressed Next Chapter on the last chapter; VLC logged `SET_TIME to 0` and
-  the cell saved playing at 10768, so it looped instead of stopping.
-  A pause-action run at `/tmp/gridplayer-f12-chapters11/` logged
+  the cell saved playing at 10245, so it looped instead of stopping.
+  A pause-action run at `/tmp/gridplayer-f12-chapters13/` logged
   `pause at start: 0ms` and saved `playback_state=paused` at time 0 after the
   reopen (two VideoToolbox lines), clean exit, no residual. Stop selection,
   the 250 ms tolerance and the 3 s Previous rule are unit evidence
