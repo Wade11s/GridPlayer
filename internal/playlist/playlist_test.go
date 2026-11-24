@@ -226,6 +226,42 @@ func TestExplicitEmptyViewShapeSurvivesJSON(t *testing.T) {
 	}
 }
 
+func TestUpstreamWholeFileLoopPresence(t *testing.T) {
+	d, err := Parse([]byte(`{"format":"gridplayer-playlist","version":1,"videos":[{"uri":"a.mp4","loop_start":0}]}`), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Videos[0]; v.LoopActive == nil || !*v.LoopActive {
+		t.Fatalf("loop_start presence lost: %+v", v.LoopActive)
+	}
+	d, err = Parse([]byte(`{"format":"gridplayer-playlist","version":1,"videos":[{"uri":"a.mp4"}]}`), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v := d.Videos[0]; v.LoopActive != nil {
+		t.Fatal("absent loop_start became active")
+	}
+}
+
+func TestLoopActiveResetDropsExtension(t *testing.T) {
+	d, err := Parse([]byte(`{"format":"gridplayer-playlist","version":1,"videos":[{"uri":"a.mp4","loop_active":true}]}`), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := d.Videos[0]
+	if v.LoopActive == nil || !*v.LoopActive {
+		t.Fatalf("loop_active not parsed: %+v", v.LoopActive)
+	}
+	v.LoopActive = nil
+	raw, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "loop_active") {
+		t.Fatalf("resetting kept the extension: %s", raw)
+	}
+}
+
 func TestAnchorAndCropRoundTrip(t *testing.T) {
 	// Upstream AutoName serializes TOP_LEFT as top_left.
 	src := `{"format":"gridplayer-playlist","videos":[{` +

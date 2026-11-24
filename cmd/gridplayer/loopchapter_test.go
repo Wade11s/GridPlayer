@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"testing"
 
 	"gridplayer-go/internal/dummy"
 	"gridplayer-go/internal/engine"
+	"gridplayer-go/internal/playlist"
 )
 
 func TestChapterSpan(t *testing.T) {
@@ -67,6 +69,145 @@ type chapterBackend struct {
 }
 
 func (b *chapterBackend) Chapters() []engine.Chapter { return b.chapters }
+
+func TestLoopSeekBounds(t *testing.T) {
+	for _, tt := range []struct {
+		name           string
+		start, end     int64
+		length         int64
+		active         bool
+		wantLo, wantHi int64
+		wantOK         bool
+	}{
+		{name: "inactive", start: 0, end: 20000, length: 60000},
+		{name: "chapter", start: 10000, end: 20000, length: 60000, active: true, wantLo: 10000, wantHi: 20000, wantOK: true},
+		{name: "start only", start: 40000, end: 0, length: 60000, active: true, wantLo: 40000, wantHi: 60000, wantOK: true},
+		{name: "whole file", start: 0, end: 0, length: 60000, active: true, wantLo: 0, wantHi: 60000, wantOK: true},
+		{name: "empty", start: 0, end: 0, length: 0, active: true},
+		{name: "negative start", start: -5, end: 1000, length: 60000, active: true, wantLo: 0, wantHi: 1000, wantOK: true},
+	} {
+		lo, hi, ok := loopSeekBounds(tt.start, tt.end, tt.length, tt.active)
+		if ok != tt.wantOK || lo != tt.wantLo || hi != tt.wantHi {
+			t.Fatalf("%s: bounds=%d-%d ok=%v, want %d-%d %v", tt.name, lo, hi, ok, tt.wantLo, tt.wantHi, tt.wantOK)
+		}
+	}
+}
+
+func TestLoopActiveFromDocument(t *testing.T) {
+	active := true
+	for _, tt := range []struct {
+		name string
+		v    playlist.Video
+		want bool
+	}{
+		{name: "whole file marker", v: playlist.Video{LoopActive: &active}, want: true},
+		{name: "start", v: playlist.Video{LoopStart: 1000}, want: true},
+		{name: "end", v: playlist.Video{LoopEnd: 2000}, want: true},
+		{name: "none", v: playlist.Video{}},
+	} {
+		if got := loopActiveFromVideo(tt.v); got != tt.want {
+			t.Fatalf("%s: active=%v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestSeekCellToClampsSegment(t *testing.T) {
+	e := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return dummy.New(), nil
+	})
+	if err := e.Load("movie.mp4"); err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	c := &cell{eng: e}
+	a := &app{cells: []*cell{c}}
+	c.setLoopSegment(40000, 0, true)
+	a.seekCellTo(c, 1000)
+	if got := e.Snapshot().Time; got != 40000 {
+		t.Fatalf("before start seek = %d, want 40000", got)
+	}
+	c.setLoopSegment(0, 20000, true)
+	a.seekCellTo(c, 25000)
+	if got := e.Snapshot().Time; got != 0 {
+		t.Fatalf("past end seek = %d, want 0", got)
+	}
+	c.setLoopSegment(0, 0, false)
+	a.seekCellTo(c, 25000)
+	if got := e.Snapshot().Time; got != 25000 {
+		t.Fatalf("no segment seek = %d, want 25000", got)
+	}
+	e.Pause()
+	c.setLoopSegment(10000, 20000, true)
+	a.seekCellTo(c, 25000)
+	if got := e.Snapshot().Time; got != 10000 {
+		t.Fatalf("paused past-end seek = %d, want 10000", got)
+	}
+}
+
+func TestWholeFileSegmentSurvivesDocument(t *testing.T) {
+	a := &app{cells: []*cell{{}}}
+	a.cells[0].setLoopSegment(0, 0, true)
+	raw, err := json.Marshal(a.document())
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := playlist.Parse(raw, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loopActiveFromVideo(doc.Videos[0]) {
+		t.Fatalf("whole-file segment lost: %s", raw)
+	}
+}
+
+func TestNextChapterSkipsUnreachable(t *testing.T) {
+	chapters := []engine.Chapter{{Time: 0}, {Time: 10000}, {Time: 20000}, {Time: 30000}}
+	for _, tt := range []struct {
+		name    string
+		current int
+		start   int64
+		end     int64
+		active  bool
+		want    int
+		wantOK  bool
+	}{
+		{name: "next in segment", current: 0, start: 10000, end: 20000, active: true, want: 1, wantOK: true},
+		{name: "wrap to reachable", current: 2, start: 10000, end: 20000, active: true, want: 1, wantOK: true},
+		{name: "skip before start", current: 0, start: 20000, end: 30000, active: true, want: 2, wantOK: true},
+		{name: "none reachable", current: 0, start: 40000, end: 0, active: true},
+		{name: "no segment", current: 0, want: 1, wantOK: true},
+	} {
+		got, ok := nextChapter(chapters, tt.current, 1, tt.start, tt.end, tt.active)
+		if ok != tt.wantOK || got != tt.want {
+			t.Fatalf("%s: index=%d ok=%v, want %d %v", tt.name, got, ok, tt.want, tt.wantOK)
+		}
+	}
+}
+
+func TestChapterJumpSeeksInsideSegment(t *testing.T) {
+	e := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return &chapterBackend{Backend: dummy.New(), chapters: []engine.Chapter{
+			{Time: 0}, {Time: 10000}, {Time: 20000},
+		}}, nil
+	})
+	if err := e.Load("movie.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	e.RefreshTracks()
+	defer e.Close()
+	c := &cell{eng: e}
+	a := &app{cells: []*cell{c}}
+	c.setLoopSegment(10000, 0, true)
+	a.chapter(1)
+	if got := e.Snapshot().Time; got != 10000 {
+		t.Fatalf("chapter seek = %d, want 10000", got)
+	}
+	c.setLoopSegment(20000, 0, true)
+	a.chapter(1)
+	if got := e.Snapshot().Time; got != 20000 {
+		t.Fatalf("outside chapter seek = %d, want segment start 20000", got)
+	}
+}
 
 func TestLoopChapterSetsBoundsAndReportsMissingChapters(t *testing.T) {
 	newEngine := func(chapters []engine.Chapter) *engine.Engine {
