@@ -144,7 +144,7 @@ func (a *app) chapterSeek(step int) {
 			return
 		}
 		c := a.activeCell()
-		if c != nil && c.finishAction() == endLoop {
+		if c != nil && (c.loop || c.finishAction() == endLoop) {
 			a.seekActive(0)
 			return
 		}
