@@ -148,13 +148,13 @@ Changes need a new review; thresholds never relax in-implementation.
   that pass produced two VideoToolbox lines. Cleaning, the 250 ms boundary
   tolerance, start/end/reset, clearing on a new list item, chapters before
   the playhead, and the no-chapter paths are unit evidence.
-- 2026-11-24, F2/F12 segment-seek candidate (`4e4905b`, main `ce98aa2`):
+- 2026-11-24, F2/F12 segment-seek candidate (`145c7c6`, main `ce98aa2`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with isolated data at
-  `/tmp/gridplayer-f12-seek4/` chose Loop Chapter on chapter One and saved
-  `loop_end=20000`, `current_position=12367`, after logging
-  `loop segment: seek 20004 -> 0ms`; a chapter-Three run
+  `/tmp/gridplayer-f12-seek5/` chose Loop Chapter on chapter One and saved
+  `loop_end=20000`, `current_position=11792`, after logging
+  `loop segment: seek 20007 -> 0ms`; a chapter-Three run
   (`/tmp/gridplayer-f12-seek2/`) saved `loop_start=40000` without a redundant
   `loop_active` but ended during its EOF reload, so only its persistence shape
   is claimed. Both logged VideoToolbox, exited cleanly, and left no residual
