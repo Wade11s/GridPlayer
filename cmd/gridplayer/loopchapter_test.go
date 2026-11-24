@@ -20,6 +20,7 @@ func TestChapterSpan(t *testing.T) {
 		{name: "last", at: 45000, length: 60000, wantStart: 30000, wantEnd: 60000, wantOK: true},
 		{name: "at boundary", at: 10000, length: 60000, wantStart: 10000, wantEnd: 30000, wantOK: true},
 		{name: "before first", at: -1, length: 60000, wantStart: 0, wantEnd: 10000, wantOK: true},
+		{name: "within tolerance", at: 9900, length: 60000, wantStart: 10000, wantEnd: 30000, wantOK: true},
 	} {
 		start, end, ok := chapterSpan(chapters, tt.at, tt.length)
 		if ok != tt.wantOK || start != tt.wantStart || end != tt.wantEnd {
@@ -31,6 +32,29 @@ func TestChapterSpan(t *testing.T) {
 	}
 	if _, _, ok := chapterSpan([]engine.Chapter{{Time: 10000}}, 10000, 10000); ok {
 		t.Fatal("zero-length last chapter produced a span")
+	}
+}
+
+func TestCleanChapters(t *testing.T) {
+	cleaned := cleanChapters([]engine.Chapter{
+		{Index: 0, Time: 30000, Name: "three"},
+		{Index: 1, Time: -5, Name: "negative"},
+		{Index: 2, Time: 10000, Name: "two"},
+		{Index: 3, Time: 10000, Name: "duplicate"},
+		{Index: 4, Time: 90000, Name: "past end"},
+		{Index: 5, Time: 120, Name: "snapped"},
+	}, 60000)
+	if len(cleaned) != 3 {
+		t.Fatalf("cleaned = %+v", cleaned)
+	}
+	if cleaned[0].Time != 0 || cleaned[1].Time != 10000 || cleaned[2].Time != 30000 {
+		t.Fatalf("cleaned times = %+v", cleaned)
+	}
+	if got := cleanChapters([]engine.Chapter{{Time: 0}, {Time: 100}}, 60000); got != nil {
+		t.Fatalf("all-zero chapters = %+v", got)
+	}
+	if got := cleanChapters(nil, 0); got != nil {
+		t.Fatalf("nil chapters = %+v", got)
 	}
 }
 

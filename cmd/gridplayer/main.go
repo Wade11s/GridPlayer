@@ -1109,6 +1109,7 @@ func (a *app) watch(c *cell, eng *engine.Engine) {
 				if target, seek := loopSeekTarget(s.Time, c.loopStart, end); seek {
 					if !loopSeeking {
 						loopSeeking = true
+						log.Printf("loop segment: seek %d -> %dms", s.Time, target)
 						eng.SeekTo(target)
 					}
 				} else {
@@ -3588,8 +3589,8 @@ func (a *app) menu() *mygo.Menu {
 			{Label: a.tr("Actions", "Loop"), Accelerator: a.keys.Get("loop").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.toggleLoop() }},
 			{Label: a.tr("Actions", "Loop Start"), Accelerator: a.keys.Get("loop_start").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(true) }},
 			{Label: a.tr("Actions", "Loop End"), Accelerator: a.keys.Get("loop_end").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.setLoopPoint(false) }},
-			{Label: a.tr("Actions", "Reset Loop"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
 			{Label: a.tr("Actions", "Loop Chapter"), Click: func(*mygo.MenuItem, *mygo.Window) { a.loopChapter() }},
+			{Label: a.tr("Actions", "Reset Loop"), Accelerator: a.keys.Get("loop_reset").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) { a.resetLoopPoints() }},
 			{Label: "Rate", Submenu: []*mygo.MenuItem{
 				{Label: "0.5x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(0.5) }},
 				{Label: "1x", Click: func(*mygo.MenuItem, *mygo.Window) { a.setRate(1) }},
