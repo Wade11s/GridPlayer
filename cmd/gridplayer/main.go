@@ -1902,6 +1902,9 @@ func (a *app) view(c *ui.Context) {
 					}
 					a.dirty = true
 				}
+				if _, _, ended := h.DragEnded(); ended {
+					a.refreshMenu()
+				}
 			}
 		}
 		if a.status != "" {
@@ -2003,6 +2006,9 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 			a.mosaicTiles = a.moveTile(a.mosaicTiles, i, float64(dx), float64(dy), true)
 			a.dirty = true
 		}
+	}
+	if _, _, ended := el.DragEnded(); (a.free || a.mosaic) && ended {
+		a.refreshMenu()
 	}
 	// In grid modes the cell stays a drag-swap source; Free and Mosaic move
 	// their own tile instead.
