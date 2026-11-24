@@ -3,7 +3,7 @@
 ## 2026-11-25 show-all-cells candidate
 
 Frozen source is unchanged. Base/main is `38a54a0` (after PR #84). Code
-candidate is `3c1db7bb5fba60105b39cab6534d5083fd205d17` on
+candidate is `865e723121de33ba7f155ae0eb2f5f4dd26ebcbf` on
 `fix/f5-show-all-cells`; the PR binds the final reviewed head.
 
 Added: `grid_preallocate`/"Show All Cells". Frozen `displayed_size` shows
@@ -21,11 +21,11 @@ not fixed grids even though `cfg.Mode` stays Fixed, so the action is disabled
 and ignored there; a size preset, template or mode switch carries the flag
 instead of clearing it.
 
-Verification on the final head (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `865e723` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
 lines. A bundled-app run with two generated fixtures and a saved 3x3 fixed
-`grid_state` at `/tmp/gridplayer-showall4/` showed two one-third cells in
+`grid_state` at `/tmp/gridplayer-showall6/` showed two one-third cells in
 the top row and seven plus-marked empty cells (`show-all-cells.png`) after
 choosing Grid > Show All Cells; the saved playlist kept
 `grid_state.preallocate` true, `settings.ini` kept
@@ -34,12 +34,16 @@ Geometry is asserted by `TestFixedPreallocateShowsEveryCell`; the toggle,
 the settings write, the document round-trip and the carry across presets and
 mode switches by `TestShowAllCellsTogglesInFixedMode`.
 
+Grid sizes are clamped to the frozen `MAX_FIXED_SIZE` of 100 on load, so a
+hand-edited document cannot grow without bound.
+
 Still open: overflow (more videos than cells) grows rows where upstream
 confirms and closes the extras; a playlist whose `grid_state` omits
 `preallocate` loads as false instead of inheriting
 `playlist/grid_preallocate`, because Go has no per-key override tracking;
-and a preallocated grid with no videos still shows the empty-state message
-instead of its empty cells.
+a preallocated grid with no videos still shows the empty-state message
+instead of its empty cells; and the empty cell has no dashed frame,
+size-scaled bars or drop target.
 
 ## 2026-11-25 fixed-cells candidate
 

@@ -202,11 +202,11 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
-- 2026-11-25, F5 show-all-cells candidate (main `38a54a0`, exact head in the PR):
+- 2026-11-25, F5 show-all-cells candidate (`865e723`, main `38a54a0`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
   VideoToolbox lines. A bundled-app run with two generated fixtures and a
-  saved 3x3 fixed `grid_state` at `/tmp/gridplayer-showall4/` started as two
+  saved 3x3 fixed `grid_state` at `/tmp/gridplayer-showall6/` started as two
   full-window panes; choosing Grid > Show All Cells redrew them as two
   one-third cells in the top row and seven empty cells, each with the
   frozen empty-cell plus in its middle (`show-all-cells.png`). The saved playlist kept

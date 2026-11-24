@@ -98,8 +98,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   configured columns (as far as the cells reach) and draws only the cells in
   use; "Show All Cells" (`grid_preallocate`, persisted in settings and
   `grid_state.preallocate`) draws every configured cell, empty ones included,
-  as the frozen `displayed_size` does. More videos than cells still extend
-  the rows. The UI renders
+  as the frozen `displayed_size` does -- except with no videos open, which
+  keeps the empty-state message. Sizes clamp to the frozen 100. More videos
+  than cells still extend the rows. The UI renders
   those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
