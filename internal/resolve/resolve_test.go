@@ -120,6 +120,54 @@ func TestResolveFileURLAddsEnableFileURLs(t *testing.T) {
 	}
 }
 
+func TestProxyModesSelectFlag(t *testing.T) {
+	u, _ := url.Parse("https://example.com/watch")
+	for _, tt := range []struct {
+		mode string
+		url  string
+		want bool
+	}{
+		{mode: "custom", url: "http://proxy:8080", want: true},
+		{mode: "system", url: "http://proxy:8080", want: false},
+		{mode: "none", url: "http://proxy:8080", want: false},
+		{mode: "", url: "http://proxy:8080", want: true},
+	} {
+		r := &Resolver{ProxyMode: tt.mode, Proxy: tt.url}
+		args := strings.Join(r.ytdlpArgs(u, u.String()), " ")
+		if got := strings.Contains(args, "--proxy"); got != tt.want {
+			t.Fatalf("mode %q args = %s, want proxy flag %v", tt.mode, args, tt.want)
+		}
+		if tt.want && !strings.Contains(args, tt.url) {
+			t.Fatalf("mode %q lost proxy URL: %s", tt.mode, args)
+		}
+		stream := strings.Join(r.streamlinkArgs(u.String(), "", nil), " ")
+		if got := strings.Contains(stream, "--http-proxy"); got != tt.want {
+			t.Fatalf("streamlink mode %q args = %s, want proxy flag %v", tt.mode, stream, tt.want)
+		}
+	}
+}
+
+func TestProxyNoneClearsInheritedEnvironment(t *testing.T) {
+	t.Setenv("HTTP_PROXY", "http://env-proxy:1")
+	tool := fakeTool(t, "yt-dlp", "echo \"proxy=$HTTP_PROXY\"")
+	for _, tt := range []struct {
+		mode string
+		want string
+	}{
+		{mode: "none", want: "proxy="},
+		{mode: "system", want: "proxy=http://env-proxy:1"},
+	} {
+		r := &Resolver{Path: tool, ProxyMode: tt.mode}
+		got, err := r.Resolve(context.Background(), "https://example.com/watch")
+		if err != nil {
+			t.Fatalf("mode %q: %v", tt.mode, err)
+		}
+		if got != tt.want {
+			t.Fatalf("mode %q got %q, want %q", tt.mode, got, tt.want)
+		}
+	}
+}
+
 func TestResolveFallsBackToStreamlink(t *testing.T) {
 	fail := fakeTool(t, "yt-dlp", `echo "yt fail" >&2; exit 1`)
 	argsFile := filepath.Join(t.TempDir(), "args")
