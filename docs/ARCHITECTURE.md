@@ -102,10 +102,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   keeps the empty-state message. Sizes clamp to the frozen 100. Choosing a
   grid that holds fewer videos than are open asks first and closes the
   extras in the frozen live order (playlist order for plain grids, tiles read
-  row by row for Free Tiles and Mosaic); survivors keep playlist order rather
-  than upstream's re-pack, and a template closes by its place order rather
-  than the frozen visual row order. A loaded document with more videos than
-  cells still extends the rows. The UI renders
+  row by row for Free Tiles and Mosaic) and packs the survivors in that order,
+  as upstream's `pack_flow` does; Go's cells are the playlist, so the saved
+  order follows the grid. A template closes and packs by its place order
+  rather than the frozen visual row order. A loaded document with more videos
+  than cells still extends the rows. The UI renders
   those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
