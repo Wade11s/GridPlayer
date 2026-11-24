@@ -391,7 +391,9 @@ func (a *app) loadSettings() {
 		c.volume = a.defaultVolume
 		c.muted = i > 0 || a.defaultMuted
 		c.rate = a.defaultRate
-		c.loop = a.defaultLoop
+		if len(c.list) == 0 {
+			c.loop = a.defaultLoop
+		}
 		if a.defaultEnd != "" && a.defaultEnd != endLoop {
 			c.endAction = a.defaultEnd
 		}

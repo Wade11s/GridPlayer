@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sort"
 
 	"gridplayer-go/internal/engine"
@@ -144,9 +143,8 @@ func (a *app) chapterSeek(step int) {
 			a.seekActive(start)
 			return
 		}
-		log.Printf("chapter: no next stop")
 		c := a.activeCell()
-		if c != nil && (c.loop || c.finishAction() == endLoop) {
+		if c != nil && c.finishAction() == endLoop {
 			a.seekActive(0)
 			return
 		}

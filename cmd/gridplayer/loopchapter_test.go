@@ -200,6 +200,10 @@ func TestChapterNextPastLastRunsEndAction(t *testing.T) {
 		return e
 	}
 
+	if c := (&cell{loop: true, endAction: endNext, list: []string{"a", "b"}}); c.finishAction() != endNext {
+		t.Fatalf("list cell action = %s, want next", c.finishAction())
+	}
+
 	loop := newEngine()
 	defer loop.Close()
 	c := &cell{eng: loop, endAction: endLoop}
