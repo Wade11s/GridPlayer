@@ -2966,6 +2966,25 @@ func (a *app) refreshKeepAwake() {
 	a.screensaver.SetMode(a.keepAwakeMode())
 }
 
+// pollKeepAwake re-reads the live window state once a second. Minimize and
+// restore events are enough on their own; the poll also covers a launch that
+// starts minimized and a window state change the event path does not report.
+func (a *app) pollKeepAwake() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		if a.closed.Load() {
+			return
+		}
+		mygo.RunOnMain(func() {
+			if a.closed.Load() {
+				return
+			}
+			a.refreshKeepAwake()
+		})
+	}
+}
+
 func (a *app) resumeFromBackground() {
 	for c := range a.backgroundPaused {
 		if c.eng != nil {
@@ -3825,6 +3844,7 @@ func main() {
 			a.minimized = false
 			a.refreshKeepAwake()
 		})
+		go a.pollKeepAwake()
 		w.OnFileDrop(func(e *mygo.FileDropEvent) {
 			if len(e.Paths) > 0 {
 				a.dropFiles(len(a.cells), e.Paths)
