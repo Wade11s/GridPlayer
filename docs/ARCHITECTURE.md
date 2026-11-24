@@ -94,7 +94,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per
-  cell, partial last row allowed). The UI renders those rects absolutely and
+  cell, partial last row allowed). A Fixed grid keeps its configured columns
+  and draws only the cells in use, as the frozen `displayed_size` does without
+  preallocate; more videos than cells still extend the rows. The UI renders
+  those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.
 - Finder files drop on a cell (`DroppedFiles`) to insert before it, or on the

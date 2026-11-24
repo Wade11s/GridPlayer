@@ -202,6 +202,18 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F5 fixed-cells candidate (`2eca6f0`, main `5b43599`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with two generated
+  fixtures and a saved 3x3 fixed `grid_state` at `/tmp/gridplayer-fixed2/`
+  showed two large panes filling the window (`2in3x3.png`) instead of a 3x3
+  grid with seven empty cells; both cells were playing at teardown
+  (7158/7410 ms), the saved document kept `grid_state` 3x3, autoquit exited
+  cleanly, and no `gridplayer`/`poc-hw` process remained.
+  `TestFixedShowsOnlyUsedCells` asserts the extent math and the layout rects.
+  Overflow (more videos than cells) is not covered by this run and still
+  grows the rows.
 - 2026-11-25, F5 flush-cells candidate (`4154c86`, main `3395ab1`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

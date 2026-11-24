@@ -1,5 +1,32 @@
 # Migration Checkpoints
 
+## 2026-11-25 fixed-cells candidate
+
+Frozen source is unchanged. Base/main is `5b43599` (after PR #83). Code
+candidate is `2eca6f0515775b4b1705cb2cb6e0bedb5652a536` on
+`fix/f5-fixed-used-cells`; the PR binds the final reviewed head.
+
+Fixed: a Fixed grid no longer draws empty trailing rows and columns. Frozen
+`GridLayout.displayed_size` returns the extent of the occupied cells unless
+preallocate is on, so two videos in a configured 3x3 are shown as one row of
+two big cells, not as a 3x3 with seven holes. Go also stopped growing the
+longer side: a fixed grid keeps its configured columns and takes the rows the
+cells need.
+
+Verification on `2eca6f0` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run with two generated fixtures and a 3x3 fixed
+`grid_state` at `/tmp/gridplayer-fixed2/` showed two large panes
+(`2in3x3.png`), both playing at teardown (7158/7410 ms), 2 VideoToolbox
+lines, the saved document still carrying `grid_state` 3x3, clean autoquit,
+and no residual process. Geometry is asserted by
+`TestFixedShowsOnlyUsedCells` and the updated `TestDims`.
+
+Still open: overflow (more videos than cells) grows the rows, where upstream
+confirms and closes the extra videos; `grid_preallocate` (show every fixed
+cell, empty ones included) is absent.
+
 ## 2026-11-25 flush-cells candidate
 
 Frozen source is unchanged. Base/main is `3395ab1` (after PR #76). Code
