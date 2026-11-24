@@ -2666,16 +2666,42 @@ func (a *app) closeOverflow(cfg grid.Config) {
 	if cfg.Mode != grid.Fixed {
 		return
 	}
-	a.closeTo(fixedCapacity(cfg))
+	a.closeBeyond(a.liveOrder(), fixedCapacity(cfg))
 }
 
-// closeTo stops and drops the trailing cells past keep, through closeCell,
-// the same path that closes a cell at teardown.
-func (a *app) closeTo(keep int) {
+// liveOrder is the order the videos are laid out in: playlist order for the
+// grid modes, and the tiles read row by row for Free Tiles and Mosaic, as
+// the frozen _live_order does through read_in_rows.
+func (a *app) liveOrder() []int {
+	n := len(a.cells)
+	if a.free && len(a.freeTiles) == n {
+		return grid.ReadInRows(a.freeTiles)
+	}
+	if a.mosaic && len(a.mosaicTiles) == n {
+		return grid.ReadInRows(a.mosaicTiles)
+	}
+	out := make([]int, n)
+	for i := range out {
+		out[i] = i
+	}
+	return out
+}
+
+// closeBeyond closes every cell not among the first keep of order, through
+// closeCell, the same path that closes a cell at teardown; the rest keep
+// their playlist order.
+func (a *app) closeBeyond(order []int, keep int) {
 	if keep >= len(a.cells) {
 		return
 	}
-	for i := len(a.cells) - 1; i >= keep; i-- {
+	kept := make(map[int]bool, keep)
+	for i := 0; i < keep && i < len(order); i++ {
+		kept[order[i]] = true
+	}
+	for i := len(a.cells) - 1; i >= 0; i-- {
+		if kept[i] {
+			continue
+		}
 		a.closeCell(a.cells[i])
 		a.cells = append(a.cells[:i], a.cells[i+1:]...)
 	}
@@ -2722,7 +2748,7 @@ func (a *app) setTemplate(name string) {
 	if !a.confirmClose(capacity) {
 		return
 	}
-	a.closeTo(capacity)
+	a.closeBeyond(a.liveOrder(), capacity)
 	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols, Preallocate: a.cfg.Preallocate}
 	a.template = name
 	a.free, a.mosaic, a.single = false, false, false

@@ -135,6 +135,50 @@ func TestFixedOverflowAsksBeforeClosing(t *testing.T) {
 	}
 }
 
+func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
+	cells := func(n int) []*cell {
+		out := make([]*cell, n)
+		for i := range out {
+			out[i] = &cell{path: fmt.Sprintf("%d.mp4", i)}
+		}
+		return out
+	}
+	// Playlist order 0..4, but read row by row the top-left tile is 4 and
+	// the bottom-right is 0, so a 2x2 keeps 4,3,2,1 and closes 0.
+	a := &app{
+		cells: cells(5),
+		free:  true,
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},
+			{Box: [4]float64{0.02, 0.6, 0.4, 0.95}},
+			{Box: [4]float64{0.5, 0.32, 0.95, 0.58}},
+			{Box: [4]float64{0.55, 0.02, 0.95, 0.3}},
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},
+		},
+	}
+	if got := a.liveOrder(); len(got) != 5 || got[0] != 4 || got[1] != 3 || got[2] != 2 || got[3] != 1 || got[4] != 0 {
+		t.Fatalf("live order = %v, want [4 3 2 1 0]", got)
+	}
+	a.closeOverflow(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if len(a.cells) != 4 {
+		t.Fatalf("cells = %d, want 4", len(a.cells))
+	}
+	want := []string{"1.mp4", "2.mp4", "3.mp4", "4.mp4"}
+	for i, w := range want {
+		if a.cells[i].path != w {
+			t.Fatalf("kept %v, want %v", cellPaths(a.cells), want)
+		}
+	}
+}
+
+func cellPaths(cells []*cell) []string {
+	out := make([]string, len(cells))
+	for i, c := range cells {
+		out[i] = c.path
+	}
+	return out
+}
+
 func TestNonFixedLayoutsNeverAsk(t *testing.T) {
 	a := &app{
 		cells:       make([]*cell, 5),

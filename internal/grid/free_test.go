@@ -72,3 +72,46 @@ func TestResizeTileMinAndBound(t *testing.T) {
 		t.Fatal("invalid resize changed tiles")
 	}
 }
+
+func TestReadInRowsReadsTilesRowByRow(t *testing.T) {
+	// Three tiles: two sharing the top band, one lower. Reading order is
+	// left to right inside a band, bands top to bottom.
+	tiles := []Tile{
+		{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // top right
+		{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // top left
+		{Box: [4]float64{0.02, 0.6, 0.4, 0.95}}, // bottom left
+	}
+	if got := ReadInRows(tiles); len(got) != 3 || got[0] != 1 || got[1] != 0 || got[2] != 2 {
+		t.Fatalf("read order = %v, want [1 0 2]", got)
+	}
+
+	// A tile that starts above the band's bottom joins the band even when
+	// its top is slightly lower; one starting below it starts a new band.
+	tiles = []Tile{
+		{Box: [4]float64{0.02, 0.02, 0.3, 0.5}},
+		{Box: [4]float64{0.4, 0.1, 0.7, 0.2}},
+		{Box: [4]float64{0.02, 0.6, 0.3, 0.9}},
+	}
+	if got := ReadInRows(tiles); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("overlapping bands read = %v, want [0 1 2]", got)
+	}
+
+	// The order decides which tiles a smaller grid closes last.
+	tiles = []Tile{
+		{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},  // 0 bottom right
+		{Box: [4]float64{0.02, 0.6, 0.4, 0.95}},  // 1 bottom left
+		{Box: [4]float64{0.5, 0.32, 0.95, 0.58}}, // 2 middle
+		{Box: [4]float64{0.55, 0.02, 0.95, 0.3}}, // 3 top right
+		{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},  // 4 top left
+	}
+	got := ReadInRows(tiles)
+	want := []int{4, 3, 2, 1, 0}
+	if len(got) != len(want) {
+		t.Fatalf("read order = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("read order = %v, want %v", got, want)
+		}
+	}
+}
