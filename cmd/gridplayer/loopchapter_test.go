@@ -171,6 +171,12 @@ func TestChapterStopSelection(t *testing.T) {
 	if stop, ok := nextStop(chapters, 9800, 0, 60000); !ok || stop != 20000 {
 		t.Fatalf("next inside tolerance = %d %v, want 20000", stop, ok)
 	}
+	if stop, ok := nextStop(chapters, 9749, 0, 60000); !ok || stop != 10000 {
+		t.Fatalf("next just outside tolerance = %d %v, want 10000", stop, ok)
+	}
+	if stop, ok := nextStop(chapters, 9750, 0, 60000); !ok || stop != 20000 {
+		t.Fatalf("next at exactly the 250 ms boundary = %d %v, want 20000", stop, ok)
+	}
 	if stop, ok := nextStop(chapters, 35000, 0, 60000); ok {
 		t.Fatalf("next past last = %d, want none", stop)
 	}
@@ -179,6 +185,12 @@ func TestChapterStopSelection(t *testing.T) {
 	}
 	if stop := previousStop(chapters, 21000, 0, 60000); stop != 10000 {
 		t.Fatalf("previous near chapter start = %d, want 10000", stop)
+	}
+	if stop := previousStop(chapters, 23000, 0, 60000); stop != 10000 {
+		t.Fatalf("previous at exactly 3 s in = %d, want 10000", stop)
+	}
+	if stop := previousStop(chapters, 23001, 0, 60000); stop != 20000 {
+		t.Fatalf("previous just past 3 s in = %d, want 20000", stop)
 	}
 	if stop := previousStop(chapters, 5000, 0, 60000); stop != 0 {
 		t.Fatalf("previous in first chapter = %d, want 0", stop)

@@ -20,17 +20,26 @@ import (
 	"gridplayer-go/internal/snapshots"
 )
 
-func TestApplyDefaultEndSkipsLists(t *testing.T) {
+func TestApplyDefaultEndSkipsLoopDefaultForLists(t *testing.T) {
 	a := &app{defaultEnd: endPause}
 	plain := &cell{}
 	a.applyDefaultEnd(plain)
 	if plain.endAction != endPause {
 		t.Fatalf("plain action = %q, want pause", plain.endAction)
 	}
+	// The helper never edits a list cell; newCell applies a non-loop default
+	// to list cells through its own branch.
 	list := &cell{list: []string{"a.mp4"}, endAction: endNext}
 	a.applyDefaultEnd(list)
 	if list.endAction != endNext {
 		t.Fatalf("list action = %q, want next", list.endAction)
+	}
+	// A loop default is a flag, not an action value, so it is never copied.
+	a = &app{defaultEnd: endLoop}
+	plain = &cell{}
+	a.applyDefaultEnd(plain)
+	if plain.endAction != "" {
+		t.Fatalf("loop default action = %q, want empty", plain.endAction)
 	}
 }
 

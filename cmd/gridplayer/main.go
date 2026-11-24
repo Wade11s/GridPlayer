@@ -680,8 +680,9 @@ func comparePaths(cells []*cell, paths []string) bool {
 	return true
 }
 
-// applyDefaultEnd gives a plain file the configured end action. List cells
-// always step, as the frozen list_step_action does.
+// applyDefaultEnd gives a plain file the configured end action. The helper
+// skips list cells entirely: a loop default is carried by c.loop, and newCell
+// applies a non-loop default to list cells through its own list branch.
 func (a *app) applyDefaultEnd(c *cell) {
 	if c == nil || len(c.list) > 0 {
 		return
