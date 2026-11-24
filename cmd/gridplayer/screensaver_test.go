@@ -114,6 +114,28 @@ func TestScreensaverGuardFailedSwitchKeepsPreviousMode(t *testing.T) {
 	}
 }
 
+func TestScreensaverGuardCloseAfterFailedSwitchKillsChild(t *testing.T) {
+	guard := &screensaverGuard{
+		command: func(mode keepAwakeMode) *exec.Cmd {
+			if mode == keepAwakeSystem {
+				return exec.Command("/definitely/not/a/command")
+			}
+			return sleepCommand("")
+		},
+	}
+	guard.SetMode(keepAwakeDisplay)
+	if guard.mode != keepAwakeDisplay || guard.cmd == nil {
+		t.Fatal("display mode did not start")
+	}
+	pid := guard.cmd.Process.Pid
+	guard.SetMode(keepAwakeSystem)
+	guard.Close()
+	if guard.mode != keepAwakeNone || guard.cmd != nil {
+		t.Fatal("close left the guard active")
+	}
+	waitDead(t, pid)
+}
+
 func TestCaffeinateCommandModes(t *testing.T) {
 	for _, tt := range []struct {
 		mode     keepAwakeMode

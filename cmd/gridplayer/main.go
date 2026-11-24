@@ -2957,6 +2957,12 @@ func (a *app) keepAwakeMode() keepAwakeMode {
 }
 
 func (a *app) refreshKeepAwake() {
+	// The window is the source of truth, so a launch that starts minimized
+	// does not wait for an event that already happened. Tests without a
+	// window set the field directly.
+	if a.win != nil {
+		a.minimized = a.win.IsMinimized()
+	}
 	a.screensaver.SetMode(a.keepAwakeMode())
 }
 
