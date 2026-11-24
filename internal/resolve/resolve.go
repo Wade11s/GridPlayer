@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -64,10 +65,46 @@ var ErrUnavailable = errors.New("resolve: yt-dlp/streamlink not found")
 type Resolver struct {
 	Path       string // yt-dlp
 	Streamlink string
-	Proxy      string
-	Cookies    string
-	Format     string
-	Timeout    time.Duration
+	// ProxyMode is the frozen network/proxy_mode: system, none, or custom.
+	// Empty keeps the older Proxy-only behavior.
+	ProxyMode string
+	Proxy     string
+	Cookies   string
+	Format    string
+	Timeout   time.Duration
+}
+
+// proxyMode normalizes the stored mode; an unknown value keeps the legacy
+// Proxy-only behavior rather than silently choosing a proxy source.
+func (r *Resolver) proxyMode() string {
+	switch strings.ToLower(strings.TrimSpace(r.ProxyMode)) {
+	case "system", "none", "custom":
+		return strings.ToLower(strings.TrimSpace(r.ProxyMode))
+	default:
+		return ""
+	}
+}
+
+// mustRefuseProxyEnv reports whether the child must not inherit a proxy
+// from the environment. None refuses one, and so does custom with nothing
+// filled in: the frozen source reads that as no proxy rather than as the
+// machine's.
+func (r *Resolver) mustRefuseProxyEnv() bool {
+	mode := r.proxyMode()
+	return mode == "none" || (mode == "custom" && strings.TrimSpace(r.Proxy) == "")
+}
+
+// proxyURL is the proxy the resolver requests; system and none leave the
+// client on its environment or with no proxy at all.
+func (r *Resolver) proxyURL() string {
+	switch r.proxyMode() {
+	case "system", "none":
+		return ""
+	case "custom":
+		return strings.TrimSpace(r.Proxy)
+	default:
+		return strings.TrimSpace(r.Proxy)
+	}
 }
 
 // New finds yt-dlp and streamlink on PATH.
@@ -139,7 +176,7 @@ func (r *Resolver) ytdlpArgs(u *url.URL, raw string) []string {
 		"--ignore-config", "--no-warnings", "--skip-download", "--no-playlist",
 		"-g", "-f", format,
 	}
-	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
+	if proxy := r.proxyURL(); proxy != "" {
 		args = append(args, "--proxy", proxy)
 	}
 	if cookies := strings.TrimSpace(r.Cookies); cookies != "" {
@@ -179,6 +216,25 @@ func (r *Resolver) resolveStreamlink(ctx context.Context, u *url.URL, raw string
 	return r.run(ctx, r.Streamlink, r.streamlinkArgs(raw, "", cookies))
 }
 
+// withoutProxyEnv drops the proxy variables a child would otherwise pick
+// up, so "none" can mean none rather than the machine's settings.
+func withoutProxyEnv(env []string) []string {
+	out := env[:0]
+	for _, entry := range env {
+		name, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			out = append(out, entry)
+			continue
+		}
+		switch strings.ToLower(name) {
+		case "http_proxy", "https_proxy", "all_proxy", "ftp_proxy":
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
 // unsupportedCookieFileOption reports whether streamlink rejected the flag
 // itself, which is the only case a per-cookie retry can help with. A jar the
 // loader refuses stays a hard error.
@@ -206,7 +262,7 @@ func unsupportedCookieFileOption(err error) bool {
 
 func (r *Resolver) streamlinkArgs(raw, cookieFile string, cookies []cookiePair) []string {
 	args := []string{"--stream-url", "--default-stream", "best"}
-	if proxy := strings.TrimSpace(r.Proxy); proxy != "" {
+	if proxy := r.proxyURL(); proxy != "" {
 		args = append(args, "--http-proxy", proxy)
 	}
 	if cookieFile != "" {
@@ -225,6 +281,9 @@ func (r *Resolver) run(ctx context.Context, path string, args []string) (string,
 	defer cancel()
 
 	cmd := exec.CommandContext(cctx, path, args...)
+	if r.mustRefuseProxyEnv() {
+		cmd.Env = withoutProxyEnv(os.Environ())
+	}
 	var stdout, stderr limitedBuffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

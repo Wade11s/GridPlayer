@@ -120,5 +120,16 @@ Changes need a new review; thresholds never relax in-implementation.
   `TestMinimizePauseCanBeDisabled`); MyGo did not report the minimized state
   in this session, so no GUI minimize run is claimed. Single-mode
   `pause_background_videos` remains open with the single-mode layout work.
+- 2026-11-24, F9 proxy-mode candidate (`e136a87`, main `8ef2a54`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. Two isolated bundled-app runs at
+  `/tmp/gridplayer-f9-proxy/`: the legacy `network/proxy` URL loaded and
+  saved back as `proxy_mode=custom` + `proxy_url=http://legacy:8080`, with
+  the legacy key preserved; upstream `proxy_mode=none` + a URL stayed
+  unchanged. Both exited cleanly with 4 VideoToolbox lines and no residual
+  process. Resolver mode/argument/environment behavior is unit evidence
+  (`TestProxyModesSelectFlag`, `TestProxyNoneClearsInheritedEnvironment`);
+  VLC playback proxying and the relay path remain open.
 - Linux CI (`scripts/ci.sh`) builds every package with `libvlc-dev` and runs
   platform-independent tests; it is not GUI acceptance.

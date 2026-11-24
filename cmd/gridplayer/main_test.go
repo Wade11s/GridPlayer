@@ -20,6 +20,39 @@ import (
 	"gridplayer-go/internal/snapshots"
 )
 
+func TestNetworkProxySettings(t *testing.T) {
+	for _, tt := range []struct {
+		name              string
+		mode, url, legacy string
+		wantMode, wantURL string
+	}{
+		{name: "upstream custom", mode: "custom", url: "http://proxy:1", wantMode: "custom", wantURL: "http://proxy:1"},
+		{name: "upstream none", mode: "none", url: "http://proxy:1", wantMode: "none", wantURL: "http://proxy:1"},
+		{name: "upstream system", mode: "system", url: "http://proxy:1", wantMode: "system", wantURL: "http://proxy:1"},
+		{name: "legacy url", legacy: "http://old:2", wantMode: "custom", wantURL: "http://old:2"},
+		{name: "unknown mode with legacy", mode: "bogus", legacy: "http://old:2", wantMode: "custom", wantURL: "http://old:2"},
+		{name: "empty", wantMode: "system"},
+	} {
+		st, err := settings.Load(filepath.Join(t.TempDir(), "settings.ini"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if tt.mode != "" {
+			st.Set("network/proxy_mode", tt.mode)
+		}
+		if tt.url != "" {
+			st.Set("network/proxy_url", tt.url)
+		}
+		if tt.legacy != "" {
+			st.Set("network/proxy", tt.legacy)
+		}
+		mode, url := networkProxySettings(st)
+		if mode != tt.wantMode || url != tt.wantURL {
+			t.Fatalf("%s: mode=%q url=%q, want %q %q", tt.name, mode, url, tt.wantMode, tt.wantURL)
+		}
+	}
+}
+
 func TestSwapCells(t *testing.T) {
 	a := &app{cells: []*cell{{label: "a"}, {label: "b"}, {label: "c"}}, active: 0}
 	a.swapCells(0, 2)
@@ -242,6 +275,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.scale = "1.5x"
 	d.crop = "16:9"
 	d.singleSide = "Left"
+	d.proxyMode = "Custom"
 	d.proxy = "http://proxy:8080"
 	d.cookies = "/tmp/cookies.txt"
 	d.ytdlp = "/usr/local/bin/yt-dlp"
@@ -265,6 +299,9 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	}
 	if !a.sponsorEnabled.Load() || a.sponsorModes["sponsor"] != "show" {
 		t.Fatalf("sponsor settings %v %q", a.sponsorEnabled.Load(), a.sponsorModes["sponsor"])
+	}
+	if a.resolver == nil || a.resolver.ProxyMode != "custom" || a.resolver.Proxy != "http://proxy:8080" {
+		t.Fatalf("proxy applied %+v", a.resolver)
 	}
 	if !a.stayOnTop || !a.startMaximized || !a.startFullscreen {
 		t.Fatalf("window settings %v %v %v", a.stayOnTop, a.startMaximized, a.startFullscreen)

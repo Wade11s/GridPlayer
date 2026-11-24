@@ -414,11 +414,26 @@ func (a *app) loadNetworkSettings(st *settings.Store) {
 	if a.resolver == nil {
 		a.resolver = resolve.New()
 	}
-	a.resolver.Proxy = st.Get("network/proxy", "")
+	a.resolver.ProxyMode, a.resolver.Proxy = networkProxySettings(st)
 	a.resolver.Cookies = st.Get("network/cookies", "")
 	a.resolver.Format = st.Get("network/format", "best")
 	a.resolver.Path = st.Get("network/ytdlp_path", a.resolver.Path)
 	a.resolver.Streamlink = st.Get("network/streamlink_path", a.resolver.Streamlink)
+}
+
+// networkProxySettings reads the frozen network/proxy_mode and
+// network/proxy_url, migrating the single URL older Go builds wrote.
+func networkProxySettings(st *settings.Store) (mode, url string) {
+	mode = strings.ToLower(strings.TrimSpace(st.Get("network/proxy_mode", "")))
+	url = strings.TrimSpace(st.Get("network/proxy_url", ""))
+	switch mode {
+	case "system", "none", "custom":
+		return mode, url
+	}
+	if legacy := strings.TrimSpace(st.Get("network/proxy", "")); legacy != "" {
+		return "custom", legacy
+	}
+	return "system", ""
 }
 
 func atoi(s string, def int) int {
@@ -555,7 +570,8 @@ func (a *app) saveSettings() {
 	a.settings.Set("video_defaults/list_fail_wait", fmt.Sprint(a.listFailWait.Load()))
 	a.settings.Set("video_defaults/auto_reload_timer", fmt.Sprint(a.autoReloadMin.Load()))
 	if a.resolver != nil {
-		a.settings.Set("network/proxy", a.resolver.Proxy)
+		a.settings.Set("network/proxy_mode", a.resolver.ProxyMode)
+		a.settings.Set("network/proxy_url", a.resolver.Proxy)
 		a.settings.Set("network/cookies", a.resolver.Cookies)
 		a.settings.Set("network/format", a.resolver.Format)
 		a.settings.Set("network/ytdlp_path", a.resolver.Path)
