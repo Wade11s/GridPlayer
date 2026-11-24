@@ -202,14 +202,15 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
-- 2026-11-25, F5 tiled-close-order candidate (`41338de`, main `92c744d`):
+- 2026-11-25, F5 tiled-close-order candidate (`5973e25`, main `92c744d`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
-  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-closeorder/`
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-closeorder2/`
   loaded five videos in Free Tiles arranged so the frozen reading order was
   e,d,c,b,a while playlist order was a,b,c,d,e, then chose Grid > Fixed 2x2.
   The confirm showed "Close 1 video?" (`dialog.png`) and Close Videos kept
-  plane-b..e, closing plane-a, the spatially last tile (`closed.png`).
+  plane-b..e, closing plane-a — the spatially last tile and the active cell —
+  and left plane-b active (`closed.png`).
   `saved.gpls` holds those four with `settings.grid_state` 2x2 fixed,
   `vlc.log` has the five decode lines from launch, teardown finished, and no
   `gridplayer`/`poc-hw` process remained. The reading order and the kept set
