@@ -1,5 +1,35 @@
 # Migration Checkpoints
 
+## 2026-11-25 overflow-close candidate
+
+Frozen source is unchanged. Base/main is `2bfdda8` (after PR #85). Code
+candidate is `0d6aae55b8b35d7d6aca0e521fbdf43f886a79e7` on
+`fix/f5-overflow-close`; the PR binds the final reviewed head.
+
+Added: a smaller fixed grid asks before it closes videos, as the frozen
+`_apply_fixed`/`_resize_fixed` do through `_confirm_overflow`: "Set grid
+size" / "Close N videos?" with "This grid holds M videos.", a destructive
+Close Videos button, and Cancel. Confirming closes the trailing cells in the
+frozen stop -> unbind -> detach -> release order; cancelling leaves the
+layout and every cell untouched. The Grid presets and the Settings Grid tab
+share the path through `confirmOverflow`/`closeOverflow`.
+
+Verification on `0d6aae5` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run with five generated fixtures at
+`/tmp/gridplayer-overflow/` chose Grid > Fixed 2x2: the dialog appeared
+(`dialog.png`), Cancel kept all five cells (`cancelled.png`), and a second
+attempt's Close Videos left the 2x2 grid (`closed.png`). The saved playlist
+holds the four surviving videos and `grid_state` 2x2 fixed, the log has the
+five decode lines from launch, teardown finished, and no process remained.
+Unit: `TestFixedOverflowAsksBeforeClosing`, `TestOverflowCount`,
+`TestGridDraftOverflowCancelKeepsLayout`.
+
+Still open: a loaded document with more videos than its grid extends the rows
+instead of leaving the extras unplaced; closed videos are not remembered for
+a Reopen Closed Video action; the frozen grid undo is absent.
+
 ## 2026-11-25 show-all-cells candidate
 
 Frozen source is unchanged. Base/main is `38a54a0` (after PR #84). Code

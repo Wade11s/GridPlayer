@@ -202,6 +202,20 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F5 overflow-close candidate (`0d6aae5`, main `2bfdda8`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run with five generated fixtures at
+  `/tmp/gridplayer-overflow/` chose Grid > Fixed 2x2 and showed the frozen
+  dialog (`dialog.png`: "Close 1 video?", "This grid holds 4 videos.",
+  Cancel/Close Videos); Cancel kept all five panes (`cancelled.png`) and a
+  second attempt's Close Videos left the four-cell 2x2 grid (`closed.png`).
+  `saved.gpls` holds the four surviving videos with `grid_state` 2x2 fixed,
+  the log carries the five decode lines from launch, teardown finished, and
+  no `gridplayer`/`poc-hw` process remained. The dialog text, the closed
+  count and the cancel path are also unit evidence
+  (`TestFixedOverflowAsksBeforeClosing`, `TestOverflowCount`,
+  `TestGridDraftOverflowCancelKeepsLayout`).
 - 2026-11-25, F5 show-all-cells candidate (`865e723`, main `38a54a0`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
