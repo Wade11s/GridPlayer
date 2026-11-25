@@ -292,10 +292,12 @@ func TestLeavingTiledForAPlainGridPacksAndClears(t *testing.T) {
 		cells:  cells,
 		active: 0,
 		free:   true,
+		// Tiles are in cell order: cell a top right, b bottom right, c top
+		// left, so the reading order is c, then a, then b.
 		freeTiles: []grid.Tile{
-			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b later
-			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c last
-			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a first
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // cell a
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // cell b
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // cell c
 		},
 	}
 	activePtr := a.cells[a.active]
@@ -361,11 +363,13 @@ func TestTemplateEntryPacksAndCloses(t *testing.T) {
 		cells:  cells,
 		active: 1,
 		free:   true,
+		// Cell order a..d: a bottom right, b bottom left, c top right,
+		// d top left, so the reading order is d, c, b, a.
 		freeTiles: []grid.Tile{
-			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},  // a
-			{Box: [4]float64{0.02, 0.6, 0.4, 0.95}},  // b
-			{Box: [4]float64{0.55, 0.02, 0.95, 0.3}}, // c
-			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},  // d
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},  // cell a
+			{Box: [4]float64{0.02, 0.6, 0.4, 0.95}},  // cell b
+			{Box: [4]float64{0.55, 0.02, 0.95, 0.3}}, // cell c
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},  // cell d
 		},
 		askOverflow: func(over, capacity int) bool { return over == 1 && capacity == 3 },
 	}
@@ -431,10 +435,12 @@ func TestSettingsApplyLeavesTiledForPlain(t *testing.T) {
 	a := &app{
 		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
 		free:  true,
+		// Tiles are in cell order: cell a top right, b bottom right, c top
+		// left, so the reading order is c, then a, then b.
 		freeTiles: []grid.Tile{
-			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b
-			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c
-			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // cell a
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // cell b
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // cell c
 		},
 	}
 	if ok := a.applyGridDraft(settingsDraft{layout: "Auto Rows"}); !ok {

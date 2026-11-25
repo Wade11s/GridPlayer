@@ -31,9 +31,11 @@ finished with all five cells and no process remained. Unit:
 
 Still open: cells keep place order after a big-cell template, so a later
 smaller fixed grid closes by place order rather than the frozen visual row
-order; a loaded document with more videos than its grid extends the rows
-instead of leaving the extras unplaced; closed videos are not remembered for
-a Reopen Closed Video action; the frozen grid undo is absent.
+order; Free Tiles -> Single Mode -> a plain grid keeps playlist order (Single
+is a view in the frozen grid, so its tiles would still be read); a loaded
+document with more videos than its grid extends the rows instead of leaving
+the extras unplaced; closed videos are not remembered for a Reopen Closed
+Video action; the frozen grid undo is absent.
 
 ## 2026-11-25 repack-tiled-order candidate
 
