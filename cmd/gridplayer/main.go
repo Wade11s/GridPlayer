@@ -2666,15 +2666,15 @@ func (a *app) closeOverflow(cfg grid.Config) {
 	if cfg.Mode != grid.Fixed {
 		return
 	}
-	a.repackForFixed()
+	a.leaveTiledLayout()
 	a.closeBeyond(a.liveOrder(), fixedCapacity(cfg))
 }
 
-// repackForFixed puts the cells, and the tiles that travel with them, in the
-// order they are read, as the frozen _apply_fixed does with
-// pack_flow(keep_ids) when it leaves a tiled layout: the top-left place then
-// keeps the top-left video.
-func (a *app) repackForFixed() {
+// leaveTiledLayout puts the cells in the order they are read and clears the
+// free layout, as the frozen _leave_free does on the way out of Free Tiles or
+// Mosaic, and as _apply_fixed does with pack_flow(keep_ids) on a fixed entry:
+// the top-left place then keeps the top-left video.
+func (a *app) leaveTiledLayout() {
 	n := len(a.cells)
 	if n == 0 || (!a.free && !a.mosaic) {
 		return
@@ -2773,12 +2773,19 @@ func (a *app) setGrid(cfg grid.Config) {
 	// The preallocate flag belongs to the layout, not to one mode: a preset
 	// or template switch carries it, as the frozen grid keeps the setting.
 	cfg.Preallocate = a.cfg.Preallocate
-	// A fixed grid that cannot hold every video asks before closing the
-	// extras, as the frozen _apply_fixed does.
-	if !a.confirmOverflow(cfg) {
-		return
+	if cfg.Mode == grid.Fixed {
+		// A fixed grid that cannot hold every video asks before closing the
+		// extras, as the frozen _apply_fixed does; only after that does the
+		// free layout go.
+		if !a.confirmOverflow(cfg) {
+			return
+		}
+		a.closeOverflow(cfg)
+	} else {
+		// Leaving Free Tiles or Mosaic for a plain grid re-reads the tiles,
+		// as the frozen _leave_free does.
+		a.leaveTiledLayout()
 	}
-	a.closeOverflow(cfg)
 	a.cfg = cfg
 	a.template = ""
 	a.free, a.mosaic, a.single = false, false, false
@@ -2801,7 +2808,7 @@ func (a *app) setTemplate(name string) {
 	if !a.confirmClose(capacity) {
 		return
 	}
-	a.repackForFixed()
+	a.leaveTiledLayout()
 	a.closeBeyond(a.liveOrder(), capacity)
 	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols, Preallocate: a.cfg.Preallocate}
 	a.template = name

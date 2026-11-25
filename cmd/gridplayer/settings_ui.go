@@ -609,6 +609,10 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 	}
 	if fixed {
 		a.closeOverflow(next)
+	} else {
+		// Leaving a tiled layout for a plain one re-reads the tiles, as the
+		// frozen _leave_free does; a decline above leaves everything as it was.
+		a.leaveTiledLayout()
 	}
 	a.cfg = next
 	a.free, a.mosaic, a.single = free, mosaic, single
