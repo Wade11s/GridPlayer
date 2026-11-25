@@ -3,27 +3,30 @@
 ## 2026-11-25 snap-kinds candidate
 
 Frozen source is unchanged. Base/main is `78e51f8` (after PR #92). Code
-candidate is `69599db37d4d0c5b20e708fc54d596cd3c1564f4` on
+candidate is `c7fcbae1faad3663fd66bac101b178901bc5bf4a` on
 `feat/f5-snap-kinds`; the PR binds the final reviewed head.
 
 Added: the frozen `TileSnap` names as a per-kind setting. `grid.SnapKinds`
-holds the seven kinds; `playlist/tile_snaps` stores them comma-separated in
-menu order, with the older `playlist/grid_snap` boolean read as the frozen
-default set when the new key is absent. The edge/middle targets are now
+holds the seven kinds; `playlist/tile_snaps` stores them as the frozen JSON
+array (an older Go comma list is still read), with the older
+`playlist/grid_snap` boolean read as the frozen default set when the new key
+is absent — the settings file is shared with the frozen app. The edge/middle targets are now
 filtered by kind, the old-place snap uses the box the tile had when the drag
 started (captured per drag), and the video-shape snap fits the box to the
 video's pixel shape when resizing. The Settings Grid tab lists the seven and
-the Grid menu's "Snap to Edges" toggles the default set.
+the Grid menu's "Snapping" is a master switch on the stored set (off clears
+every kind, on restores the default set).
 
-Verification on `69599db` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `c7fcbae` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines. A bundled-app run at `/tmp/gridplayer-snaps/` started with
-`tile_snaps=window_edges,old_place`: the Grid tab showed only "Page edges"
-and "Where the tile was" checked (`grid-tab.png`), and toggling "Neighbour
-middles" then Apply wrote
-`tile_snaps=tile_middles,window_edges,old_place` plus `grid_snap=true`
-(`settings-after-apply.txt`); teardown finished and no process remained.
+lines. A bundled-app run at `/tmp/gridplayer-snaps2/` started with
+`tile_snaps=["window_edges","old_place"]`: the Grid tab showed only "Page
+edges" and "Where the tile was" checked (`grid-tab.png`), and toggling
+"Neighbour middles" then Apply wrote the frozen array
+`tile_snaps=["tile_middles","window_edges","old_place"]` plus
+`grid_snap=true` (`settings-after-apply.txt`); teardown finished and no
+process remained.
 Unit: `internal/grid` kind parsing/naming, per-kind filtering, old place and
 video shape; the app's `TestSnapSettingsRoundTrip` (defaults, parse, the
 legacy boolean and a save/reload round-trip).
