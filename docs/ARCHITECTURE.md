@@ -106,9 +106,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - Grid changes are undoable: a snapshot of the layout (config, template,
-  tiled flags, tiles, stacking orders, mosaic locks — never cells or engines)
-  is pushed before each discrete action, and Grid > Undo/Redo walks it, as the
-  frozen `_undoable` does. Tile drags and line edits are not recorded yet.
+  tiled flags, tiles, stacking orders, mosaic locks and the cell order — never
+  cells or engines) is pushed before each discrete action, and Grid >
+  Undo/Redo walks it, as the frozen `_undoable` does. A change in the video
+  set forgets the trail, as the frozen `forget_grid_changes` does. Tile drags
+  and line edits are not recorded yet.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per
   cell, partial last row allowed). A Fixed grid packs cells row-major in its
   configured columns (as far as the cells reach) and draws only the cells in

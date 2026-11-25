@@ -626,9 +626,6 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 		next = grid.Config{Mode: grid.AutoRows, Preallocate: d.showAllCells}
 	}
 	tiled := free || mosaic || single
-	if next != a.cfg || free != a.free || mosaic != a.mosaic || single != a.single {
-		a.pushGridUndo()
-	}
 	switch {
 	case tiled:
 		// Entering or staying in a tiled layout keeps the tiles, as the
@@ -639,10 +636,12 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 		if !a.confirmOverflow(next) {
 			return false
 		}
+		a.pushGridUndoIfChanged(next, free, mosaic, single)
 		a.closeOverflow(next)
 	default:
 		// Leaving a tiled layout for a plain grid re-reads the tiles, as the
 		// frozen _leave_free does.
+		a.pushGridUndoIfChanged(next, free, mosaic, single)
 		a.leaveTiledLayout()
 	}
 	a.cfg = next

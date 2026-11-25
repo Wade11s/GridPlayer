@@ -115,3 +115,79 @@ func TestGridUndoIgnoresAnEmptyStack(t *testing.T) {
 		t.Fatalf("empty stacks changed the layout: cfg=%+v free=%v", a.cfg, a.free)
 	}
 }
+
+func TestGridUndoRestoresTheCellOrderWithTheTiles(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
+		free:  true,
+		cfg:   grid.Config{Mode: grid.AutoRows},
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // a, top right
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // b, bottom right
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // c, top left
+		},
+	}
+	// Remember which box belongs to which cell before the switch.
+	owners := make(map[*cell][4]float64, 3)
+	for i, c := range a.cells {
+		owners[c] = a.freeTiles[i].Box
+	}
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
+	if a.free {
+		t.Fatal("setGrid did not leave the free layout")
+	}
+	a.undoGrid()
+	if !a.free || len(a.freeTiles) != 3 {
+		t.Fatalf("undo free=%v tiles=%d", a.free, len(a.freeTiles))
+	}
+	for i, c := range a.cells {
+		if a.freeTiles[i].Box != owners[c] {
+			t.Fatalf("tile %d belongs to another video after undo: %v vs %v", i, a.freeTiles[i].Box, owners[c])
+		}
+	}
+}
+
+func TestDeclinedSettingsGridDoesNotPush(t *testing.T) {
+	a := freeApp(5)
+	a.pushGridUndo()
+	a.undoGrid()
+	if len(a.gridRedo) != 1 {
+		t.Fatalf("setup redo=%d", len(a.gridRedo))
+	}
+	a.askOverflow = func(int, int) bool { return false }
+	if ok := a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "2", cols: "2"}); ok {
+		t.Fatal("a declined grid reported applied")
+	}
+	if len(a.gridUndo) != 0 || len(a.gridRedo) != 1 {
+		t.Fatalf("declined confirm changed the stacks: undo=%d redo=%d", len(a.gridUndo), len(a.gridRedo))
+	}
+}
+
+func TestNoOpGridActionsDoNotPush(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+		cfg:   grid.Config{Mode: grid.AutoRows},
+	}
+	a.setGrid(grid.Config{Mode: grid.AutoRows})
+	if len(a.gridUndo) != 0 {
+		t.Fatalf("a no-op setGrid pushed %d entries", len(a.gridUndo))
+	}
+	a.mosaic = true
+	a.mosaicLocked = map[int]bool{}
+	a.unlockMosaic()
+	if len(a.gridUndo) != 0 {
+		t.Fatalf("unlock with no locks pushed %d entries", len(a.gridUndo))
+	}
+}
+
+func TestClosingAVideoForgetsTheGridTrail(t *testing.T) {
+	a := freeApp(3)
+	a.pushGridUndo()
+	if len(a.gridUndo) != 1 {
+		t.Fatal("setup")
+	}
+	a.closeCell(&cell{path: "gone.mp4"})
+	if len(a.gridUndo) != 0 || len(a.gridRedo) != 0 {
+		t.Fatalf("a closed video kept the trail: undo=%d redo=%d", len(a.gridUndo), len(a.gridRedo))
+	}
+}

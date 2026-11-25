@@ -745,6 +745,7 @@ func (a *app) paths() []string {
 
 // setPlaylist replaces the cells. Main thread only.
 func (a *app) setPlaylist(paths []string) {
+	a.forgetGridChanges()
 	if len(paths) == 0 {
 		for _, c := range a.cells {
 			a.closeCell(c)
@@ -852,6 +853,8 @@ func labelFor(p string) string {
 // insertCells keeps existing cell structs (engines/views) and splices new
 // ones in at index at.
 func (a *app) insertCells(at int, files []string) {
+	// The video set changes: a layout undo would land on other videos.
+	a.forgetGridChanges()
 	if len(files) == 0 {
 		return
 	}
@@ -922,6 +925,9 @@ func (a *app) closeCell(c *cell) {
 	if c == nil {
 		return
 	}
+	// As the frozen forget_grid_changes on video_count_changed: a trail
+	// across a changed video set would restore tiles onto other videos.
+	a.forgetGridChanges()
 	if c.eng != nil {
 		c.eng.Close()
 		c.eng = nil
@@ -1777,6 +1783,7 @@ func (a *app) arrangeMosaic() {
 	a.mosaicTiles = grid.Arrange(len(a.cells), a.mosaicTiles, a.mosaicLocked)
 	a.dirty = true
 	a.saveSettings()
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}
@@ -1806,7 +1813,7 @@ func (a *app) toggleMosaicLock() {
 }
 
 func (a *app) unlockMosaic() {
-	if !a.mosaic {
+	if !a.mosaic || len(a.mosaicLocked) == 0 {
 		return
 	}
 	a.pushGridUndo()
@@ -2796,7 +2803,10 @@ const gridUndoLimit = 32
 // engines are not in it: the frozen grid undo never reopens a closed video,
 // so a change that closed cells is undone into a layout with fewer cells.
 type gridSnapshot struct {
-	cfg          grid.Config
+	cfg grid.Config
+	// cells is the order the videos were drawn in: leaving a tiled layout
+	// permutes the cells, so a restored tile list needs the order back.
+	cells        []*cell
 	template     string
 	free         bool
 	mosaic       bool
@@ -2813,6 +2823,7 @@ type gridSnapshot struct {
 func (a *app) captureGrid() gridSnapshot {
 	s := gridSnapshot{
 		cfg:          a.cfg,
+		cells:        slices.Clone(a.cells),
 		template:     a.template,
 		free:         a.free,
 		mosaic:       a.mosaic,
@@ -2829,6 +2840,21 @@ func (a *app) captureGrid() gridSnapshot {
 		s.singleShare = &share
 	}
 	return s
+}
+
+// forgetGridChanges drops the undo and redo trails when the video set
+// changes, as the frozen forget_grid_changes does on video_count_changed.
+func (a *app) forgetGridChanges() {
+	a.gridUndo, a.gridRedo = nil, nil
+}
+
+// pushGridUndoIfChanged remembers a layout only when it differs from what is
+// on show, as the frozen _remember skips an unchanged state.
+func (a *app) pushGridUndoIfChanged(cfg grid.Config, free, mosaic, single bool) {
+	if cfg == a.cfg && free == a.free && mosaic == a.mosaic && single == a.single {
+		return
+	}
+	a.pushGridUndo()
 }
 
 // pushGridUndo remembers the layout before a grid change and drops the redo
@@ -2862,6 +2888,37 @@ func (a *app) restoreGrid(s gridSnapshot) {
 	if a.mosaicLocked == nil {
 		a.mosaicLocked = map[int]bool{}
 	}
+	// Put the videos back in the order they were drawn in, keeping any that
+	// arrived since the snapshot at the end.
+	if len(s.cells) > 0 {
+		current := make(map[*cell]bool, len(a.cells))
+		for _, c := range a.cells {
+			current[c] = true
+		}
+		active := a.activeCell()
+		ordered := make([]*cell, 0, len(a.cells))
+		seen := make(map[*cell]bool, len(a.cells))
+		for _, c := range s.cells {
+			if current[c] {
+				ordered = append(ordered, c)
+				seen[c] = true
+			}
+		}
+		for _, c := range a.cells {
+			if !seen[c] {
+				ordered = append(ordered, c)
+			}
+		}
+		a.cells = ordered
+		if active != nil {
+			for i, c := range a.cells {
+				if c == active {
+					a.active = i
+					break
+				}
+			}
+		}
+	}
 	if len(a.freeTiles) != len(a.cells) {
 		a.freeTiles = grid.FreeLayout(len(a.cells))
 		a.freeOrder = grid.DefaultOrder(len(a.cells))
@@ -2871,7 +2928,6 @@ func (a *app) restoreGrid(s gridSnapshot) {
 		a.mosaicOrder = grid.DefaultOrder(len(a.cells))
 		a.mosaicLocked = map[int]bool{}
 	}
-	a.template = s.template
 	if _, ok := grid.FindTemplate(a.template); !ok || a.cfg.Mode != grid.Fixed {
 		a.template = ""
 	}
@@ -2911,6 +2967,10 @@ func (a *app) setGrid(cfg grid.Config) {
 	// The preallocate flag belongs to the layout, not to one mode: a preset
 	// or template switch carries it, as the frozen grid keeps the setting.
 	cfg.Preallocate = a.cfg.Preallocate
+	if cfg == a.cfg && a.template == "" && !a.free && !a.mosaic && !a.single {
+		// Nothing to change: the frozen grid does not remember a no-op.
+		return
+	}
 	if cfg.Mode == grid.Fixed {
 		// A fixed grid that cannot hold every video asks before closing the
 		// extras, as the frozen _apply_fixed does; only after that does the
@@ -2969,6 +3029,7 @@ func (a *app) setSingleSide(side grid.StripSide) {
 	a.pushGridUndo()
 	a.singleSide = side
 	a.saveSettings()
+	a.refreshMenu()
 	if a.win != nil {
 		a.win.Invalidate()
 	}

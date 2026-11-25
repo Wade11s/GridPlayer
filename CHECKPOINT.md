@@ -9,9 +9,13 @@ candidate is `e09965482af263422aedd9d12308d0cb74348078` on
 Added: undoing and redoing a grid change, as the frozen `_undoable` /
 `cmd_undo_grid`/`cmd_redo_grid` do. A snapshot holds the grid config,
 template, Free/Mosaic/Single flags, strip side and share, the tiles, the
-stacking orders and the mosaic locks — never cells or engines, because the
-frozen undo never reopens a closed video. Grid > Undo Grid Change restores it,
-Redo re-applies, a new change drops the redo trail, and the stack keeps 32.
+stacking orders, the mosaic locks and the order the videos were drawn in —
+never cells or engines. Restoring that order matters because leaving a tiled
+layout permutes the cells. Grid > Undo Grid Change restores it, Redo
+re-applies, a new change drops the redo trail, a change that alters nothing
+skips the push, and a change in the video set (a closed, inserted or newly
+opened video) forgets the trail, as the frozen `forget_grid_changes` does.
+The stack keeps 32.
 The actions that record one: the size presets, templates, Settings' Grid tab
 (only when the layout actually changes), Show All Cells, Arrange Mosaic,
 Lock/Unlock, Bring to Front/Send to Back, Strip Side, and the Free Tiles /
@@ -32,8 +36,8 @@ the 2x2 grid again (`after-redo.png`; `grid_free=false`,
 snapshot, the 32 cap, tile reset when cells closed, empty stacks).
 
 Still open: tile drags and (future) line edits do not record an undo step;
-there is no keyboard shortcut; a change that closed videos undoes into a
-layout with fewer cells, as the frozen grid undo does.
+there is no keyboard shortcut; a closed video clears the trail (frozen
+parity), so a change that closed cells cannot be undone at all.
 
 ## 2026-11-25 screenshot-all candidate
 
