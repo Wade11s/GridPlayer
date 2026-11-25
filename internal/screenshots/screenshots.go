@@ -174,6 +174,13 @@ func Render(template, title string, positionMS int64, now time.Time, number int)
 
 // Sanitize makes a name that can be a file name on every platform.
 func Sanitize(name string) string {
+	// The frozen s+ also takes the C0 separators, to one space each.
+	name = strings.Map(func(r rune) rune {
+		if r >= 0x1C && r <= 0x1F {
+			return ' '
+		}
+		return r
+	}, name)
 	name = strings.Join(strings.Fields(name), " ")
 	name = strings.Map(func(r rune) rune {
 		if unsafeChars(r) {
@@ -279,7 +286,7 @@ func withoutExtension(title string) string {
 		return title
 	}
 	stem, ext := title[:dot], title[dot+1:]
-	if ext == "" || len(ext) > MaxExtension {
+	if ext == "" || utf8.RuneCountInString(ext) > MaxExtension {
 		return title
 	}
 	for _, r := range ext {

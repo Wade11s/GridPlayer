@@ -850,8 +850,12 @@ func TestTakeScreenshotWritesTheTemplateName(t *testing.T) {
 func TestScreenshotLengthLimitsCountCharacters(t *testing.T) {
 	long := strings.Repeat("题", 200)
 	name := screenshots.Sanitize(long)
-	if got := []rune(name); len(got) != screenshots.MaxStemLength {
-		t.Fatalf("stem runes = %d, want %d", len(got), screenshots.MaxStemLength)
+	// The frozen limits are literals: 150 characters of stem, 100 of title.
+	if got := []rune(name); len(got) != 150 {
+		t.Fatalf("stem runes = %d, want 150", len(got))
+	}
+	if got := []rune(screenshots.Render("%f", long, 0, time.Now(), 1)); len(got) != 100 {
+		t.Fatalf("title runes = %d, want 100", len(got))
 	}
 	if got := screenshots.Render("%f", long, 0, time.Now(), 1); []rune(got)[0] != '题' {
 		t.Fatalf("title cut: %q", got)
@@ -861,5 +865,24 @@ func TestScreenshotLengthLimitsCountCharacters(t *testing.T) {
 	}
 	if got := screenshots.Render("%F", "x.abcde", 0, time.Now(), 1); got != "x" {
 		t.Fatalf("5-letter extension was kept: %q", got)
+	}
+}
+
+func TestScreenshotCallSitesUseTheAction(t *testing.T) {
+	// No UI harness exists for a click test, so the two call sites are
+	// guarded at the source: a revert to the save dialog would show here.
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(src)
+	if got := strings.Count(text, "a.takeScreenshot("); got < 2 {
+		t.Fatalf("takeScreenshot call sites = %d, want the Shot button and the shortcut", got)
+	}
+	if got := strings.Count(text, "a.saveFrame("); got != 1 {
+		t.Fatalf("saveFrame call sites = %d, want only the Save Frame menu item", got)
+	}
+	if !strings.Contains(text, `"take_screenshot"`) {
+		t.Fatal("the take_screenshot shortcut is gone")
 	}
 }

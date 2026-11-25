@@ -24,7 +24,7 @@ exclusive create (safe while the save is synchronous).
 Verification on `754c51d` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines, and `scripts/smoke_app.sh` PASS on the same tree. A bundled-app run
+lines on this tree. A bundled-app run
 at `/tmp/gridplayer-shots2/` with `dir=/tmp/gridplayer-shots2/out`,
 `filename_template=%F_%n`, `format=jpg` and `jpg_quality=55` wrote
 `plane-a_0001.jpg` and `plane-a_0002.jpg` from two Shot clicks; `file`
@@ -32,13 +32,15 @@ reports both as JPEG 640x360, no temporary `.png` was left in the folder,
 `settings.ini` kept all four keys, teardown finished, and no process
 remained. Unit: `internal/screenshots` (render, sanitising, unknown
 specifiers, counter, suffix, folder, format, position, the character-counted
-limits), the app's settings round-trip, the Shot wiring (PNG and JPEG through
-a dummy engine) and `ScreenshotJPEG`'s temporary-file cleanup on success and
-failure.
+limits), the app's settings round-trip, the screenshot action itself (PNG and
+JPEG through a dummy engine), a source-level guard on the Shot/shortcut call
+sites, and `ScreenshotJPEG`'s temporary-file cleanup on success and failure.
 
 Still open: the saved frame is the engine frame, not cropped/transformed to
 the view as the frozen `ScreenshotJob` does; the JPEG re-encode runs inline on
-the main thread rather than on a pool; the all-videos screenshot action is
+the main thread rather than on a pool; the "Save Frame…" dialog is Go-only and
+ignores the four keys; without the app data folder (a failed `Path`) a shot
+reports a status instead of writing; the all-videos screenshot action is
 absent; complete recovery GUI evidence remains open.
 
 ## 2026-11-25 leave-tiled-for-plain candidate

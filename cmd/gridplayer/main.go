@@ -283,7 +283,6 @@ func (a *app) loadSettings() {
 	}
 	// Keep the folder even when the settings cannot be read, so a screenshot
 	// still lands under the data folder rather than the working directory.
-	a.dataDir = dir
 	st, err := settings.Load(filepath.Join(dir, "settings.ini"))
 	if err != nil {
 		log.Printf("settings: %v", err)
@@ -3849,6 +3848,12 @@ func (a *app) saveShotSettings() {
 // the configured template and format, as the frozen screenshot action does.
 func (a *app) takeScreenshot(c *cell) {
 	if c == nil || c.eng == nil {
+		return
+	}
+	if a.shotDir == "" && a.dataDir == "" {
+		// Without the app data folder there is no default place to write;
+		// better a status than a relative "screenshots" folder.
+		a.status = "screenshots: no data folder"
 		return
 	}
 	dir := screenshots.Dir(a.shotDir, a.dataDir)

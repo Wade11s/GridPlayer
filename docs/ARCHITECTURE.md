@@ -66,8 +66,12 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   settings from the Network tab. RTSP is covered by a local VLC RTSP server
   test; adaptive mid-playback quality and streamlink cookies remain later.
 - Frames: `Screenshot(path)` maps to `libvlc_video_take_snapshot` at the
-  video's own size. The UI saves via a native dialog; `--screenshot PATH`
-  saves the active cell after 3s for automation and tests.
+  video's own size, and `ScreenshotJPEG` re-encodes a temporary PNG at the
+  configured quality. The Shot button and the screenshot shortcut write to
+  `screenshots/dir` under the frozen template and format (see
+  `internal/screenshots`); the Go-only "Save Frame…" item still opens a PNG
+  save dialog. `--screenshot PATH` saves the active cell after 3s for
+  automation and tests.
 - Mosaic (`internal/grid.Mosaic` + `Arrange`): first tile big on the left
   (half for ≤4, third above), rest as equal tiles in a right-hand tier.
   Locked tiles act as walls; the free area is cut around them and filled with
