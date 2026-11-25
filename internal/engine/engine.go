@@ -9,6 +9,9 @@ package engine
 
 import (
 	"errors"
+	"image/jpeg"
+	"image/png"
+	"os"
 	"slices"
 	"sync"
 )
@@ -924,6 +927,40 @@ func (e *Engine) Screenshot(path string) error {
 		return errors.New("engine: empty screenshot path")
 	}
 	return be.Screenshot(path)
+}
+
+// ScreenshotJPEG writes a JPEG at the given quality. libVLC only writes
+// PNG, so the frame goes to a temporary PNG and is re-encoded.
+func (e *Engine) ScreenshotJPEG(path string, quality int) error {
+	if path == "" {
+		return errors.New("engine: empty screenshot path")
+	}
+	tmp := path + ".png"
+	if err := e.Screenshot(tmp); err != nil {
+		return err
+	}
+	defer os.Remove(tmp)
+	in, err := os.Open(tmp)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	img, err := png.Decode(in)
+	if err != nil {
+		return err
+	}
+	if quality < 1 {
+		quality = 90
+	}
+	if quality > 100 {
+		quality = 100
+	}
+	out, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	return jpeg.Encode(out, img, &jpeg.Options{Quality: quality})
 }
 
 // Stop stops playback and leaves the engine idle.

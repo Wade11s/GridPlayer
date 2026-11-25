@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/screenshots"
 	"gridplayer-go/internal/settings"
 )
 
@@ -764,5 +765,35 @@ func TestCellsMeetWithoutGap(t *testing.T) {
 	}
 	if math.Abs(total-area.W*area.H) > eps {
 		t.Fatalf("template leaves a gap: %v vs %v", total, area.W*area.H)
+	}
+}
+
+func TestScreenshotSettingsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st}
+	a.loadShotSettings(st)
+	if a.shotDir != "" || a.shotTemplate != screenshots.DefaultTemplate || a.shotFormat != screenshots.PNG || a.shotQuality != screenshots.DefaultJPGQuality {
+		t.Fatalf("defaults: dir=%q template=%q format=%v quality=%d", a.shotDir, a.shotTemplate, a.shotFormat, a.shotQuality)
+	}
+	a.shotDir = "/tmp/shots"
+	a.shotTemplate = "%F_%n"
+	a.shotFormat = screenshots.JPG
+	a.shotQuality = 55
+	a.saveShotSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &app{}
+	b.loadShotSettings(reloaded)
+	if b.shotDir != "/tmp/shots" || b.shotTemplate != "%F_%n" || b.shotFormat != screenshots.JPG || b.shotQuality != 55 {
+		t.Fatalf("reloaded: dir=%q template=%q format=%v quality=%d", b.shotDir, b.shotTemplate, b.shotFormat, b.shotQuality)
 	}
 }

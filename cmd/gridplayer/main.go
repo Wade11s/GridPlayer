@@ -35,6 +35,7 @@ import (
 	"gridplayer-go/internal/nativehost"
 	"gridplayer-go/internal/playlist"
 	"gridplayer-go/internal/resolve"
+	"gridplayer-go/internal/screenshots"
 	"gridplayer-go/internal/settings"
 	"gridplayer-go/internal/snapshots"
 	"gridplayer-go/internal/sponsorblock"
@@ -169,6 +170,11 @@ type app struct {
 	snap                bool
 	overlap             bool
 	showGridLines       bool
+	shotDir             string
+	shotTemplate        string
+	shotFormat          screenshots.Format
+	shotQuality         int
+	dataDir             string
 	freeArea            [2]float64
 	nativeClips         []uintptr
 	moveIdx             int
@@ -281,6 +287,8 @@ func (a *app) loadSettings() {
 		return
 	}
 	a.settings = st
+	a.dataDir = dir
+	a.loadShotSettings(st)
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
 	a.pauseMinimized = st.Get("playlist/pause_minimized", "true") == "true"
@@ -528,6 +536,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
 	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snap))
+	a.saveShotSettings()
 	a.settings.Set("playlist/grid_overlap", fmt.Sprint(a.overlap))
 	a.settings.Set("playlist/show_grid_lines", fmt.Sprint(a.showGridLines))
 	if a.mosaic {
@@ -2081,7 +2090,7 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 				cell.eng.SetMute(!s.Muted)
 			}
 			if ui.Button(c.Key(fmt.Sprintf("shot-%d", i)), "Shot").Width(64).Clicked() && cell.eng != nil {
-				a.saveFrame(cell.eng)
+				a.takeScreenshot(cell)
 			}
 		})
 	})
@@ -2304,7 +2313,7 @@ func (a *app) shortcuts(c *ui.Context) {
 		a.openTimecodeDialog()
 	}
 	if a.shortcut(c, "take_screenshot") {
-		a.saveFrame(a.activeEngine())
+		a.takeScreenshot(a.activeCell())
 	}
 	if a.shortcut(c, "rate_increase") {
 		a.nudgeRate(0.25)
@@ -3810,6 +3819,57 @@ func (a *app) clearBookmarks() {
 	if a.bookmarkWin != nil {
 		a.bookmarkWin.Invalidate()
 	}
+}
+
+// loadShotSettings reads the frozen screenshot keys; an empty folder means
+// the data folder's screenshots folder, worked out when the frame is saved.
+func (a *app) loadShotSettings(st *settings.Store) {
+	a.shotDir = st.Get("screenshots/dir", "")
+	a.shotTemplate = st.Get("screenshots/filename_template", screenshots.DefaultTemplate)
+	a.shotFormat = screenshots.FormatFromName(st.Get("screenshots/format", "png"))
+	quality := st.Get("screenshots/jpg_quality", fmt.Sprint(screenshots.DefaultJPGQuality))
+	a.shotQuality = clampInt(atoi(quality, screenshots.DefaultJPGQuality), 1, 100)
+}
+
+// saveShotSettings writes the screenshot keys back.
+func (a *app) saveShotSettings() {
+	if a.settings == nil {
+		return
+	}
+	a.settings.Set("screenshots/dir", a.shotDir)
+	a.settings.Set("screenshots/filename_template", a.shotTemplate)
+	a.settings.Set("screenshots/format", a.shotFormat.Name())
+	a.settings.Set("screenshots/jpg_quality", fmt.Sprint(a.shotQuality))
+}
+
+// takeScreenshot writes the cell's frame to the screenshots folder under
+// the configured template and format, as the frozen screenshot action does.
+func (a *app) takeScreenshot(c *cell) {
+	if c == nil || c.eng == nil {
+		return
+	}
+	dir := screenshots.Dir(a.shotDir, a.dataDir)
+	title := c.title
+	if title == "" {
+		title = filepath.Base(c.path)
+	}
+	format := a.shotFormat
+	path, err := screenshots.NextPath(dir, a.shotTemplate, title, c.eng.Snapshot().Time, time.Now(), format.Extension())
+	if err != nil {
+		a.status = err.Error()
+		return
+	}
+	if format == screenshots.PNG {
+		if err := c.eng.Screenshot(path); err != nil {
+			a.status = err.Error()
+			return
+		}
+	} else if err := c.eng.ScreenshotJPEG(path, a.shotQuality); err != nil {
+		a.status = err.Error()
+		return
+	}
+	a.addRecent(path)
+	a.status = "saved " + filepath.Base(path)
 }
 
 func (a *app) saveFrame(eng *engine.Engine) {
