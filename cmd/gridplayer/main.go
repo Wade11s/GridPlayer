@@ -1742,6 +1742,7 @@ func (a *app) resetMosaic() {
 	a.mosaicTiles = grid.Mosaic(len(a.cells))
 	a.mosaicOrder = grid.DefaultOrder(len(a.cells))
 	a.mosaicLocked = map[int]bool{}
+	a.forgetDragOrigin()
 }
 
 func (a *app) moveTile(tiles []grid.Tile, i int, dx, dy float64, forceOverlap bool) []grid.Tile {
@@ -2174,6 +2175,7 @@ func (a *app) swapCells(from, to int) {
 	}
 	a.cells[from], a.cells[to] = a.cells[to], a.cells[from]
 	a.active = to
+	a.forgetDragOrigin()
 	a.dirty = true
 	a.refreshMenu()
 	if a.win != nil {
@@ -2978,6 +2980,7 @@ func (a *app) restoreGrid(s gridSnapshot) {
 			a.mosaicLocked = map[int]bool{}
 		}
 	}
+	a.forgetDragOrigin()
 	a.dirty = true
 	a.saveSettings()
 	a.refreshMenu()
@@ -4071,10 +4074,31 @@ func (a *app) clearBookmarks() {
 	}
 }
 
+// toggleSnapping is the master switch: off turns every kind off, on brings
+// the frozen default set back. A per-kind choice shows as on and is replaced
+// only when the switch has to turn snapping on from nothing.
+func (a *app) toggleSnapping() {
+	if a.snaps != 0 {
+		a.snaps = 0
+	} else {
+		a.snaps = grid.DefaultSnaps
+	}
+	a.saveSettings()
+	a.refreshMenu()
+}
+
 // loadSnapSettings reads the frozen tile snaps, falling back to the older
 // single switch for a settings file written before the kinds existed.
 func (a *app) loadSnapSettings(st *settings.Store) {
-	if raw := st.Get("playlist/tile_snaps", ""); raw != "" {
+	if st.Has("playlist/tile_snaps") {
+		raw := st.Get("playlist/tile_snaps", "")
+		// The frozen app writes a JSON array; an older Go build wrote a
+		// comma list. An empty array means no kinds, not an absent key.
+		var names []string
+		if err := json.Unmarshal([]byte(raw), &names); err == nil {
+			a.snaps = grid.ParseSnapKinds(names)
+			return
+		}
 		a.snaps = grid.ParseSnapKinds(strings.Split(raw, ","))
 		return
 	}
@@ -4090,7 +4114,9 @@ func (a *app) saveSnapSettings() {
 	if a.settings == nil {
 		return
 	}
-	a.settings.Set("playlist/tile_snaps", strings.Join(a.snaps.Names(), ","))
+	if raw, err := json.Marshal(a.snaps.Names()); err == nil {
+		a.settings.Set("playlist/tile_snaps", string(raw))
+	}
 	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snaps != 0))
 }
 
@@ -4492,14 +4518,8 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Send to Back", Disabled: !a.canStackActive(false), Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.stackActive(false)
 			}},
-			{Label: "Snap to Edges", Type: mygo.MenuItemCheckbox, Checked: a.snaps == grid.DefaultSnaps, Click: func(*mygo.MenuItem, *mygo.Window) {
-				if a.snaps == grid.DefaultSnaps {
-					a.snaps = 0
-				} else {
-					a.snaps = grid.DefaultSnaps
-				}
-				a.saveSettings()
-				a.refreshMenu()
+			{Label: "Snapping", Type: mygo.MenuItemCheckbox, Checked: a.snaps != 0, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.toggleSnapping()
 			}},
 			{Label: "Free: Allow Tile Overlap", Type: mygo.MenuItemCheckbox, Checked: a.overlap, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.overlap = !a.overlap

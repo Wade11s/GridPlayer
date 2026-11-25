@@ -79,8 +79,8 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   Locked tiles act as walls; the free area is cut around them and filled with
   justified rows, falling back to `Mosaic(n)` when no room remains. Locked
   tiles stay in the front stacking tier. Drag, resize, lock/unlock and Arrange
-  persist through settings. The full optimizer/reorder-to-fit, equal-gap/
-  video-shape snap are later.
+  persist through settings. The full optimizer/reorder-to-fit and the
+  equal-gap snap (with its guides) are later.
 - Tile snaps follow the frozen `TileSnap` names: `grid.SnapKinds` holds
   the seven kinds, `playlist/tile_snaps` stores them in menu order, and the
   move/resize maths filter their targets by kind (old place from the drag's

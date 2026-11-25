@@ -66,6 +66,12 @@ func (s *Store) Get(key, def string) string {
 	return def
 }
 
+// Has reports whether the key is present, an empty value included.
+func (s *Store) Has(key string) bool {
+	_, ok := s.values[key]
+	return ok
+}
+
 // Set stores key.
 func (s *Store) Set(key, value string) { s.values[key] = value }
 

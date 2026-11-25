@@ -10,6 +10,14 @@ import (
 func (a *app) resetFreeTiles() {
 	a.freeTiles = grid.FreeLayout(len(a.cells))
 	a.freeOrder = grid.DefaultOrder(len(a.cells))
+	a.forgetDragOrigin()
+}
+
+// forgetDragOrigin drops the old-place target: a drag that did not see its
+// end pass (a mode switch, a reset, a restore) must not leave it behind.
+func (a *app) forgetDragOrigin() {
+	a.moveIdx = 0
+	a.snapOrigin = [4]float64{}
 }
 
 // layoutDrawOrder returns a validated back-to-front permutation. Geometry

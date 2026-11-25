@@ -29,8 +29,9 @@ video shape; the app's `TestSnapSettingsRoundTrip` (defaults, parse, the
 legacy boolean and a save/reload round-trip).
 
 Still open: the equal-gaps snap (with its guides), the snap guide lines the
-frozen editor draws, any frozen snap-threshold setting (Go uses 8 DIPs), and
-per-kind menu toggles (only the Settings tab and the single default toggle).
+frozen editor draws, any frozen snap-threshold setting (Go uses 8 DIPs), the
+old-place snap on resize (moves only), and per-kind menu toggles (only the
+Settings tab and a master switch).
 
 ## 2026-11-25 grid-undo candidate
 

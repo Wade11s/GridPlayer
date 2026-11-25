@@ -1882,12 +1882,50 @@ func TestSnapSettingsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := reloaded.Get("playlist/tile_snaps", ""); got != "tile_middles,window_middle" {
+	// The frozen app reads a JSON array, so that is what is written.
+	if got := reloaded.Get("playlist/tile_snaps", ""); got != `["tile_middles","window_middle"]` {
 		t.Fatalf("saved snaps = %q", got)
 	}
 	b := &app{settings: reloaded}
 	b.loadSnapSettings(reloaded)
 	if b.snaps != a.snaps {
 		t.Fatalf("reloaded snaps = %v, want %v", b.snaps.Names(), a.snaps.Names())
+	}
+}
+
+func TestSnapSettingsReadTheFrozenJSONAndTheEmptySet(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The frozen app writes a JSON array; both apps share the file.
+	st.Set("playlist/tile_snaps", `["tile_edges","equal_gaps"]`)
+	a := &app{}
+	a.loadSnapSettings(st)
+	if !a.snaps.Has(grid.SnapTileEdges) || !a.snaps.Has(grid.SnapEqualGaps) || a.snaps.Has(grid.SnapWindowEdges) {
+		t.Fatalf("frozen JSON parsed as %v", a.snaps.Names())
+	}
+
+	// An empty array is the empty set, not an absent key: the legacy switch
+	// must not bring the default kinds back.
+	st.Set("playlist/tile_snaps", "[]")
+	st.Set("playlist/grid_snap", "true")
+	b := &app{}
+	b.loadSnapSettings(st)
+	if b.snaps != 0 {
+		t.Fatalf("empty array read as %v", b.snaps.Names())
+	}
+}
+
+func TestToggleSnappingIsAMasterSwitch(t *testing.T) {
+	a := &app{snaps: grid.SnapKinds(grid.SnapWindowEdges)}
+	a.toggleSnapping()
+	if a.snaps != 0 {
+		t.Fatalf("toggle left %v", a.snaps.Names())
+	}
+	a.toggleSnapping()
+	if a.snaps != grid.DefaultSnaps {
+		t.Fatalf("toggle restored %v", a.snaps.Names())
 	}
 }

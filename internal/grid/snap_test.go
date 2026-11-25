@@ -180,3 +180,20 @@ func TestSnapResizeToVideoShape(t *testing.T) {
 		t.Fatalf("shape snapped without its kind: %+v", other[0].Box)
 	}
 }
+
+func TestSnapKindsKeepEdgesAndMiddlesApart(t *testing.T) {
+	// A neighbour whose middle is 3 DIPs from tile 0's middle, its edges far
+	// enough not to act: only the middle kind may snap.
+	tiles := []Tile{
+		{Box: [4]float64{0.52, 0.1, 0.674, 0.3}}, // middle 0.597
+		{Box: [4]float64{0.5, 0.5, 0.7, 0.7}},    // middle 0.6, edges 0.5 and 0.7
+	}
+	mid := SnapMove(tiles, 0, 1000, 1000, 8, SnapKinds(SnapTileMiddles), [4]float64{})
+	if math.Abs((mid[0].Box[0]+mid[0].Box[2])/2-0.6) > 1e-9 {
+		t.Fatalf("middle kind did not snap to the neighbour middle: %+v", mid[0].Box)
+	}
+	edges := SnapMove(tiles, 0, 1000, 1000, 8, SnapKinds(SnapTileEdges), [4]float64{})
+	if edges[0].Box != tiles[0].Box {
+		t.Fatalf("the edge kind acted as a middle target: %+v", edges[0].Box)
+	}
+}

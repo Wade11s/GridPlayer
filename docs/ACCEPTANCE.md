@@ -213,7 +213,8 @@ Changes need a new review; thresholds never relax in-implementation.
   (`settings-after-apply.txt`), and teardown left no process. The snap maths
   itself (kind filtering, old place, video shape) and the settings round-trip
   are unit evidence; a GUI drag was not driven, and the equal-gaps snap,
-  guides and any frozen threshold setting remain open.
+  guides, a resize old-place snap, any frozen threshold setting and per-kind
+  menu items remain open.
 - 2026-11-25, F5 grid-undo candidate (`a11967f`, main `8c8ca7e`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
