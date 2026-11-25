@@ -12,6 +12,7 @@ import (
 	"gridplayer-go/internal/i18n"
 	"gridplayer-go/internal/keymap"
 	"gridplayer-go/internal/resolve"
+	"gridplayer-go/internal/screenshots"
 	"gridplayer-go/internal/sponsorblock"
 )
 
@@ -44,6 +45,10 @@ type settingsDraft struct {
 	overlap       bool
 	showGridLines bool
 	showAllCells  bool
+	shotDir       string
+	shotTemplate  string
+	shotFormat    string
+	shotQuality   string
 	singleSide    string
 
 	view         string
@@ -102,6 +107,7 @@ var (
 	listFailOptions    = []string{"Play next", "Show error"}
 	endActionOptions   = []string{"Loop file", "Next file", "Previous file", "Shuffle", "Pause", "Stop"}
 	languageOptions    = languageNames()
+	shotFormatOptions  = []string{"png", "jpg"}
 )
 
 func defaultSettingsDraft() settingsDraft {
@@ -239,6 +245,18 @@ func (a *app) settingsGeneral(c *ui.Context, d *settingsDraft) {
 				ui.Checkbox(c, &d.startMaximized, "Start maximized")
 				ui.Checkbox(c, &d.startFullscreen, "Start full screen")
 			})
+		})
+		ui.Field(c, a.tr("SettingsDialog", "Screenshots folder"), func() {
+			ui.TextInput(c, &d.shotDir).Label("Empty uses the data folder's screenshots folder")
+		})
+		ui.Field(c, a.tr("SettingsDialog", "Screenshot name"), func() {
+			ui.TextInput(c, &d.shotTemplate).Label("%f %F %p %P %n %D %T %tX %%")
+		})
+		ui.Field(c, a.tr("SettingsDialog", "Screenshot format"), func() {
+			ui.Select(c, &d.shotFormat, shotFormatOptions)
+		})
+		ui.Field(c, a.tr("SettingsDialog", "JPEG quality"), func() {
+			ui.TextInput(c, &d.shotQuality).Label("1 to 100")
 		})
 	})
 }
@@ -511,6 +529,10 @@ func (a *app) currentSettingsDraft() settingsDraft {
 	d.overlap = a.overlap
 	d.showGridLines = a.showGridLines
 	d.showAllCells = a.cfg.Preallocate
+	d.shotDir = a.shotDir
+	d.shotTemplate = a.shotTemplate
+	d.shotFormat = a.shotFormat.Name()
+	d.shotQuality = fmt.Sprint(a.shotQuality)
 	d.rows = fmt.Sprint(clampInt(a.cfg.Rows, 1, 8))
 	d.cols = fmt.Sprint(clampInt(a.cfg.Cols, 1, 8))
 	switch {
@@ -629,6 +651,17 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 	return true
 }
 
+// applyShotDraft maps the Settings General screenshot fields onto the app.
+func (a *app) applyShotDraft(d settingsDraft) {
+	a.shotDir = strings.TrimSpace(d.shotDir)
+	a.shotTemplate = strings.TrimSpace(d.shotTemplate)
+	if a.shotTemplate == "" {
+		a.shotTemplate = screenshots.DefaultTemplate
+	}
+	a.shotFormat = screenshots.FormatFromName(d.shotFormat)
+	a.shotQuality = clampInt(atoi(d.shotQuality, screenshots.DefaultJPGQuality), 1, 100)
+}
+
 func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultVolume = clampInt(int(math.Round(d.volume)), 0, 100)
 	a.defaultMuted = d.muted
@@ -670,6 +703,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.snap = d.snap
 	a.overlap = d.overlap
 	a.showGridLines = d.showGridLines
+	a.applyShotDraft(d)
 	a.singleSide = sideFromName(d.singleSide)
 	a.fill, a.stretch = viewFromName(d.view)
 	a.aspect = aspectFromName(d.aspect)

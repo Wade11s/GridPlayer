@@ -66,8 +66,12 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   settings from the Network tab. RTSP is covered by a local VLC RTSP server
   test; adaptive mid-playback quality and streamlink cookies remain later.
 - Frames: `Screenshot(path)` maps to `libvlc_video_take_snapshot` at the
-  video's own size. The UI saves via a native dialog; `--screenshot PATH`
-  saves the active cell after 3s for automation and tests.
+  video's own size, and `ScreenshotJPEG` re-encodes a temporary PNG at the
+  configured quality. The Shot button and the screenshot shortcut write to
+  `screenshots/dir` under the frozen template and format (see
+  `internal/screenshots`); the Go-only "Save Frame…" item still opens a PNG
+  save dialog. `--screenshot PATH` saves the active cell after 3s for
+  automation and tests.
 - Mosaic (`internal/grid.Mosaic` + `Arrange`): first tile big on the left
   (half for ≤4, third above), rest as equal tiles in a right-hand tier.
   Locked tiles act as walls; the free area is cut around them and filled with
@@ -91,6 +95,12 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   centred in the area. Cells meet flush because the app passes `cellGap = 0`,
   as the frozen `CellLayout` spacing 0 does. The split search mirrors upstream's
   `justified.py` without the size/reorder controls this build does not expose yet.
+- Screenshots use `internal/screenshots`: the frozen template specifiers
+  (`%f %F %p %P %n %D %T %tX %%`), name sanitising and Windows reserved
+  names, the `%n` counter or a ` (N)` suffix, the data folder's
+  `screenshots` folder when no folder is set, and PNG or JPEG (a temporary
+  PNG re-encoded at the configured quality). The saved frame is the engine
+  frame; cropping it to the view is later.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per

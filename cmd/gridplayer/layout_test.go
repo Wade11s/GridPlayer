@@ -3,11 +3,16 @@ package main
 import (
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"gridplayer-go/internal/dummy"
+	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
+	"gridplayer-go/internal/screenshots"
 	"gridplayer-go/internal/settings"
 )
 
@@ -764,5 +769,177 @@ func TestCellsMeetWithoutGap(t *testing.T) {
 	}
 	if math.Abs(total-area.W*area.H) > eps {
 		t.Fatalf("template leaves a gap: %v vs %v", total, area.W*area.H)
+	}
+}
+
+func TestScreenshotSettingsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st}
+	a.loadShotSettings(st)
+	if a.shotDir != "" || a.shotTemplate != screenshots.DefaultTemplate || a.shotFormat != screenshots.PNG || a.shotQuality != screenshots.DefaultJPGQuality {
+		t.Fatalf("defaults: dir=%q template=%q format=%v quality=%d", a.shotDir, a.shotTemplate, a.shotFormat, a.shotQuality)
+	}
+	a.shotDir = "/tmp/shots"
+	a.shotTemplate = "%F_%n"
+	a.shotFormat = screenshots.JPG
+	a.shotQuality = 55
+	a.saveShotSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := &app{}
+	b.loadShotSettings(reloaded)
+	if b.shotDir != "/tmp/shots" || b.shotTemplate != "%F_%n" || b.shotFormat != screenshots.JPG || b.shotQuality != 55 {
+		t.Fatalf("reloaded: dir=%q template=%q format=%v quality=%d", b.shotDir, b.shotTemplate, b.shotFormat, b.shotQuality)
+	}
+}
+
+func TestTakeScreenshotWritesTheTemplateName(t *testing.T) {
+	data := t.TempDir()
+	eng := engine.New(func(string, bool, string) (engine.Backend, error) { return dummy.New(), nil })
+	defer eng.Close()
+	if err := eng.Load("movie.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{
+		dataDir:      data,
+		shotTemplate: "%F_%n",
+		shotFormat:   screenshots.PNG,
+		shotQuality:  screenshots.DefaultJPGQuality,
+		shotDir:      filepath.Join(data, "shots"),
+	}
+	c := &cell{path: "movie.mkv", title: "", eng: eng}
+	a.takeScreenshot(c)
+	first := filepath.Join(data, "shots", "movie_0001.png")
+	if _, err := os.Stat(first); err != nil {
+		t.Fatalf("first shot: %v", err)
+	}
+	a.takeScreenshot(c)
+	second := filepath.Join(data, "shots", "movie_0002.png")
+	if _, err := os.Stat(second); err != nil {
+		t.Fatalf("second shot: %v", err)
+	}
+
+	// JPEG goes through the temporary PNG and leaves no .png behind.
+	a.shotDir = filepath.Join(data, "jpeg")
+	a.shotFormat = screenshots.JPG
+	a.shotQuality = 55
+	a.shotTemplate = "%F"
+	a.takeScreenshot(c)
+	jpg := filepath.Join(data, "jpeg", "movie.jpg")
+	raw, err := os.ReadFile(jpg)
+	if err != nil {
+		t.Fatalf("jpeg shot: %v", err)
+	}
+	if len(raw) < 2 || raw[0] != 0xFF || raw[1] != 0xD8 {
+		t.Fatalf("not a JPEG: %x", raw[:2])
+	}
+	if _, err := os.Stat(jpg + ".png"); err == nil {
+		t.Fatal("the temporary PNG was left behind")
+	}
+}
+
+func TestScreenshotLengthLimitsCountCharacters(t *testing.T) {
+	long := strings.Repeat("题", 200)
+	name := screenshots.Sanitize(long)
+	// The frozen limits are literals: 150 characters of stem, 100 of title.
+	if got := []rune(name); len(got) != 150 {
+		t.Fatalf("stem runes = %d, want 150", len(got))
+	}
+	if got := []rune(screenshots.Render("%f", long, 0, time.Now(), 1)); len(got) != 100 {
+		t.Fatalf("title runes = %d, want 100", len(got))
+	}
+	if got := screenshots.Render("%f", long, 0, time.Now(), 1); []rune(got)[0] != '题' {
+		t.Fatalf("title cut: %q", got)
+	}
+	if got := screenshots.Render("%F", "x.abcdef", 0, time.Now(), 1); got != "x.abcdef" {
+		t.Fatalf("6-letter extension was cut: %q", got)
+	}
+	if got := screenshots.Render("%F", "x.abcde", 0, time.Now(), 1); got != "x" {
+		t.Fatalf("5-letter extension was kept: %q", got)
+	}
+}
+
+func TestScreenshotCallSitesUseTheAction(t *testing.T) {
+	// No UI harness exists for a click test, so the two call sites are
+	// guarded at the source: a revert to the save dialog would show here.
+	src, err := os.ReadFile("main.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(src)
+	if got := strings.Count(text, "a.takeScreenshot("); got < 2 {
+		t.Fatalf("takeScreenshot call sites = %d, want the Shot button and the shortcut", got)
+	}
+	if got := strings.Count(text, "a.saveFrame("); got != 1 {
+		t.Fatalf("saveFrame call sites = %d, want only the Save Frame menu item", got)
+	}
+	if !strings.Contains(text, `"take_screenshot"`) {
+		t.Fatal("the take_screenshot shortcut is gone")
+	}
+	ui, err := os.ReadFile("settings_ui.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The Settings draft must map the four fields through one helper, and
+	// saveSettings must persist them.
+	if got := strings.Count(string(ui), "a.applyShotDraft(d)"); got != 1 {
+		t.Fatalf("applyShotDraft call sites = %d, want 1", got)
+	}
+	if got := strings.Count(text, "a.saveShotSettings()"); got != 1 {
+		t.Fatalf("saveShotSettings call sites = %d, want saveSettings", got)
+	}
+}
+
+func TestApplyShotDraftMapsTheFields(t *testing.T) {
+	a := &app{}
+	a.applyShotDraft(settingsDraft{shotDir: "  /tmp/x  ", shotTemplate: " ", shotFormat: "JPG", shotQuality: "150"})
+	if a.shotDir != "/tmp/x" || a.shotTemplate != screenshots.DefaultTemplate || a.shotFormat != screenshots.JPG || a.shotQuality != 100 {
+		t.Fatalf("mapped: dir=%q template=%q format=%v quality=%d", a.shotDir, a.shotTemplate, a.shotFormat, a.shotQuality)
+	}
+	a.applyShotDraft(settingsDraft{shotTemplate: "%F", shotFormat: "png", shotQuality: "0"})
+	if a.shotTemplate != "%F" || a.shotFormat != screenshots.PNG || a.shotQuality != 1 {
+		t.Fatalf("mapped: template=%q format=%v quality=%d", a.shotTemplate, a.shotFormat, a.shotQuality)
+	}
+}
+
+func TestSaveSettingsPersistsTheShotKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, shotDir: "/tmp/shots", shotTemplate: "%F_%n", shotFormat: screenshots.JPG, shotQuality: 42}
+	a.saveSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get("screenshots/format", "") != "jpg" || reloaded.Get("screenshots/dir", "") != "/tmp/shots" {
+		t.Fatalf("saved keys: format=%q dir=%q", reloaded.Get("screenshots/format", ""), reloaded.Get("screenshots/dir", ""))
+	}
+}
+
+func TestTakeScreenshotWithoutADataFolderReportsIt(t *testing.T) {
+	eng := engine.New(func(string, bool, string) (engine.Backend, error) { return dummy.New(), nil })
+	defer eng.Close()
+	if err := eng.Load("movie.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{shotTemplate: "%F"}
+	a.takeScreenshot(&cell{path: "movie.mkv", eng: eng})
+	if a.status != "screenshots: no data folder" {
+		t.Fatalf("status = %q", a.status)
 	}
 }

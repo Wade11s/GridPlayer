@@ -1,5 +1,50 @@
 # Migration Checkpoints
 
+## 2026-11-25 screenshot-names candidate
+
+Frozen source is unchanged. Base/main is `0ef3300` (after PR #89). Code
+candidate is `864b44ab5db700109d8e2f45838eb250dfeb97ae` on
+`feat/f12-screenshot-names`; the PR binds the final reviewed head.
+
+Added: `internal/screenshots` ports the frozen `utils/screenshots.py` naming
+— the specifiers `%f %F %p %P %n %D %T %tX %%`, the `%n` counter or a
+` (N)` suffix for a taken name, unsafe-character and Windows-reserved-name
+sanitising, the frozen length limits, the data folder's `screenshots` folder
+when none is set — and the app's screenshot action (Shot button and the
+`take_screenshot` shortcut) now writes there under the `screenshots/dir`,
+`filename_template`, `format` and `jpg_quality` keys, PNG straight from
+libVLC or JPEG by re-encoding a temporary PNG at the configured quality. The
+Settings General tab edits all four, without a Browse button. The template
+and format apply to the screenshot action; the Go-only "Save Frame…" item
+still opens a PNG save dialog and ignores the four keys. A JPEG shot
+re-encodes inline on the main thread, where the frozen `ScreenshotJob` uses
+a thread pool, and the name is taken by a stat-then-write rather than an
+exclusive create (safe while the save is synchronous).
+
+Verification on `864b44a` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines on this tree. A bundled-app run
+at `/tmp/gridplayer-shots4/` with `dir=/tmp/gridplayer-shots4/out`,
+`filename_template=%F_%n`, `format=jpg` and `jpg_quality=55` wrote
+`plane-a_0001.jpg` and `plane-a_0002.jpg` from two Shot clicks; `file`
+reports both as JPEG 640x360, no temporary `.png` was left in the folder,
+`settings.ini` kept all four keys, teardown finished, and no process
+remained. Unit: `internal/screenshots` (render, sanitising, unknown
+specifiers, counter, suffix, folder, format, position, the character-counted
+limits), the app's settings round-trip and `saveSettings` write, the draft
+mapping, the screenshot action itself (PNG and JPEG through a dummy engine),
+a source-level guard on the Shot/shortcut and draft call sites, the
+no-data-folder status, and `ScreenshotJPEG`'s temporary-file cleanup on
+success and failure.
+
+Still open: the saved frame is the engine frame, not cropped/transformed to
+the view as the frozen `ScreenshotJob` does; the JPEG re-encode runs inline on
+the main thread rather than on a pool; the "Save Frame…" dialog is Go-only and
+ignores the four keys; without the app data folder (a failed `Path`) a shot
+reports a status instead of writing; the all-videos screenshot action is
+absent; complete recovery GUI evidence remains open.
+
 ## 2026-11-25 leave-tiled-for-plain candidate
 
 Frozen source is unchanged. Base/main is `73eddd9` (after PR #88). Code
