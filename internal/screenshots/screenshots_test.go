@@ -50,8 +50,8 @@ func TestRenderSanitizesLikeTheFrozenNames(t *testing.T) {
 		{"part.2 of 3", "part.2 of 3"},
 		// The frozen s+ takes the C0 separators, to one space.
 		{"ab", "a b"},
-		// The extension limit counts characters, not bytes.
-		{"x.题题", "x"},
+		// The extension limit counts characters, not bytes; %F strips it.
+		{"x.题题", "x.题题"},
 	} {
 		if got := Render("%f", tt.title, 0, fixedNow, 1); got != tt.want {
 			t.Errorf("Render(%%f, %q) = %q, want %q", tt.title, got, tt.want)
@@ -131,5 +131,16 @@ func TestPositionFormatsHours(t *testing.T) {
 	}
 	if got := Position(-5, false); got != "00-00-00" {
 		t.Fatalf("negative position = %q", got)
+	}
+}
+
+func TestWithoutExtensionCountsCharacters(t *testing.T) {
+	// Four CJK characters are four characters, under the frozen limit of
+	// five, so the extension goes; six are over it and stay.
+	if got := Render("%F", "x.题题题题", 0, fixedNow, 1); got != "x" {
+		t.Fatalf("four-character extension: %q", got)
+	}
+	if got := Render("%F", "x.题题题题题题", 0, fixedNow, 1); got != "x.题题题题题题" {
+		t.Fatalf("six-character extension: %q", got)
 	}
 }
