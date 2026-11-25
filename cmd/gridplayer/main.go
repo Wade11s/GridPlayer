@@ -281,10 +281,8 @@ func (a *app) loadSettings() {
 	if err != nil {
 		return
 	}
-	// Keep the folder even when the settings cannot be read, so a screenshot
-	// still lands under the data folder rather than the working directory.
-	// Keep the folder even when the settings cannot be read, so a screenshot
-	// still lands under the data folder rather than nowhere.
+	// Keep the folder even when the settings cannot be read: a screenshot
+	// then reports that there is nowhere to write instead of guessing.
 	a.dataDir = dir
 	st, err := settings.Load(filepath.Join(dir, "settings.ini"))
 	if err != nil {
@@ -292,7 +290,6 @@ func (a *app) loadSettings() {
 		return
 	}
 	a.settings = st
-	a.dataDir = dir
 	a.loadShotSettings(st)
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
@@ -3849,15 +3846,15 @@ func (a *app) saveShotSettings() {
 
 // takeScreenshot writes the cell's frame to the screenshots folder under
 // the configured template and format, as the frozen screenshot action does.
-func (a *app) takeScreenshot(c *cell) {
+func (a *app) takeScreenshot(c *cell) bool {
 	if c == nil || c.eng == nil {
-		return
+		return false
 	}
 	if a.shotDir == "" && a.dataDir == "" {
 		// Without the app data folder there is no default place to write;
 		// better a status than a relative "screenshots" folder.
 		a.status = "screenshots: no data folder"
-		return
+		return false
 	}
 	dir := screenshots.Dir(a.shotDir, a.dataDir)
 	title := c.title
@@ -3868,19 +3865,36 @@ func (a *app) takeScreenshot(c *cell) {
 	path, err := screenshots.NextPath(dir, a.shotTemplate, title, c.eng.Snapshot().Time, time.Now(), format.Extension())
 	if err != nil {
 		a.status = err.Error()
-		return
+		return false
 	}
 	if format == screenshots.PNG {
 		if err := c.eng.Screenshot(path); err != nil {
 			a.status = err.Error()
-			return
+			return false
 		}
 	} else if err := c.eng.ScreenshotJPEG(path, a.shotQuality); err != nil {
 		a.status = err.Error()
-		return
+		return false
 	}
 	a.addRecent(path)
 	a.status = "saved " + filepath.Base(path)
+	return true
+}
+
+// takeScreenshotAll saves a frame from every cell, as the frozen
+// "Screenshot [ALL]" action does: one file per video, same template.
+func (a *app) takeScreenshotAll() {
+	saved := 0
+	for _, c := range a.cells {
+		if a.takeScreenshot(c) {
+			saved++
+		}
+	}
+	if saved == 0 {
+		a.status = "screenshots: no video to save"
+		return
+	}
+	a.status = fmt.Sprintf("saved %d screenshots", saved)
 }
 
 func (a *app) saveFrame(eng *engine.Engine) {
@@ -4053,6 +4067,7 @@ func (a *app) menu() *mygo.Menu {
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListFail(listFailShowError) }},
 			}},
 			{Label: a.tr("Actions", "Save Frame…"), Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
+			{Label: a.tr("Actions", "Screenshot All"), Click: func(*mygo.MenuItem, *mygo.Window) { a.takeScreenshotAll() }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Seek -5s"), Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
