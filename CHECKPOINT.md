@@ -22,11 +22,13 @@ Free Tiles reading e,d,c,b,a, then chose Grid > Fixed 2x2 and confirmed the
 close: the 2x2 grid reads E,D / C,B (`packed.png`), so the top-left place
 kept the top-left video and plane-a, read last, was closed. The saved
 playlist holds plane-e,d,c,b in that grid order with `settings.grid_state`
-2x2 fixed and no lock key; `vlc.log` has the five decode lines from launch;
-teardown finished and no process remained. Unit:
-`TestFixedEntryPacksTiledOrderWithoutOverflow`,
-`TestFixedEntryClearsTilesAndLocks`, and the updated
-`TestOverflowCloseFollowsTheTiledReadingOrder`.
+2x2 fixed and no lock key; `vlc.log` has the five launch input-creation
+lines and five VideoToolbox decode lines; teardown finished and no process
+remained. Unit: `TestFixedEntryPacksTiledOrderWithoutOverflow`,
+`TestFixedEntryClearsTilesAndLocks`, `TestFixedEntryClearsDefaultTilesAndLocks`
+(the identity-order entry still clears), and
+`TestOverflowCloseFollowsTheTiledReadingOrder` with a non-coincident active
+index.
 
 Note: Go's cells are the playlist, so the saved .gpls video order now follows
 the grid order; upstream keeps a separate video order and grid cells.

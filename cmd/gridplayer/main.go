@@ -2690,32 +2690,31 @@ func (a *app) repackForFixed() {
 			break
 		}
 	}
-	if identity {
-		return
-	}
 	active := a.activeCell()
-	next := make([]*cell, n)
-	for slot, from := range order {
-		next[slot] = a.cells[from]
+	if !identity {
+		next := make([]*cell, n)
+		for slot, from := range order {
+			next[slot] = a.cells[from]
+		}
+		a.cells = next
+		if active != nil {
+			for i, c := range a.cells {
+				if c == active {
+					a.active = i
+					break
+				}
+			}
+		}
 	}
-	a.cells = next
 	// The frozen _apply_fixed clears the free layout on the way in:
-	// _free.clear() drops the tiles and the locked set. Keeping them would
-	// leave index-keyed locks and boxes pointing at other videos after the
-	// permutation.
+	// _free.clear() drops the tiles and the locked set, whether or not the
+	// order changes. Keeping them would leave index-keyed locks and boxes
+	// pointing at other videos after a permutation.
 	a.freeTiles = nil
 	a.mosaicTiles = nil
 	a.freeOrder = nil
 	a.mosaicOrder = nil
 	a.mosaicLocked = nil
-	if active != nil {
-		for i, c := range a.cells {
-			if c == active {
-				a.active = i
-				break
-			}
-		}
-	}
 }
 
 // liveOrder is the order the videos are laid out in: playlist order for the

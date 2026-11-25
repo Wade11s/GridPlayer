@@ -209,12 +209,16 @@ Changes need a new review; thresholds never relax in-implementation.
   five videos in Free Tiles reading e,d,c,b,a, then chose Grid > Fixed 2x2
   and confirmed the close. The grid reads E,D / C,B (`packed.png`): the
   reading-first tiles keep the top-left places and plane-a, read last, was
-  closed. `saved.gpls` holds plane-e,d,c,b in that order with
-  `settings.grid_state` 2x2 fixed and no lock key, `vlc.log` has the five
-  decode lines from launch, teardown finished, and no `gridplayer`/`poc-hw`
-  process remained. The packing without overflow and the tile/lock clearing
-  are unit evidence (`TestFixedEntryPacksTiledOrderWithoutOverflow`,
-  `TestFixedEntryClearsTilesAndLocks`).
+  closed. `plane-e.mp4` is a byte-copy of plane-a, so its burnt-in frame
+  reads A while the cell label names plane-e. `saved.gpls` holds plane-e,d,c,b
+  in that order with `settings.grid_state` 2x2 fixed and no lock key,
+  `vlc.log` has the five launch input-creation lines and five VideoToolbox
+  decode lines, teardown finished, and no `gridplayer`/`poc-hw` process
+  remained. The packing without overflow, the Mosaic branch and the tile/lock
+  clearing are unit evidence, not this run
+  (`TestFixedEntryPacksTiledOrderWithoutOverflow`,
+  `TestFixedEntryClearsTilesAndLocks`,
+  `TestFixedEntryClearsDefaultTilesAndLocks`).
 - 2026-11-25, F5 tiled-close-order candidate (`5973e25`, main `92c744d`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

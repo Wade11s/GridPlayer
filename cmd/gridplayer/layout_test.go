@@ -146,8 +146,10 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	// Playlist order 0..4, but read row by row the top-left tile is 4 and
 	// the bottom-right is 0, so a 2x2 keeps 4,3,2,1 and closes 0.
 	a := &app{
-		cells:  cells(5),
-		active: 2,
+		cells: cells(5),
+		// The reading-last video is active, so it must survive the re-pack
+		// at a different index; index 2 would coincide before and after.
+		active: 4,
 		free:   true,
 		freeTiles: []grid.Tile{
 			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},
@@ -173,9 +175,12 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 			t.Fatalf("kept %v, want %v", cellPaths(a.cells), want)
 		}
 	}
-	// The active video is still the same cell, by identity.
+	// The active video is still the same cell, by identity, at a new index.
 	if a.cells[a.active] != activePtr {
 		t.Fatalf("active is %q, want %q", a.cells[a.active].path, activePtr.path)
+	}
+	if a.active == 4 {
+		t.Fatalf("active index did not move with its video: %d", a.active)
 	}
 
 	// Closing the active cell itself leaves a valid active index on a
@@ -252,6 +257,32 @@ func TestFixedEntryClearsTilesAndLocks(t *testing.T) {
 	}
 	if a.cells[a.active] != activePtr {
 		t.Fatalf("active moved to %q", a.cells[a.active].path)
+	}
+}
+
+func TestFixedEntryClearsDefaultTilesAndLocks(t *testing.T) {
+	// A default Free/Mosaic layout reads in identity order, so the cells are
+	// not permuted; the frozen _free.clear() still drops the tiles and locks.
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{
+		cells:        cells,
+		active:       1,
+		mosaic:       true,
+		mosaicTiles:  grid.Mosaic(3),
+		mosaicOrder:  grid.DefaultOrder(3),
+		mosaicLocked: map[int]bool{1: true},
+	}
+	if got := a.liveOrder(); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("default mosaic order = %v, want identity", got)
+	}
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3})
+	if a.mosaicLocked != nil || a.mosaicTiles != nil {
+		t.Fatalf("default tiles or locks survived: tiles=%v locks=%v", a.mosaicTiles, a.mosaicLocked)
+	}
+	for i, want := range []string{"a.mp4", "b.mp4", "c.mp4"} {
+		if a.cells[i].path != want {
+			t.Fatalf("identity order changed: %v", cellPaths(a.cells))
+		}
 	}
 }
 
