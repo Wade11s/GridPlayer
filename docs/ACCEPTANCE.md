@@ -202,6 +202,19 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F12 screenshot-all candidate (`58ad4c6`, main `1a758c3`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-shotall/` with
+  three cells and `<run>/data/settings.ini` set to
+  `dir=/tmp/gridplayer-shotall/out`, `filename_template=%F`, `format=jpg`,
+  `jpg_quality=60` chose Playback > Screenshot All: `plane-a.jpg`,
+  `plane-b.jpg` and `plane-c.jpg` appeared, all reported by `file` as JPEG
+  640x360, with no temporary `.png` left. Teardown finished and no
+  `gridplayer`/`poc-hw` process remained. The per-cell loop, the skip for a
+  cell without a video and the empty-run status are unit evidence
+  (`TestTakeScreenshotAllWritesOnePerCell`,
+  `TestTakeScreenshotAllWithoutAVideoReportsIt`).
 - 2026-11-25, F12 screenshot-names candidate (`864b44a`, main `0ef3300`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

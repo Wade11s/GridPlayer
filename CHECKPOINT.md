@@ -1,5 +1,38 @@
 # Migration Checkpoints
 
+## 2026-11-25 screenshot-all candidate
+
+Frozen source is unchanged. Base/main is `1a758c3` (after PR #90). Code
+candidate is `58ad4c6a2d3bd4d1fc62d312dba99db68cea6c0f` on
+`feat/f12-screenshot-all`; the PR binds the final reviewed head.
+
+Added: "Screenshot All" saves one frame per cell with the configured folder,
+template, format and quality, as the frozen all-videos action does
+(`all_take_screenshot` connected to every video's screenshot). Cells without
+a video are skipped, and a run with nothing to save says so. The screenshot
+action now reports success to its callers, so the all-videos run can count
+what it wrote. The duplicated `dataDir` comment and the redundant second
+assignment (PR #90 lows) are gone.
+
+Verification on `58ad4c6` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run at `/tmp/gridplayer-shotall/` with three cells and
+`dir=/tmp/gridplayer-shotall/out`, `filename_template=%F`, `format=jpg`,
+`jpg_quality=60` chose Playback > Screenshot All and wrote `plane-a.jpg`,
+`plane-b.jpg` and `plane-c.jpg` (all JPEG 640x360 per `file`), no temporary
+`.png` left; teardown finished and no process remained. Unit:
+`TestTakeScreenshotAllWritesOnePerCell` (two engines, one without, both JPEGs
+written, status counted) and `TestTakeScreenshotAllWithoutAVideoReportsIt`,
+plus the extended call-site guard.
+
+Still open: the saved frame is the engine frame, not cropped/transformed to
+the view; the JPEG re-encode runs inline on the main thread; the Go-only
+"Save Frame…" dialog ignores the four keys; without the app data folder a
+shot reports a status instead of writing; the Settings-dialog populate
+direction and the data-folder placement are unit-unpinned; complete recovery
+GUI evidence remains open.
+
 ## 2026-11-25 screenshot-names candidate
 
 Frozen source is unchanged. Base/main is `0ef3300` (after PR #89). Code
