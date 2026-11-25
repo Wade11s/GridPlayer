@@ -6,13 +6,14 @@ Frozen source is unchanged. Base/main is `1a758c3` (after PR #90). Code
 candidate is `58ad4c6a2d3bd4d1fc62d312dba99db68cea6c0f` on
 `feat/f12-screenshot-all`; the PR binds the final reviewed head.
 
-Added: "Screenshot All" saves one frame per cell with the configured folder,
-template, format and quality, as the frozen all-videos action does
+Added: "Screenshot (All)" saves one frame per cell with the configured
+folder, template, format and quality, as the frozen all-videos action does
 (`all_take_screenshot` connected to every video's screenshot). Cells without
-a video are skipped, and a run with nothing to save says so. The screenshot
-action now reports success to its callers, so the all-videos run can count
-what it wrote. The duplicated `dataDir` comment and the redundant second
-assignment (PR #90 lows) are gone.
+a video are skipped (tracks re-read first), the item is disabled when no cell
+has a video, and the status counts what was written and keeps the first
+failure. The screenshot action now reports success to its callers, so the
+all-videos run can count. The duplicated `dataDir` comment and the redundant
+second assignment (PR #90 lows) are gone.
 
 Verification on `58ad4c6` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
@@ -29,7 +30,8 @@ plus the extended call-site guard.
 Still open: the saved frame is the engine frame, not cropped/transformed to
 the view; the JPEG re-encode runs inline on the main thread; the Go-only
 "Save Frame…" dialog ignores the four keys; without the app data folder a
-shot reports a status instead of writing; the Settings-dialog populate
+shot reports a status instead of writing; the all-videos action has no
+shortcut (the frozen binds Shift+Alt+S); the Settings-dialog populate
 direction and the data-folder placement are unit-unpinned; complete recovery
 GUI evidence remains open.
 

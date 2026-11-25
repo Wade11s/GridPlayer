@@ -3881,20 +3881,66 @@ func (a *app) takeScreenshot(c *cell) bool {
 	return true
 }
 
-// takeScreenshotAll saves a frame from every cell, as the frozen
-// "Screenshot [ALL]" action does: one file per video, same template.
-func (a *app) takeScreenshotAll() {
-	saved := 0
+// cellHasVideo reports whether the cell holds a video: tracks are re-read
+// first, as the frozen action only offers itself for videos, and a cell whose
+// tracks are not known yet is left to the attempt.
+func (a *app) cellHasVideo(c *cell) bool {
+	if c == nil || c.eng == nil {
+		return false
+	}
+	c.eng.RefreshTracks()
+	snap := c.eng.Snapshot()
+	if len(snap.VideoTracks) > 0 {
+		return true
+	}
+	return len(snap.AudioTracks) == 0 && len(snap.SubtitleTracks) == 0
+}
+
+// anyVideo reports whether any cell holds a video.
+func (a *app) anyVideo() bool {
 	for _, c := range a.cells {
-		if a.takeScreenshot(c) {
-			saved++
+		if a.cellHasVideo(c) {
+			return true
 		}
 	}
-	if saved == 0 {
-		a.status = "screenshots: no video to save"
-		return
+	return false
+}
+
+// takeScreenshotAll saves a frame from every cell with a video, as the
+// frozen all-videos action does: one file per video, same template. Cells
+// without a video are skipped, and the first failure is kept so a partly
+// failed run says what went wrong.
+func (a *app) takeScreenshotAll() {
+	saved, failed := 0, 0
+	firstErr := ""
+	for _, c := range a.cells {
+		if c == nil || c.eng == nil {
+			continue
+		}
+		if !a.cellHasVideo(c) {
+			continue
+		}
+		if a.takeScreenshot(c) {
+			saved++
+			continue
+		}
+		failed++
+		if firstErr == "" {
+			firstErr = a.status
+		}
 	}
-	a.status = fmt.Sprintf("saved %d screenshots", saved)
+	switch {
+	case saved == 0 && failed == 0:
+		a.status = "screenshots: no video to save"
+	case failed == 0 && saved == 1:
+		a.status = "saved 1 screenshot"
+	case failed == 0:
+		a.status = fmt.Sprintf("saved %d screenshots", saved)
+	case saved == 0:
+		a.status = "screenshots: " + firstErr
+	default:
+		a.status = fmt.Sprintf("saved %d, failed %d: %s", saved, failed, firstErr)
+	}
 }
 
 func (a *app) saveFrame(eng *engine.Engine) {
@@ -4067,7 +4113,7 @@ func (a *app) menu() *mygo.Menu {
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListFail(listFailShowError) }},
 			}},
 			{Label: a.tr("Actions", "Save Frame…"), Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
-			{Label: a.tr("Actions", "Screenshot All"), Click: func(*mygo.MenuItem, *mygo.Window) { a.takeScreenshotAll() }},
+			{Label: a.tr("Actions", "Screenshot (All)"), Disabled: !a.anyVideo(), Click: func(*mygo.MenuItem, *mygo.Window) { a.takeScreenshotAll() }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Seek -5s"), Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {

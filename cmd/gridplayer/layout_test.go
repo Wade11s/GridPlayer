@@ -869,8 +869,8 @@ func TestScreenshotLengthLimitsCountCharacters(t *testing.T) {
 }
 
 func TestScreenshotCallSitesUseTheAction(t *testing.T) {
-	// No UI harness exists for a click test, so the two call sites are
-	// guarded at the source: a revert to the save dialog would show here.
+	// No UI harness exists for a click test, so the call sites are guarded
+	// at the source: a revert to the save dialog would show here.
 	src, err := os.ReadFile("main.go")
 	if err != nil {
 		t.Fatal(err)
@@ -881,6 +881,9 @@ func TestScreenshotCallSitesUseTheAction(t *testing.T) {
 	}
 	if !strings.Contains(text, "func (a *app) takeScreenshotAll()") {
 		t.Fatal("the all-videos screenshot action is gone")
+	}
+	if !strings.Contains(text, "a.takeScreenshotAll()") {
+		t.Fatal("the all-videos action is not wired to a menu item")
 	}
 	if got := strings.Count(text, "a.saveFrame("); got != 1 {
 		t.Fatalf("saveFrame call sites = %d, want only the Save Frame menu item", got)
