@@ -1929,3 +1929,69 @@ func TestToggleSnappingIsAMasterSwitch(t *testing.T) {
 		t.Fatalf("toggle restored %v", a.snaps.Names())
 	}
 }
+
+func TestSnapSettingsSaveTheEmptySetAsTheFrozenArray(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, snaps: 0}
+	a.saveSnapSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The frozen app rejects null and falls back to all snaps on, so an empty
+	// set must be [] and not null.
+	if got := reloaded.Get("playlist/tile_snaps", ""); got != "[]" {
+		t.Fatalf("empty set saved as %q", got)
+	}
+	b := &app{}
+	b.loadSnapSettings(reloaded)
+	if b.snaps != 0 {
+		t.Fatalf("empty set read back as %v", b.snaps.Names())
+	}
+}
+
+func TestSnapSettingsReadAPresentEmptyCSVAsNone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An older Go build could write an empty CSV; the legacy switch must not
+	// bring the default kinds back for it.
+	st.Set("playlist/tile_snaps", "")
+	st.Set("playlist/grid_snap", "true")
+	a := &app{}
+	a.loadSnapSettings(st)
+	if a.snaps != 0 {
+		t.Fatalf("empty CSV read as %v", a.snaps.Names())
+	}
+}
+
+func TestSnapDraftRoundTrip(t *testing.T) {
+	a := &app{
+		snaps:         grid.SnapKinds(grid.SnapTileMiddles | grid.SnapEqualGaps),
+		cells:         []*cell{{path: "a.mp4"}},
+		cfg:           grid.Config{Mode: grid.AutoRows},
+		overlap:       true,
+		fill:          true,
+		defaultVolume: 80,
+		defaultRate:   1,
+	}
+	d := a.currentSettingsDraft()
+	if !d.snapTileMiddles || !d.snapEqualGaps || d.snapTileEdges || d.snapOldPlace {
+		t.Fatalf("draft snaps = %+v", d)
+	}
+	d.snapTileEdges = true
+	d.snapTileMiddles = false
+	a.applySettingsDraft(d)
+	if !a.snaps.Has(grid.SnapTileEdges) || a.snaps.Has(grid.SnapTileMiddles) || !a.snaps.Has(grid.SnapEqualGaps) {
+		t.Fatalf("applied snaps = %v", a.snaps.Names())
+	}
+}

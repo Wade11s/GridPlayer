@@ -58,9 +58,10 @@ func ParseSnapKinds(names []string) SnapKinds {
 	return out
 }
 
-// Names returns the set's frozen names, in menu order.
+// Names returns the set's frozen names, in menu order. It is never nil, so
+// the frozen JSON array of an empty set is [] and not null.
 func (k SnapKinds) Names() []string {
-	var out []string
+	out := []string{}
 	for i, name := range SnapNames {
 		if k.Has(SnapKind(1 << i)) {
 			out = append(out, name)

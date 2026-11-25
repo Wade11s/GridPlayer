@@ -2150,10 +2150,11 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 			a.dirty = true
 		}
 	}
-	if _, _, ended := el.DragEnded(); (a.free || a.mosaic) && ended {
-		a.moveIdx = 0
-		a.snapOrigin = [4]float64{}
-		a.refreshMenu()
+	if _, _, ended := el.DragEnded(); (a.free || a.mosaic) && (ended || el.PressCanceled()) {
+		a.forgetDragOrigin()
+		if ended {
+			a.refreshMenu()
+		}
 	}
 	// In grid modes the cell stays a drag-swap source; Free and Mosaic move
 	// their own tile instead.

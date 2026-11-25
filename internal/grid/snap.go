@@ -165,10 +165,9 @@ func snapTargets(tiles []Tile, i int, kinds SnapKinds, origin [4]float64) (edgeX
 		}
 	}
 	if kinds.Has(SnapOldPlace) && origin != ([4]float64{}) {
+		// The frozen old place adds the start box's edges to the lines only.
 		edgeX = append(edgeX, origin[0], origin[2])
 		edgeY = append(edgeY, origin[1], origin[3])
-		midX = append(midX, (origin[0]+origin[2])/2)
-		midY = append(midY, (origin[1]+origin[3])/2)
 	}
 	return edgeX, edgeY, midX, midY
 }
