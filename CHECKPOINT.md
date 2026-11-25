@@ -1,5 +1,40 @@
 # Migration Checkpoints
 
+## 2026-11-25 grid-undo candidate
+
+Frozen source is unchanged. Base/main is `8c8ca7e` (after PR #91). Code
+candidate is `e09965482af263422aedd9d12308d0cb74348078` on
+`feat/f5-grid-undo`; the PR binds the final reviewed head.
+
+Added: undoing and redoing a grid change, as the frozen `_undoable` /
+`cmd_undo_grid`/`cmd_redo_grid` do. A snapshot holds the grid config,
+template, Free/Mosaic/Single flags, strip side and share, the tiles, the
+stacking orders and the mosaic locks — never cells or engines, because the
+frozen undo never reopens a closed video. Grid > Undo Grid Change restores it,
+Redo re-applies, a new change drops the redo trail, and the stack keeps 32.
+The actions that record one: the size presets, templates, Settings' Grid tab
+(only when the layout actually changes), Show All Cells, Arrange Mosaic,
+Lock/Unlock, Bring to Front/Send to Back, Strip Side, and the Free Tiles /
+Mosaic / Single Mode toggles.
+
+Verification on `e099654` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run at `/tmp/gridplayer-undo/` loaded five videos in
+Free Tiles reading e,d,c,b,a and chose Grid > Fixed 2x2, confirming the close
+of plane-a. Grid > Undo Grid Change put the Free Tiles layout back (the
+screenshot shows the tile handles, `after-undo.png`; `settings.ini` then read
+`grid_free=true`, `grid_mode=auto_rows`), and Grid > Redo Grid Change made it
+the 2x2 grid again (`after-redo.png`; `grid_free=false`,
+`grid_mode=fixed`, 2x2). The saved playlist holds the four survivors with
+`grid_layout` fixed; teardown finished and no process remained. Unit: the
+`gridundo_test.go` cases (restore, redo, redo cleared by a new change, deep
+snapshot, the 32 cap, tile reset when cells closed, empty stacks).
+
+Still open: tile drags and (future) line edits do not record an undo step;
+there is no keyboard shortcut; a change that closed videos undoes into a
+layout with fewer cells, as the frozen grid undo does.
+
 ## 2026-11-25 screenshot-all candidate
 
 Frozen source is unchanged. Base/main is `1a758c3` (after PR #90). Code
