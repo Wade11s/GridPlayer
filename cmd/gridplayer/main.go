@@ -169,7 +169,8 @@ type app struct {
 	mosaicTiles         []grid.Tile
 	mosaicOrder         []int
 	mosaicLocked        map[int]bool
-	snap                bool
+	snaps               grid.SnapKinds
+	snapOrigin          [4]float64
 	gridUndo            []gridSnapshot
 	gridRedo            []gridSnapshot
 	overlap             bool
@@ -252,7 +253,7 @@ func newApp(paths []string) *app {
 	a := &app{
 		cfg:                grid.Config{Mode: grid.AutoRows},
 		fill:               true,
-		snap:               true,
+		snaps:              grid.DefaultSnaps,
 		overlap:            true,
 		showGridLines:      true,
 		defaultVolume:      80,
@@ -318,7 +319,7 @@ func (a *app) loadSettings() {
 	a.single = st.Get("playlist/single_mode_strip", "off") != "off"
 	a.free = st.Get("playlist/grid_free", "false") == "true"
 	a.mosaic = st.Get("playlist/grid_mosaic", "false") == "true"
-	a.snap = st.Get("playlist/grid_snap", "true") == "true"
+	a.loadSnapSettings(st)
 	a.overlap = st.Get("playlist/grid_overlap", "true") == "true"
 	a.showGridLines = st.Get("playlist/show_grid_lines", "true") == "true"
 	if raw := st.Get("playlist/grid_mosaic_tiles", ""); raw != "" {
@@ -542,7 +543,7 @@ func (a *app) saveSettings() {
 	a.settings.Set("playlist/grid_template", a.template)
 	a.settings.Set("playlist/grid_free", fmt.Sprint(a.free))
 	a.settings.Set("playlist/grid_mosaic", fmt.Sprint(a.mosaic))
-	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snap))
+	a.saveSnapSettings()
 	a.saveShotSettings()
 	a.settings.Set("playlist/grid_overlap", fmt.Sprint(a.overlap))
 	a.settings.Set("playlist/show_grid_lines", fmt.Sprint(a.showGridLines))
@@ -1741,6 +1742,7 @@ func (a *app) resetMosaic() {
 	a.mosaicTiles = grid.Mosaic(len(a.cells))
 	a.mosaicOrder = grid.DefaultOrder(len(a.cells))
 	a.mosaicLocked = map[int]bool{}
+	a.forgetDragOrigin()
 }
 
 func (a *app) moveTile(tiles []grid.Tile, i int, dx, dy float64, forceOverlap bool) []grid.Tile {
@@ -1750,8 +1752,8 @@ func (a *app) moveTile(tiles []grid.Tile, i int, dx, dy float64, forceOverlap bo
 	} else {
 		next = grid.MoveTile(tiles, i, dx, dy, a.freeArea[0], a.freeArea[1])
 	}
-	if a.snap {
-		snapped := grid.SnapMove(next, i, a.freeArea[0], a.freeArea[1], 8)
+	if a.snaps != 0 {
+		snapped := grid.SnapMove(next, i, a.freeArea[0], a.freeArea[1], 8, a.snaps, a.snapOrigin)
 		if forceOverlap || a.overlap || !grid.Overlaps(snapped, i) ||
 			grid.OverlapArea(snapped, i) <= grid.OverlapArea(next, i) {
 			next = snapped
@@ -1767,8 +1769,12 @@ func (a *app) resizeTile(tiles []grid.Tile, i int, dx, dy float64, forceOverlap 
 	} else {
 		next = grid.ResizeTile(tiles, i, dx, dy, a.freeArea[0], a.freeArea[1])
 	}
-	if a.snap {
-		snapped := grid.SnapResize(next, i, a.freeArea[0], a.freeArea[1], 8)
+	if a.snaps != 0 {
+		shape := 0.0
+		if i >= 0 && i < len(a.cells) && a.cells[i].eng != nil {
+			shape = a.pictureShape(a.cells[i], a.cells[i].eng.Snapshot())
+		}
+		snapped := grid.SnapResize(next, i, a.freeArea[0], a.freeArea[1], 8, a.snaps, shape)
 		if forceOverlap || a.overlap || !grid.Overlaps(snapped, i) ||
 			grid.OverlapArea(snapped, i) <= grid.OverlapArea(next, i) {
 			next = snapped
@@ -2125,17 +2131,30 @@ func (a *app) cellView(c *ui.Context, i int, r grid.Rect, theme *ui.Theme) {
 	}
 	if a.free && len(a.freeTiles) > i {
 		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
+			if a.moveIdx != i+1 {
+				// A drag starts here: remember where the tile was, for the
+				// old-place snap.
+				a.moveIdx = i + 1
+				a.snapOrigin = a.freeTiles[i].Box
+			}
 			a.freeTiles = a.moveTile(a.freeTiles, i, float64(dx), float64(dy), false)
 			a.dirty = true
 		}
 	} else if a.mosaic && len(a.mosaicTiles) > i && !a.mosaicLocked[i] {
 		if dx, dy, ok := el.Dragged(); ok && (dx != 0 || dy != 0) {
+			if a.moveIdx != i+1 {
+				a.moveIdx = i + 1
+				a.snapOrigin = a.mosaicTiles[i].Box
+			}
 			a.mosaicTiles = a.moveTile(a.mosaicTiles, i, float64(dx), float64(dy), true)
 			a.dirty = true
 		}
 	}
-	if _, _, ended := el.DragEnded(); (a.free || a.mosaic) && ended {
-		a.refreshMenu()
+	if _, _, ended := el.DragEnded(); (a.free || a.mosaic) && (ended || el.PressCanceled()) {
+		a.forgetDragOrigin()
+		if ended {
+			a.refreshMenu()
+		}
 	}
 	// In grid modes the cell stays a drag-swap source; Free and Mosaic move
 	// their own tile instead.
@@ -2157,6 +2176,7 @@ func (a *app) swapCells(from, to int) {
 	}
 	a.cells[from], a.cells[to] = a.cells[to], a.cells[from]
 	a.active = to
+	a.forgetDragOrigin()
 	a.dirty = true
 	a.refreshMenu()
 	if a.win != nil {
@@ -2961,6 +2981,7 @@ func (a *app) restoreGrid(s gridSnapshot) {
 			a.mosaicLocked = map[int]bool{}
 		}
 	}
+	a.forgetDragOrigin()
 	a.dirty = true
 	a.saveSettings()
 	a.refreshMenu()
@@ -4054,6 +4075,52 @@ func (a *app) clearBookmarks() {
 	}
 }
 
+// toggleSnapping is the master switch: off turns every kind off, on brings
+// the frozen default set back. A per-kind choice shows as on and is replaced
+// only when the switch has to turn snapping on from nothing.
+func (a *app) toggleSnapping() {
+	if a.snaps != 0 {
+		a.snaps = 0
+	} else {
+		a.snaps = grid.DefaultSnaps
+	}
+	a.saveSettings()
+	a.refreshMenu()
+}
+
+// loadSnapSettings reads the frozen tile snaps, falling back to the older
+// single switch for a settings file written before the kinds existed.
+func (a *app) loadSnapSettings(st *settings.Store) {
+	if st.Has("playlist/tile_snaps") {
+		raw := st.Get("playlist/tile_snaps", "")
+		// The frozen app writes a JSON array; an older Go build wrote a
+		// comma list. An empty array means no kinds, not an absent key.
+		var names []string
+		if err := json.Unmarshal([]byte(raw), &names); err == nil {
+			a.snaps = grid.ParseSnapKinds(names)
+			return
+		}
+		a.snaps = grid.ParseSnapKinds(strings.Split(raw, ","))
+		return
+	}
+	if st.Get("playlist/grid_snap", "true") == "true" {
+		a.snaps = grid.DefaultSnaps
+		return
+	}
+	a.snaps = 0
+}
+
+// saveSnapSettings writes the frozen key and keeps the older one in step.
+func (a *app) saveSnapSettings() {
+	if a.settings == nil {
+		return
+	}
+	if raw, err := json.Marshal(a.snaps.Names()); err == nil {
+		a.settings.Set("playlist/tile_snaps", string(raw))
+	}
+	a.settings.Set("playlist/grid_snap", fmt.Sprint(a.snaps != 0))
+}
+
 // loadShotSettings reads the frozen screenshot keys; an empty folder means
 // the data folder's screenshots folder, worked out when the frame is saved.
 func (a *app) loadShotSettings(st *settings.Store) {
@@ -4452,10 +4519,8 @@ func (a *app) menu() *mygo.Menu {
 			{Label: "Send to Back", Disabled: !a.canStackActive(false), Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.stackActive(false)
 			}},
-			{Label: "Snap to Edges", Type: mygo.MenuItemCheckbox, Checked: a.snap, Click: func(*mygo.MenuItem, *mygo.Window) {
-				a.snap = !a.snap
-				a.saveSettings()
-				a.refreshMenu()
+			{Label: "Snapping", Type: mygo.MenuItemCheckbox, Checked: a.snaps != 0, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.toggleSnapping()
 			}},
 			{Label: "Free: Allow Tile Overlap", Type: mygo.MenuItemCheckbox, Checked: a.overlap, Click: func(*mygo.MenuItem, *mygo.Window) {
 				a.overlap = !a.overlap

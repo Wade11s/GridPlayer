@@ -202,6 +202,20 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F5 snap-kinds candidate (`88390d7`, main `78e51f8`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-snaps3/` started
+  from the frozen JSON `tile_snaps=["window_edges","old_place"]`: the Settings
+  Grid tab showed only "Page edges" and "Where the tile was" checked
+  (`grid-tab.png`); toggling "Neighbour middles" and pressing Apply wrote
+  `tile_snaps=["tile_middles","window_edges","old_place"]` with
+  `grid_snap=true` (`settings-after-apply.txt`), and teardown left no
+  process. The snap maths
+  itself (kind filtering, old place, video shape) and the settings round-trip
+  are unit evidence; a GUI drag was not driven, and the equal-gaps snap,
+  guides, a resize old-place snap, any frozen threshold setting and per-kind
+  menu items remain open.
 - 2026-11-25, F5 grid-undo candidate (`a11967f`, main `8c8ca7e`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

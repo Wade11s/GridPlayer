@@ -220,7 +220,7 @@ func TestMosaicLockToggleAndReset(t *testing.T) {
 }
 
 func TestMoveTileSnapAndOverlap(t *testing.T) {
-	a := &app{snap: true, overlap: true, freeArea: [2]float64{1000, 1000}}
+	a := &app{snaps: grid.DefaultSnaps, overlap: true, freeArea: [2]float64{1000, 1000}}
 	tiles := []grid.Tile{
 		{Box: [4]float64{0.295, 0.1, 0.495, 0.3}},
 		{Box: [4]float64{0.5, 0, 0.75, 0.5}},
@@ -246,7 +246,7 @@ func TestMoveTileSnapAndOverlap(t *testing.T) {
 }
 
 func TestResizeTileSnapAndOverlap(t *testing.T) {
-	a := &app{snap: true, overlap: false, freeArea: [2]float64{1000, 1000}}
+	a := &app{snaps: grid.DefaultSnaps, overlap: false, freeArea: [2]float64{1000, 1000}}
 	tiles := []grid.Tile{
 		{Box: [4]float64{0.1, 0.1, 0.495, 0.3}},
 		{Box: [4]float64{0.5, 0, 0.75, 0.5}},
@@ -255,7 +255,7 @@ func TestResizeTileSnapAndOverlap(t *testing.T) {
 	if got[0].Box[2] != 0.5 {
 		t.Fatalf("resize snap not applied: %+v", got[0].Box)
 	}
-	a.snap = false
+	a.snaps = 0
 	got = a.resizeTile(tiles, 0, 200, 0, false)
 	if got[0].Box != tiles[0].Box {
 		t.Fatalf("overlap resize accepted: %+v", got[0].Box)
@@ -266,7 +266,7 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	a := &app{
 		cfg:            grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 4},
 		fill:           true,
-		snap:           true,
+		snaps:          grid.DefaultSnaps,
 		overlap:        true,
 		defaultVolume:  80,
 		defaultRate:    1,
@@ -290,7 +290,13 @@ func TestSettingsDraftRoundTrip(t *testing.T) {
 	d.stayOnTop = true
 	d.startMaximized = true
 	d.startFullscreen = true
-	d.snap = false
+	d.snapTileEdges = false
+	d.snapTileMiddles = false
+	d.snapWindowEdges = false
+	d.snapWindowMiddle = false
+	d.snapOldPlace = false
+	d.snapVideoShape = false
+	d.snapEqualGaps = false
 	d.overlap = false
 	d.showGridLines = false
 	d.view = "Fit (contain)"
@@ -1833,5 +1839,159 @@ func TestPictureShapeUsesAspectCropAndTransform(t *testing.T) {
 	c.transform = "90"
 	if got := a.pictureShape(c, s); got != 1080.0/1920.0 {
 		t.Fatalf("turned shape %v", got)
+	}
+}
+
+func TestSnapSettingsRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st}
+	a.loadSnapSettings(st)
+	if a.snaps != grid.DefaultSnaps {
+		t.Fatalf("default snaps = %v", a.snaps.Names())
+	}
+
+	st.Set("playlist/tile_snaps", "window_edges,old_place,equal_gaps")
+	a.loadSnapSettings(st)
+	if !a.snaps.Has(grid.SnapWindowEdges) || !a.snaps.Has(grid.SnapOldPlace) ||
+		!a.snaps.Has(grid.SnapEqualGaps) || a.snaps.Has(grid.SnapTileEdges) {
+		t.Fatalf("parsed snaps = %v", a.snaps.Names())
+	}
+
+	// A file from before the kinds: the old switch still means the default set.
+	legacy := &app{settings: st}
+	st2, err := settings.Load(filepath.Join(t.TempDir(), "old.ini"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st2.Set("playlist/grid_snap", "false")
+	legacy.loadSnapSettings(st2)
+	if legacy.snaps != 0 {
+		t.Fatalf("legacy false = %v", legacy.snaps.Names())
+	}
+
+	a.snaps = grid.SnapKinds(grid.SnapTileMiddles | grid.SnapWindowMiddle)
+	a.saveSnapSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The frozen app reads a JSON array, so that is what is written.
+	if got := reloaded.Get("playlist/tile_snaps", ""); got != `["tile_middles","window_middle"]` {
+		t.Fatalf("saved snaps = %q", got)
+	}
+	b := &app{settings: reloaded}
+	b.loadSnapSettings(reloaded)
+	if b.snaps != a.snaps {
+		t.Fatalf("reloaded snaps = %v, want %v", b.snaps.Names(), a.snaps.Names())
+	}
+}
+
+func TestSnapSettingsReadTheFrozenJSONAndTheEmptySet(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The frozen app writes a JSON array; both apps share the file.
+	st.Set("playlist/tile_snaps", `["tile_edges","equal_gaps"]`)
+	a := &app{}
+	a.loadSnapSettings(st)
+	if !a.snaps.Has(grid.SnapTileEdges) || !a.snaps.Has(grid.SnapEqualGaps) || a.snaps.Has(grid.SnapWindowEdges) {
+		t.Fatalf("frozen JSON parsed as %v", a.snaps.Names())
+	}
+
+	// An empty array is the empty set, not an absent key: the legacy switch
+	// must not bring the default kinds back.
+	st.Set("playlist/tile_snaps", "[]")
+	st.Set("playlist/grid_snap", "true")
+	b := &app{}
+	b.loadSnapSettings(st)
+	if b.snaps != 0 {
+		t.Fatalf("empty array read as %v", b.snaps.Names())
+	}
+}
+
+func TestToggleSnappingIsAMasterSwitch(t *testing.T) {
+	a := &app{snaps: grid.SnapKinds(grid.SnapWindowEdges)}
+	a.toggleSnapping()
+	if a.snaps != 0 {
+		t.Fatalf("toggle left %v", a.snaps.Names())
+	}
+	a.toggleSnapping()
+	if a.snaps != grid.DefaultSnaps {
+		t.Fatalf("toggle restored %v", a.snaps.Names())
+	}
+}
+
+func TestSnapSettingsSaveTheEmptySetAsTheFrozenArray(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, snaps: 0}
+	a.saveSnapSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The frozen app rejects null and falls back to all snaps on, so an empty
+	// set must be [] and not null.
+	if got := reloaded.Get("playlist/tile_snaps", ""); got != "[]" {
+		t.Fatalf("empty set saved as %q", got)
+	}
+	b := &app{}
+	b.loadSnapSettings(reloaded)
+	if b.snaps != 0 {
+		t.Fatalf("empty set read back as %v", b.snaps.Names())
+	}
+}
+
+func TestSnapSettingsReadAPresentEmptyCSVAsNone(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An older Go build could write an empty CSV; the legacy switch must not
+	// bring the default kinds back for it.
+	st.Set("playlist/tile_snaps", "")
+	st.Set("playlist/grid_snap", "true")
+	a := &app{}
+	a.loadSnapSettings(st)
+	if a.snaps != 0 {
+		t.Fatalf("empty CSV read as %v", a.snaps.Names())
+	}
+}
+
+func TestSnapDraftRoundTrip(t *testing.T) {
+	a := &app{
+		snaps:         grid.SnapKinds(grid.SnapTileMiddles | grid.SnapEqualGaps),
+		cells:         []*cell{{path: "a.mp4"}},
+		cfg:           grid.Config{Mode: grid.AutoRows},
+		overlap:       true,
+		fill:          true,
+		defaultVolume: 80,
+		defaultRate:   1,
+	}
+	d := a.currentSettingsDraft()
+	if !d.snapTileMiddles || !d.snapEqualGaps || d.snapTileEdges || d.snapOldPlace {
+		t.Fatalf("draft snaps = %+v", d)
+	}
+	d.snapTileEdges = true
+	d.snapTileMiddles = false
+	a.applySettingsDraft(d)
+	if !a.snaps.Has(grid.SnapTileEdges) || a.snaps.Has(grid.SnapTileMiddles) || !a.snaps.Has(grid.SnapEqualGaps) {
+		t.Fatalf("applied snaps = %v", a.snaps.Names())
 	}
 }
