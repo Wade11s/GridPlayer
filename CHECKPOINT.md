@@ -3,7 +3,7 @@
 ## 2026-11-25 screenshot-all candidate
 
 Frozen source is unchanged. Base/main is `1a758c3` (after PR #90). Code
-candidate is `30b12a5468816bb58dc62b008a689f86b46bdf2e` on
+candidate is `bea4ce08b948515a69df4f5f805c39e5fbb4bfae` on
 `feat/f12-screenshot-all`; the PR binds the final reviewed head.
 
 Added: "Screenshot (All)" saves one frame per cell with the configured
@@ -17,17 +17,19 @@ the menu: the frozen `show_if` gating would need a menu refresh on load. The
 duplicated `dataDir` comment and the redundant second assignment (PR #90
 lows) are gone.
 
-Verification on `30b12a5` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `bea4ce0` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines. A bundled-app run at `/tmp/gridplayer-shotall4/` with three cells and
-`dir=/tmp/gridplayer-shotall4/out`, `filename_template=%F`, `format=jpg`,
+lines on this tree. A bundled-app run at `/tmp/gridplayer-shotall5/` with
+three cells and `dir=/tmp/gridplayer-shotall5/out`, `filename_template=%F`, `format=jpg`,
 `jpg_quality=60` chose Playback > Screenshot (All) and wrote `plane-a.jpg`,
 `plane-b.jpg` and `plane-c.jpg` (all JPEG 640x360 per `file`), no temporary
 `.png` left; teardown finished and no process remained. Unit:
 `TestTakeScreenshotAllWritesOnePerCell` (two engines, one without, both JPEGs
-written, status counted) and `TestTakeScreenshotAllWithoutAVideoReportsIt`,
-plus the extended call-site guard.
+written, status counted), `TestTakeScreenshotAllSkipsAudioOnlyCells` (an
+audio-only backend writes nothing and reports it),
+`TestTakeScreenshotAllWithoutAVideoReportsIt`, plus the extended call-site
+guard.
 
 Still open: the saved frame is the engine frame, not cropped/transformed to
 the view; the JPEG re-encode runs inline on the main thread; the Go-only
