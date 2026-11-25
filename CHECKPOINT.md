@@ -3,7 +3,7 @@
 ## 2026-11-25 snap-kinds candidate
 
 Frozen source is unchanged. Base/main is `78e51f8` (after PR #92). Code
-candidate is `c7fcbae1faad3663fd66bac101b178901bc5bf4a` on
+candidate is `88390d7bcf90caba6ef3a95c70dde6daa8268aa0` on
 `feat/f5-snap-kinds`; the PR binds the final reviewed head.
 
 Added: the frozen `TileSnap` names as a per-kind setting. `grid.SnapKinds`
@@ -17,10 +17,10 @@ video's pixel shape when resizing. The Settings Grid tab lists the seven and
 the Grid menu's "Snapping" is a master switch on the stored set (off clears
 every kind, on restores the default set).
 
-Verification on `c7fcbae` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `88390d7` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines. A bundled-app run at `/tmp/gridplayer-snaps2/` started with
+lines. A bundled-app run at `/tmp/gridplayer-snaps3/` started with
 `tile_snaps=["window_edges","old_place"]`: the Grid tab showed only "Page
 edges" and "Where the tile was" checked (`grid-tab.png`), and toggling
 "Neighbour middles" then Apply wrote the frozen array
