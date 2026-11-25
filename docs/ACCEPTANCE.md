@@ -202,10 +202,10 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
-- 2026-11-25, F5 repack-tiled-order candidate (`c4ae80f`, main `3f0dbc1`):
+- 2026-11-25, F5 repack-tiled-order candidate (`84fdbf6`, main `3f0dbc1`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
-  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-repack2/` loaded
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-repack3/` loaded
   five videos in Free Tiles reading e,d,c,b,a, then chose Grid > Fixed 2x2
   and confirmed the close. The grid reads E,D / C,B (`packed.png`): the
   reading-first tiles keep the top-left places and plane-a, read last, was

@@ -3,7 +3,7 @@
 ## 2026-11-25 repack-tiled-order candidate
 
 Frozen source is unchanged. Base/main is `3f0dbc1` (after PR #87). Code
-candidate is `c4ae80f5f76d242c2f3232d139a2a202e242b1c6` on
+candidate is `84fdbf628b3ad0d59336ef22b7c710b74ea2e362` on
 `fix/f5-repack-tiled-order`; the PR binds the final reviewed head.
 
 Fixed: entering a fixed grid from Free Tiles or Mosaic now packs the
@@ -14,10 +14,10 @@ active cell follows its video, and the free layout is cleared on the way in
 index-keyed lock can land on another video after the permutation. A grid that
 holds every video packs without closing.
 
-Verification on `c4ae80f` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `84fdbf6` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines. A bundled-app run at `/tmp/gridplayer-repack2/` loaded five videos in
+lines. A bundled-app run at `/tmp/gridplayer-repack3/` loaded five videos in
 Free Tiles reading e,d,c,b,a, then chose Grid > Fixed 2x2 and confirmed the
 close: the 2x2 grid reads E,D / C,B (`packed.png`), so the top-left place
 kept the top-left video and plane-a, read last, was closed. The saved
