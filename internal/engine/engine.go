@@ -936,10 +936,12 @@ func (e *Engine) ScreenshotJPEG(path string, quality int) error {
 		return errors.New("engine: empty screenshot path")
 	}
 	tmp := path + ".png"
+	// The temporary PNG goes whatever happens, including a snapshot that
+	// fails after creating it.
+	defer os.Remove(tmp)
 	if err := e.Screenshot(tmp); err != nil {
 		return err
 	}
-	defer os.Remove(tmp)
 	in, err := os.Open(tmp)
 	if err != nil {
 		return err
@@ -959,8 +961,13 @@ func (e *Engine) ScreenshotJPEG(path string, quality int) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	return jpeg.Encode(out, img, &jpeg.Options{Quality: quality})
+	if err := jpeg.Encode(out, img, &jpeg.Options{Quality: quality}); err != nil {
+		out.Close()
+		// A name holding a broken file would be taken by the next shot.
+		os.Remove(path)
+		return err
+	}
+	return out.Close()
 }
 
 // Stop stops playback and leaves the engine idle.

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Format is the image a saved frame is written as.
@@ -81,7 +82,8 @@ var reservedNames = map[string]bool{
 // blank, else the screenshots folder under the app data folder.
 func Dir(setting, dataDir string) string {
 	if trimmed := strings.TrimSpace(setting); trimmed != "" {
-		if strings.HasPrefix(trimmed, "~") {
+		// Only ~ and ~/ mean the home folder; ~someone is not this user's.
+		if trimmed == "~" || strings.HasPrefix(trimmed, "~/") {
 			if home, err := os.UserHomeDir(); err == nil {
 				trimmed = filepath.Join(home, strings.TrimPrefix(trimmed, "~"))
 			}
@@ -256,7 +258,9 @@ func readSpecifier(rest string) (string, int) {
 		}
 		return rest[:2], 2
 	}
-	return rest[:1], 1
+	// A specifier is one character, which may be more than one byte.
+	_, width := utf8.DecodeRuneInString(rest)
+	return rest[:width], width
 }
 
 func known(spec string) bool {
@@ -286,17 +290,12 @@ func withoutExtension(title string) string {
 	return stem
 }
 
+// truncate keeps the first limit characters, as the frozen limits count
+// characters rather than bytes.
 func truncate(text string, limit int) string {
-	if len(text) <= limit {
+	runes := []rune(text)
+	if len(runes) <= limit {
 		return text
 	}
-	cut := limit
-	for cut > 0 && !utf8Start(text[cut]) {
-		cut--
-	}
-	return text[:cut]
-}
-
-func utf8Start(b byte) bool {
-	return b&0xC0 != 0x80
+	return string(runes[:limit])
 }

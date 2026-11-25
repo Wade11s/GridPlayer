@@ -3,10 +3,14 @@ package main
 import (
 	"fmt"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"gridplayer-go/internal/dummy"
+	"gridplayer-go/internal/engine"
 	"gridplayer-go/internal/grid"
 	"gridplayer-go/internal/screenshots"
 	"gridplayer-go/internal/settings"
@@ -795,5 +799,67 @@ func TestScreenshotSettingsRoundTrip(t *testing.T) {
 	b.loadShotSettings(reloaded)
 	if b.shotDir != "/tmp/shots" || b.shotTemplate != "%F_%n" || b.shotFormat != screenshots.JPG || b.shotQuality != 55 {
 		t.Fatalf("reloaded: dir=%q template=%q format=%v quality=%d", b.shotDir, b.shotTemplate, b.shotFormat, b.shotQuality)
+	}
+}
+
+func TestTakeScreenshotWritesTheTemplateName(t *testing.T) {
+	data := t.TempDir()
+	eng := engine.New(func(string, bool, string) (engine.Backend, error) { return dummy.New(), nil })
+	defer eng.Close()
+	if err := eng.Load("movie.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{
+		dataDir:      data,
+		shotTemplate: "%F_%n",
+		shotFormat:   screenshots.PNG,
+		shotQuality:  screenshots.DefaultJPGQuality,
+		shotDir:      filepath.Join(data, "shots"),
+	}
+	c := &cell{path: "movie.mkv", title: "", eng: eng}
+	a.takeScreenshot(c)
+	first := filepath.Join(data, "shots", "movie_0001.png")
+	if _, err := os.Stat(first); err != nil {
+		t.Fatalf("first shot: %v", err)
+	}
+	a.takeScreenshot(c)
+	second := filepath.Join(data, "shots", "movie_0002.png")
+	if _, err := os.Stat(second); err != nil {
+		t.Fatalf("second shot: %v", err)
+	}
+
+	// JPEG goes through the temporary PNG and leaves no .png behind.
+	a.shotDir = filepath.Join(data, "jpeg")
+	a.shotFormat = screenshots.JPG
+	a.shotQuality = 55
+	a.shotTemplate = "%F"
+	a.takeScreenshot(c)
+	jpg := filepath.Join(data, "jpeg", "movie.jpg")
+	raw, err := os.ReadFile(jpg)
+	if err != nil {
+		t.Fatalf("jpeg shot: %v", err)
+	}
+	if len(raw) < 2 || raw[0] != 0xFF || raw[1] != 0xD8 {
+		t.Fatalf("not a JPEG: %x", raw[:2])
+	}
+	if _, err := os.Stat(jpg + ".png"); err == nil {
+		t.Fatal("the temporary PNG was left behind")
+	}
+}
+
+func TestScreenshotLengthLimitsCountCharacters(t *testing.T) {
+	long := strings.Repeat("题", 200)
+	name := screenshots.Sanitize(long)
+	if got := []rune(name); len(got) != screenshots.MaxStemLength {
+		t.Fatalf("stem runes = %d, want %d", len(got), screenshots.MaxStemLength)
+	}
+	if got := screenshots.Render("%f", long, 0, time.Now(), 1); []rune(got)[0] != '题' {
+		t.Fatalf("title cut: %q", got)
+	}
+	if got := screenshots.Render("%F", "x.abcdef", 0, time.Now(), 1); got != "x.abcdef" {
+		t.Fatalf("6-letter extension was cut: %q", got)
+	}
+	if got := screenshots.Render("%F", "x.abcde", 0, time.Now(), 1); got != "x" {
+		t.Fatalf("5-letter extension was kept: %q", got)
 	}
 }

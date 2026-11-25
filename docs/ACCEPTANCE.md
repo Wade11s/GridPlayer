@@ -213,8 +213,9 @@ Changes need a new review; thresholds never relax in-implementation.
   keys, teardown finished, and no `gridplayer`/`poc-hw` process remained.
   Naming, sanitising, the counter and suffix, the folder and the format are
   unit evidence (`internal/screenshots`, plus the app settings round-trip);
-  this run does not cover the PNG path or the cropped-to-view frame, which
-  the frozen worker does and Go does not yet.
+  this run does not cover the PNG path or the cropped-to-view frame, which the
+  frozen `ScreenshotJob` does and Go does not yet. The JPEG re-encode runs
+  inline on the main thread in this build, where the frozen job uses a pool.
 - 2026-11-25, F5 leave-tiled-for-plain candidate (`9c316ae`, main `73eddd9`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

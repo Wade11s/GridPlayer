@@ -14,7 +14,12 @@ when none is set — and the app's screenshot action (Shot button and the
 `take_screenshot` shortcut) now writes there under the `screenshots/dir`,
 `filename_template`, `format` and `jpg_quality` keys, PNG straight from
 libVLC or JPEG by re-encoding a temporary PNG at the configured quality. The
-Settings General tab edits all four.
+Settings General tab edits all four, without a Browse button. The template
+and format apply to the screenshot action; the Go-only "Save Frame…" item
+still opens a PNG save dialog and ignores the four keys. A JPEG shot
+re-encodes inline on the main thread, where the frozen `ScreenshotJob` uses
+a thread pool, and the name is taken by a stat-then-write rather than an
+exclusive create (safe while the save is synchronous).
 
 Verification on `083531b` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
@@ -28,8 +33,9 @@ all four keys, teardown finished, and no process remained. Unit:
 suffix, folder, format, position) and the app's settings round-trip.
 
 Still open: the saved frame is the engine frame, not cropped/transformed to
-the view as the frozen `ScreenshotWorker` does; the all-videos screenshot
-action is absent; complete recovery GUI evidence remains open.
+the view as the frozen `ScreenshotJob` does; the JPEG re-encode runs inline on
+the main thread rather than on a pool; the all-videos screenshot action is
+absent; complete recovery GUI evidence remains open.
 
 ## 2026-11-25 leave-tiled-for-plain candidate
 
