@@ -281,8 +281,9 @@ func (a *app) loadSettings() {
 	if err != nil {
 		return
 	}
-	// Keep the folder even when the settings cannot be read: a screenshot
-	// then reports that there is nowhere to write instead of guessing.
+	// Keep the folder even when the settings cannot be read: without it a
+	// screenshot has no default place to write and reports that instead of
+	// guessing.
 	a.dataDir = dir
 	st, err := settings.Load(filepath.Join(dir, "settings.ini"))
 	if err != nil {
@@ -3927,7 +3928,7 @@ func (a *app) takeScreenshotAll() {
 	case failed == 0:
 		a.status = fmt.Sprintf("saved %d screenshots", saved)
 	case saved == 0:
-		a.status = "screenshots: " + firstErr
+		a.status = firstErr
 	default:
 		a.status = fmt.Sprintf("saved %d, failed %d: %s", saved, failed, firstErr)
 	}

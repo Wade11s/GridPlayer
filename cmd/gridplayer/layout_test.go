@@ -998,3 +998,40 @@ func TestTakeScreenshotAllWithoutAVideoReportsIt(t *testing.T) {
 		t.Fatalf("status = %q", a.status)
 	}
 }
+
+// audioOnlyBackend reports an audio track and no video track, like an
+// audio-only file loaded in a cell.
+type audioOnlyBackend struct{ *dummy.Backend }
+
+func (b audioOnlyBackend) VideoTracks() []engine.Track { return nil }
+func (b audioOnlyBackend) AudioTracks() []engine.Track { return []engine.Track{{ID: 1}} }
+
+func TestTakeScreenshotAllSkipsAudioOnlyCells(t *testing.T) {
+	data := t.TempDir()
+	eng := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return audioOnlyBackend{dummy.New()}, nil
+	})
+	defer eng.Close()
+	if err := eng.Load("song.m4a"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{
+		dataDir:      data,
+		shotDir:      filepath.Join(data, "shots"),
+		shotTemplate: "%F",
+		shotFormat:   screenshots.JPG,
+		shotQuality:  60,
+		cells:        []*cell{{path: "song.m4a", eng: eng}},
+	}
+	a.takeScreenshotAll()
+	if a.status != "screenshots: no video to save" {
+		t.Fatalf("status = %q", a.status)
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "shots"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("an audio-only cell wrote %d files", len(entries))
+	}
+}
