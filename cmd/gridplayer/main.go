@@ -745,8 +745,8 @@ func (a *app) paths() []string {
 
 // setPlaylist replaces the cells. Main thread only.
 func (a *app) setPlaylist(paths []string) {
-	a.forgetGridChanges()
 	if len(paths) == 0 {
+		a.forgetGridChanges()
 		for _, c := range a.cells {
 			a.closeCell(c)
 		}
@@ -1778,9 +1778,15 @@ func (a *app) arrangeMosaic() {
 	if !a.mosaic {
 		return
 	}
-	a.pushGridUndo()
 	a.ensureMosaic()
-	a.mosaicTiles = grid.Arrange(len(a.cells), a.mosaicTiles, a.mosaicLocked)
+	arranged := grid.Arrange(len(a.cells), a.mosaicTiles, a.mosaicLocked)
+	if slices.Equal(arranged, a.mosaicTiles) {
+		// Arranging an arranged mosaic changes nothing: the frozen grid
+		// does not remember a state that is already on show.
+		return
+	}
+	a.pushGridUndo()
+	a.mosaicTiles = arranged
 	a.dirty = true
 	a.saveSettings()
 	a.refreshMenu()
@@ -2931,6 +2937,27 @@ func (a *app) restoreGrid(s gridSnapshot) {
 	if _, ok := grid.FindTemplate(a.template); !ok || a.cfg.Mode != grid.Fixed {
 		a.template = ""
 	}
+	// The restored tile lists only line up with the videos when the video
+	// set is the one the snapshot was taken of; otherwise the index-keyed
+	// boxes and locks would land on other videos.
+	if len(s.cells) > 0 {
+		sameSet := len(s.cells) == len(a.cells)
+		if sameSet {
+			for i, c := range a.cells {
+				if c != s.cells[i] {
+					sameSet = false
+					break
+				}
+			}
+		}
+		if !sameSet {
+			a.freeTiles = grid.FreeLayout(len(a.cells))
+			a.freeOrder = grid.DefaultOrder(len(a.cells))
+			a.mosaicTiles = grid.Mosaic(len(a.cells))
+			a.mosaicOrder = grid.DefaultOrder(len(a.cells))
+			a.mosaicLocked = map[int]bool{}
+		}
+	}
 	a.dirty = true
 	a.saveSettings()
 	a.refreshMenu()
@@ -3005,6 +3032,12 @@ func (a *app) setTemplate(name string) {
 	// A template has one place per cell it can show; the frozen action asks
 	// before it closes the videos that do not fit.
 	capacity := len(template.Places())
+	if a.template == name && a.cfg.Mode == grid.Fixed &&
+		a.cfg.Rows == template.Rows && a.cfg.Cols == template.Cols &&
+		!a.free && !a.mosaic && !a.single && len(a.cells) <= capacity {
+		// The same template on the same grid is not a change to remember.
+		return
+	}
 	if !a.confirmClose(capacity) {
 		return
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"slices"
 	"testing"
 
 	"gridplayer-go/internal/grid"
@@ -189,5 +190,48 @@ func TestClosingAVideoForgetsTheGridTrail(t *testing.T) {
 	a.closeCell(&cell{path: "gone.mp4"})
 	if len(a.gridUndo) != 0 || len(a.gridRedo) != 0 {
 		t.Fatalf("a closed video kept the trail: undo=%d redo=%d", len(a.gridUndo), len(a.gridRedo))
+	}
+}
+
+func TestSameTemplateDoesNotPush(t *testing.T) {
+	a := &app{
+		cells:       []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
+		cfg:         grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 3},
+		template:    "1 + 2",
+		askOverflow: func(int, int) bool { return true },
+	}
+	a.setTemplate("1 + 2")
+	if len(a.gridUndo) != 0 {
+		t.Fatalf("re-applying a template pushed %d entries", len(a.gridUndo))
+	}
+}
+
+func TestArrangingAnArrangedMosaicDoesNotPush(t *testing.T) {
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{cells: cells, mosaic: true}
+	a.ensureMosaic()
+	a.mosaicTiles = grid.Arrange(len(cells), a.mosaicTiles, a.mosaicLocked)
+	before := slices.Clone(a.mosaicTiles)
+	a.arrangeMosaic()
+	if len(a.gridUndo) != 0 {
+		t.Fatalf("arranging an arranged mosaic pushed %d entries", len(a.gridUndo))
+	}
+	if !slices.Equal(a.mosaicTiles, before) {
+		t.Fatal("arranging an arranged mosaic changed the tiles")
+	}
+}
+
+func TestRestoreWithAnotherVideoSetResetsTheTiles(t *testing.T) {
+	a := freeApp(2)
+	snap := a.captureGrid()
+	// Same count, different videos: the snapshot's boxes must not be reused.
+	a.cells = []*cell{{path: "x.mp4"}, {path: "y.mp4"}}
+	a.freeTiles = []grid.Tile{{Box: [4]float64{0.5, 0.5, 0.6, 0.6}}, {Box: [4]float64{0.1, 0.1, 0.2, 0.2}}}
+	a.restoreGrid(snap)
+	want := grid.FreeLayout(2)
+	for i := range want {
+		if a.freeTiles[i].Box != want[i].Box {
+			t.Fatalf("stale tiles survived with another video set: %v", a.freeTiles)
+		}
 	}
 }
