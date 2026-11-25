@@ -3896,17 +3896,6 @@ func (a *app) cellHasVideo(c *cell) bool {
 	return len(snap.AudioTracks) == 0 && len(snap.SubtitleTracks) == 0
 }
 
-// anyMedia reports whether any cell holds media the action could try; the
-// per-cell check at action time decides which of them have a video.
-func (a *app) anyMedia() bool {
-	for _, c := range a.cells {
-		if c != nil && c.eng != nil {
-			return true
-		}
-	}
-	return false
-}
-
 // takeScreenshotAll saves a frame from every cell with a video, as the
 // frozen all-videos action does: one file per video, same template. Cells
 // without a video are skipped, and the first failure is kept so a partly
@@ -4114,7 +4103,7 @@ func (a *app) menu() *mygo.Menu {
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListFail(listFailShowError) }},
 			}},
 			{Label: a.tr("Actions", "Save Frame…"), Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
-			{Label: a.tr("Actions", "Screenshot (All)"), Disabled: !a.anyMedia(), Click: func(*mygo.MenuItem, *mygo.Window) { a.takeScreenshotAll() }},
+			{Label: a.tr("Actions", "Screenshot (All)"), Click: func(*mygo.MenuItem, *mygo.Window) { a.takeScreenshotAll() }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Seek -5s"), Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {
