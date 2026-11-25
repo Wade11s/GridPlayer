@@ -48,6 +48,10 @@ func TestRenderSanitizesLikeTheFrozenNames(t *testing.T) {
 		{"con", "_con"},
 		{"CON.txt", "_CON.txt"},
 		{"part.2 of 3", "part.2 of 3"},
+		// The frozen s+ takes the C0 separators, to one space.
+		{"ab", "a b"},
+		// The extension limit counts characters, not bytes.
+		{"x.题题", "x"},
 	} {
 		if got := Render("%f", tt.title, 0, fixedNow, 1); got != tt.want {
 			t.Errorf("Render(%%f, %q) = %q, want %q", tt.title, got, tt.want)

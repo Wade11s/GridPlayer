@@ -885,4 +885,61 @@ func TestScreenshotCallSitesUseTheAction(t *testing.T) {
 	if !strings.Contains(text, `"take_screenshot"`) {
 		t.Fatal("the take_screenshot shortcut is gone")
 	}
+	ui, err := os.ReadFile("settings_ui.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The Settings draft must map the four fields through one helper, and
+	// saveSettings must persist them.
+	if got := strings.Count(string(ui), "a.applyShotDraft(d)"); got != 1 {
+		t.Fatalf("applyShotDraft call sites = %d, want 1", got)
+	}
+	if got := strings.Count(text, "a.saveShotSettings()"); got != 1 {
+		t.Fatalf("saveShotSettings call sites = %d, want saveSettings", got)
+	}
+}
+
+func TestApplyShotDraftMapsTheFields(t *testing.T) {
+	a := &app{}
+	a.applyShotDraft(settingsDraft{shotDir: "  /tmp/x  ", shotTemplate: " ", shotFormat: "JPG", shotQuality: "150"})
+	if a.shotDir != "/tmp/x" || a.shotTemplate != screenshots.DefaultTemplate || a.shotFormat != screenshots.JPG || a.shotQuality != 100 {
+		t.Fatalf("mapped: dir=%q template=%q format=%v quality=%d", a.shotDir, a.shotTemplate, a.shotFormat, a.shotQuality)
+	}
+	a.applyShotDraft(settingsDraft{shotTemplate: "%F", shotFormat: "png", shotQuality: "0"})
+	if a.shotTemplate != "%F" || a.shotFormat != screenshots.PNG || a.shotQuality != 1 {
+		t.Fatalf("mapped: template=%q format=%v quality=%d", a.shotTemplate, a.shotFormat, a.shotQuality)
+	}
+}
+
+func TestSaveSettingsPersistsTheShotKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "settings.ini")
+	st, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := &app{settings: st, shotDir: "/tmp/shots", shotTemplate: "%F_%n", shotFormat: screenshots.JPG, shotQuality: 42}
+	a.saveSettings()
+	if err := st.Save(); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := settings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Get("screenshots/format", "") != "jpg" || reloaded.Get("screenshots/dir", "") != "/tmp/shots" {
+		t.Fatalf("saved keys: format=%q dir=%q", reloaded.Get("screenshots/format", ""), reloaded.Get("screenshots/dir", ""))
+	}
+}
+
+func TestTakeScreenshotWithoutADataFolderReportsIt(t *testing.T) {
+	eng := engine.New(func(string, bool, string) (engine.Backend, error) { return dummy.New(), nil })
+	defer eng.Close()
+	if err := eng.Load("movie.mkv"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{shotTemplate: "%F"}
+	a.takeScreenshot(&cell{path: "movie.mkv", eng: eng})
+	if a.status != "screenshots: no data folder" {
+		t.Fatalf("status = %q", a.status)
+	}
 }

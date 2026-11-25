@@ -283,6 +283,9 @@ func (a *app) loadSettings() {
 	}
 	// Keep the folder even when the settings cannot be read, so a screenshot
 	// still lands under the data folder rather than the working directory.
+	// Keep the folder even when the settings cannot be read, so a screenshot
+	// still lands under the data folder rather than nowhere.
+	a.dataDir = dir
 	st, err := settings.Load(filepath.Join(dir, "settings.ini"))
 	if err != nil {
 		log.Printf("settings: %v", err)

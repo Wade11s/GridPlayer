@@ -967,7 +967,11 @@ func (e *Engine) ScreenshotJPEG(path string, quality int) error {
 		os.Remove(path)
 		return err
 	}
-	return out.Close()
+	if err := out.Close(); err != nil {
+		os.Remove(path)
+		return err
+	}
+	return nil
 }
 
 // Stop stops playback and leaves the engine idle.

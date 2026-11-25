@@ -651,6 +651,17 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 	return true
 }
 
+// applyShotDraft maps the Settings General screenshot fields onto the app.
+func (a *app) applyShotDraft(d settingsDraft) {
+	a.shotDir = strings.TrimSpace(d.shotDir)
+	a.shotTemplate = strings.TrimSpace(d.shotTemplate)
+	if a.shotTemplate == "" {
+		a.shotTemplate = screenshots.DefaultTemplate
+	}
+	a.shotFormat = screenshots.FormatFromName(d.shotFormat)
+	a.shotQuality = clampInt(atoi(d.shotQuality, screenshots.DefaultJPGQuality), 1, 100)
+}
+
 func (a *app) applySettingsDraft(d settingsDraft) {
 	a.defaultVolume = clampInt(int(math.Round(d.volume)), 0, 100)
 	a.defaultMuted = d.muted
@@ -692,13 +703,7 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.snap = d.snap
 	a.overlap = d.overlap
 	a.showGridLines = d.showGridLines
-	a.shotDir = strings.TrimSpace(d.shotDir)
-	a.shotTemplate = strings.TrimSpace(d.shotTemplate)
-	if a.shotTemplate == "" {
-		a.shotTemplate = screenshots.DefaultTemplate
-	}
-	a.shotFormat = screenshots.FormatFromName(d.shotFormat)
-	a.shotQuality = clampInt(atoi(d.shotQuality, screenshots.DefaultJPGQuality), 1, 100)
+	a.applyShotDraft(d)
 	a.singleSide = sideFromName(d.singleSide)
 	a.fill, a.stretch = viewFromName(d.view)
 	a.aspect = aspectFromName(d.aspect)
