@@ -626,6 +626,9 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 		next = grid.Config{Mode: grid.AutoRows, Preallocate: d.showAllCells}
 	}
 	tiled := free || mosaic || single
+	if next != a.cfg || free != a.free || mosaic != a.mosaic || single != a.single {
+		a.pushGridUndo()
+	}
 	switch {
 	case tiled:
 		// Entering or staying in a tiled layout keeps the tiles, as the

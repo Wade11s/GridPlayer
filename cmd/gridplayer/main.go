@@ -12,10 +12,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"maps"
 	"math/rand/v2"
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -168,6 +170,8 @@ type app struct {
 	mosaicOrder         []int
 	mosaicLocked        map[int]bool
 	snap                bool
+	gridUndo            []gridSnapshot
+	gridRedo            []gridSnapshot
 	overlap             bool
 	showGridLines       bool
 	shotDir             string
@@ -1768,6 +1772,7 @@ func (a *app) arrangeMosaic() {
 	if !a.mosaic {
 		return
 	}
+	a.pushGridUndo()
 	a.ensureMosaic()
 	a.mosaicTiles = grid.Arrange(len(a.cells), a.mosaicTiles, a.mosaicLocked)
 	a.dirty = true
@@ -1782,6 +1787,7 @@ func (a *app) toggleMosaicLock() {
 		return
 	}
 	a.ensureMosaic()
+	a.pushGridUndo()
 	if a.mosaicLocked[a.active] {
 		delete(a.mosaicLocked, a.active)
 		a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
@@ -1803,6 +1809,7 @@ func (a *app) unlockMosaic() {
 	if !a.mosaic {
 		return
 	}
+	a.pushGridUndo()
 	a.mosaicLocked = map[int]bool{}
 	a.mosaicOrder = grid.Restack(a.mosaicOrder, len(a.cells), a.mosaicLocked)
 	a.dirty = true
@@ -2606,6 +2613,7 @@ func (a *app) togglePreallocate() {
 	if !a.fixedGrid() {
 		return
 	}
+	a.pushGridUndo()
 	a.cfg.Preallocate = !a.cfg.Preallocate
 	a.dirty = true
 	a.saveSettings()
@@ -2781,6 +2789,124 @@ func (a *app) closeBeyond(order []int, keep int) {
 	a.refreshKeepAwake()
 }
 
+// gridUndoLimit is how many grid changes can be undone.
+const gridUndoLimit = 32
+
+// gridSnapshot is the grid layout a change can be undone to. Cells and
+// engines are not in it: the frozen grid undo never reopens a closed video,
+// so a change that closed cells is undone into a layout with fewer cells.
+type gridSnapshot struct {
+	cfg          grid.Config
+	template     string
+	free         bool
+	mosaic       bool
+	single       bool
+	singleSide   grid.StripSide
+	singleShare  *float64
+	freeTiles    []grid.Tile
+	freeOrder    []int
+	mosaicTiles  []grid.Tile
+	mosaicOrder  []int
+	mosaicLocked map[int]bool
+}
+
+func (a *app) captureGrid() gridSnapshot {
+	s := gridSnapshot{
+		cfg:          a.cfg,
+		template:     a.template,
+		free:         a.free,
+		mosaic:       a.mosaic,
+		single:       a.single,
+		singleSide:   a.singleSide,
+		freeTiles:    slices.Clone(a.freeTiles),
+		freeOrder:    slices.Clone(a.freeOrder),
+		mosaicTiles:  slices.Clone(a.mosaicTiles),
+		mosaicOrder:  slices.Clone(a.mosaicOrder),
+		mosaicLocked: maps.Clone(a.mosaicLocked),
+	}
+	if a.singleShare != nil {
+		share := *a.singleShare
+		s.singleShare = &share
+	}
+	return s
+}
+
+// pushGridUndo remembers the layout before a grid change and drops the redo
+// trail, as the frozen _undoable does.
+func (a *app) pushGridUndo() {
+	a.gridUndo = append(a.gridUndo, a.captureGrid())
+	if len(a.gridUndo) > gridUndoLimit {
+		a.gridUndo = a.gridUndo[len(a.gridUndo)-gridUndoLimit:]
+	}
+	a.gridRedo = nil
+}
+
+// restoreGrid puts a layout back, keeping the tile lists in step with the
+// cells that are still open.
+func (a *app) restoreGrid(s gridSnapshot) {
+	a.cfg = s.cfg
+	a.template = s.template
+	a.free, a.mosaic, a.single = s.free, s.mosaic, s.single
+	a.singleSide = s.singleSide
+	if s.singleShare != nil {
+		share := *s.singleShare
+		a.singleShare = &share
+	} else {
+		a.singleShare = nil
+	}
+	a.freeTiles = slices.Clone(s.freeTiles)
+	a.freeOrder = slices.Clone(s.freeOrder)
+	a.mosaicTiles = slices.Clone(s.mosaicTiles)
+	a.mosaicOrder = slices.Clone(s.mosaicOrder)
+	a.mosaicLocked = maps.Clone(s.mosaicLocked)
+	if a.mosaicLocked == nil {
+		a.mosaicLocked = map[int]bool{}
+	}
+	if len(a.freeTiles) != len(a.cells) {
+		a.freeTiles = grid.FreeLayout(len(a.cells))
+		a.freeOrder = grid.DefaultOrder(len(a.cells))
+	}
+	if len(a.mosaicTiles) != len(a.cells) {
+		a.mosaicTiles = grid.Mosaic(len(a.cells))
+		a.mosaicOrder = grid.DefaultOrder(len(a.cells))
+		a.mosaicLocked = map[int]bool{}
+	}
+	a.template = s.template
+	if _, ok := grid.FindTemplate(a.template); !ok || a.cfg.Mode != grid.Fixed {
+		a.template = ""
+	}
+	a.dirty = true
+	a.saveSettings()
+	a.refreshMenu()
+	if a.win != nil {
+		a.win.Invalidate()
+	}
+}
+
+// undoGrid restores the layout before the last grid change.
+func (a *app) undoGrid() {
+	if len(a.gridUndo) == 0 {
+		return
+	}
+	current := a.captureGrid()
+	last := a.gridUndo[len(a.gridUndo)-1]
+	a.gridUndo = a.gridUndo[:len(a.gridUndo)-1]
+	a.gridRedo = append(a.gridRedo, current)
+	a.restoreGrid(last)
+}
+
+// redoGrid re-applies the layout the last undo left.
+func (a *app) redoGrid() {
+	if len(a.gridRedo) == 0 {
+		return
+	}
+	current := a.captureGrid()
+	next := a.gridRedo[len(a.gridRedo)-1]
+	a.gridRedo = a.gridRedo[:len(a.gridRedo)-1]
+	a.gridUndo = append(a.gridUndo, current)
+	a.restoreGrid(next)
+}
+
 func (a *app) setGrid(cfg grid.Config) {
 	// The preallocate flag belongs to the layout, not to one mode: a preset
 	// or template switch carries it, as the frozen grid keeps the setting.
@@ -2792,10 +2918,12 @@ func (a *app) setGrid(cfg grid.Config) {
 		if !a.confirmOverflow(cfg) {
 			return
 		}
+		a.pushGridUndo()
 		a.closeOverflow(cfg)
 	} else {
 		// Leaving Free Tiles or Mosaic for a plain grid re-reads the tiles,
 		// as the frozen _leave_free does.
+		a.pushGridUndo()
 		a.leaveTiledLayout()
 	}
 	a.cfg = cfg
@@ -2820,6 +2948,7 @@ func (a *app) setTemplate(name string) {
 	if !a.confirmClose(capacity) {
 		return
 	}
+	a.pushGridUndo()
 	a.leaveTiledLayout()
 	a.closeBeyond(a.liveOrder(), capacity)
 	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols, Preallocate: a.cfg.Preallocate}
@@ -2834,6 +2963,10 @@ func (a *app) setTemplate(name string) {
 }
 
 func (a *app) setSingleSide(side grid.StripSide) {
+	if a.singleSide == side {
+		return
+	}
+	a.pushGridUndo()
 	a.singleSide = side
 	a.saveSettings()
 	if a.win != nil {
@@ -4159,6 +4292,9 @@ func (a *app) menu() *mygo.Menu {
 			}},
 		}},
 		{Label: a.tr("Actions", "Grid"), Submenu: []*mygo.MenuItem{
+			{Label: "Undo Grid Change", Disabled: len(a.gridUndo) == 0, Click: func(*mygo.MenuItem, *mygo.Window) { a.undoGrid() }},
+			{Label: "Redo Grid Change", Disabled: len(a.gridRedo) == 0, Click: func(*mygo.MenuItem, *mygo.Window) { a.redoGrid() }},
+			{Type: mygo.MenuItemSeparator},
 			{Label: "Auto Rows", Click: func(*mygo.MenuItem, *mygo.Window) { a.setGrid(grid.Config{Mode: grid.AutoRows}) }},
 			{Label: "Auto Columns", Click: func(*mygo.MenuItem, *mygo.Window) { a.setGrid(grid.Config{Mode: grid.AutoCols}) }},
 			{Label: "Fit Shapes", Click: func(*mygo.MenuItem, *mygo.Window) { a.setGrid(grid.Config{Mode: grid.Shapes}) }},
@@ -4177,6 +4313,7 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Label: "Templates", Submenu: templateItems},
 			{Label: "Free Tiles", Type: mygo.MenuItemCheckbox, Checked: a.free, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.pushGridUndo()
 				a.free = !a.free
 				if a.free {
 					a.mosaic = false
@@ -4189,6 +4326,7 @@ func (a *app) menu() *mygo.Menu {
 				}
 			}},
 			{Label: "Mosaic", Type: mygo.MenuItemCheckbox, Checked: a.mosaic, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.pushGridUndo()
 				a.mosaic = !a.mosaic
 				if a.mosaic {
 					a.free = false
@@ -4229,6 +4367,7 @@ func (a *app) menu() *mygo.Menu {
 			}},
 			{Type: mygo.MenuItemSeparator},
 			{Label: "Single Mode", Type: mygo.MenuItemCheckbox, Checked: a.single, Click: func(*mygo.MenuItem, *mygo.Window) {
+				a.pushGridUndo()
 				a.single = !a.single
 				if a.single {
 					a.free = false
