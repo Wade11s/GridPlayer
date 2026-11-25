@@ -71,15 +71,16 @@ func ResizeTileNoOverlap(tiles []Tile, i int, dx, dy, areaW, areaH float64) []Ti
 	return tiles
 }
 
-// SnapMove moves tile i to the nearest page or tile edge/middle within
-// threshold DIPs, preserving its size.
-func SnapMove(tiles []Tile, i int, areaW, areaH, threshold float64) []Tile {
-	if i < 0 || i >= len(tiles) || areaW <= 0 || areaH <= 0 || threshold <= 0 {
+// SnapMove moves tile i to the nearest enabled snap target within threshold
+// DIPs, preserving its size. origin is the tile's box when the drag started,
+// used by the old-place snap; zeros mean no origin.
+func SnapMove(tiles []Tile, i int, areaW, areaH, threshold float64, kinds SnapKinds, origin [4]float64) []Tile {
+	if i < 0 || i >= len(tiles) || areaW <= 0 || areaH <= 0 || threshold <= 0 || kinds == 0 {
 		return tiles
 	}
 	out := append([]Tile(nil), tiles...)
 	b := out[i].Box
-	xs, ys := snapTargets(tiles, i)
+	xs, ys := snapTargets(tiles, i, kinds, origin)
 	if d, ok := nearestDelta([]float64{b[0], (b[0] + b[2]) / 2, b[2]}, xs, threshold/areaW); ok {
 		b[0] += d
 		b[2] += d
@@ -93,14 +94,16 @@ func SnapMove(tiles []Tile, i int, areaW, areaH, threshold float64) []Tile {
 	return out
 }
 
-// SnapResize snaps only tile i's right and bottom edges within threshold DIPs.
-func SnapResize(tiles []Tile, i int, areaW, areaH, threshold float64) []Tile {
-	if i < 0 || i >= len(tiles) || areaW <= 0 || areaH <= 0 || threshold <= 0 {
+// SnapResize snaps only tile i's right and bottom edges within threshold
+// DIPs. shape is the video's width/height, used by the video-shape snap; a
+// non-positive shape leaves that snap out.
+func SnapResize(tiles []Tile, i int, areaW, areaH, threshold float64, kinds SnapKinds, shape float64) []Tile {
+	if i < 0 || i >= len(tiles) || areaW <= 0 || areaH <= 0 || threshold <= 0 || kinds == 0 {
 		return tiles
 	}
 	out := append([]Tile(nil), tiles...)
 	b := out[i].Box
-	xs, ys := snapTargets(tiles, i)
+	xs, ys := snapTargets(tiles, i, kinds, [4]float64{})
 	if d, ok := nearestDelta([]float64{b[2]}, xs, threshold/areaW); ok {
 		x1 := b[2] + d
 		if x1 > b[0]+64/areaW && x1 <= 1 {
@@ -113,20 +116,53 @@ func SnapResize(tiles []Tile, i int, areaW, areaH, threshold float64) []Tile {
 			b[3] = y1
 		}
 	}
+	if kinds.Has(SnapVideoShape) && shape > 0 && areaW > 0 && areaH > 0 {
+		// The width that gives the box the video's shape in pixels.
+		want := (b[3] - b[1]) * areaH * shape / areaW
+		if want > 64/areaW && b[0]+want <= 1 && absf(b[0]+want-b[2]) <= threshold/areaW {
+			b[2] = b[0] + want
+		}
+	}
 	out[i].Box = b
 	return out
 }
 
-func snapTargets(tiles []Tile, i int) (xs, ys []float64) {
-	xs = []float64{0, 0.5, 1}
-	ys = []float64{0, 0.5, 1}
+func absf(v float64) float64 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+// snapTargets is where an edge or middle can snap to, for the kinds that are
+// on: the page's edges and middle, the neighbours' edges and middles, and the
+// edges of where the tile was before the drag.
+func snapTargets(tiles []Tile, i int, kinds SnapKinds, origin [4]float64) (xs, ys []float64) {
+	if kinds.Has(SnapWindowEdges) {
+		xs = append(xs, 0, 1)
+		ys = append(ys, 0, 1)
+	}
+	if kinds.Has(SnapWindowMiddle) {
+		xs = append(xs, 0.5)
+		ys = append(ys, 0.5)
+	}
 	for j, t := range tiles {
 		if j == i {
 			continue
 		}
 		b := t.Box
-		xs = append(xs, b[0], b[2], (b[0]+b[2])/2)
-		ys = append(ys, b[1], b[3], (b[1]+b[3])/2)
+		if kinds.Has(SnapTileEdges) {
+			xs = append(xs, b[0], b[2])
+			ys = append(ys, b[1], b[3])
+		}
+		if kinds.Has(SnapTileMiddles) {
+			xs = append(xs, (b[0]+b[2])/2)
+			ys = append(ys, (b[1]+b[3])/2)
+		}
+	}
+	if kinds.Has(SnapOldPlace) && origin != ([4]float64{}) {
+		xs = append(xs, origin[0], origin[2])
+		ys = append(ys, origin[1], origin[3])
 	}
 	return xs, ys
 }

@@ -38,18 +38,24 @@ type settingsDraft struct {
 	startMaximized     bool
 	startFullscreen    bool
 
-	layout        string
-	rows          string
-	cols          string
-	snap          bool
-	overlap       bool
-	showGridLines bool
-	showAllCells  bool
-	shotDir       string
-	shotTemplate  string
-	shotFormat    string
-	shotQuality   string
-	singleSide    string
+	layout           string
+	rows             string
+	cols             string
+	snapTileEdges    bool
+	snapTileMiddles  bool
+	snapWindowEdges  bool
+	snapWindowMiddle bool
+	snapOldPlace     bool
+	snapVideoShape   bool
+	snapEqualGaps    bool
+	overlap          bool
+	showGridLines    bool
+	showAllCells     bool
+	shotDir          string
+	shotTemplate     string
+	shotFormat       string
+	shotQuality      string
+	singleSide       string
 
 	view         string
 	aspect       string
@@ -125,7 +131,13 @@ func defaultSettingsDraft() settingsDraft {
 		layout:             "Auto Rows",
 		rows:               "3",
 		cols:               "3",
-		snap:               true,
+		snapTileEdges:      true,
+		snapTileMiddles:    true,
+		snapWindowEdges:    true,
+		snapWindowMiddle:   true,
+		snapOldPlace:       true,
+		snapVideoShape:     true,
+		snapEqualGaps:      false,
 		overlap:            true,
 		showGridLines:      true,
 		singleSide:         "Auto",
@@ -324,8 +336,16 @@ func (a *app) settingsGrid(c *ui.Context, d *settingsDraft) {
 				ui.Select(c, &d.singleSide, sideOptions)
 			})
 		}
-		ui.Field(c, a.tr("SettingsDialog", "Snap"), func() {
-			ui.Checkbox(c, &d.snap, "Snap edges and middles within 8 DIPs")
+		ui.Field(c, a.tr("SettingsDialog", "Tile snaps"), func() {
+			ui.Column(c).Gap(4).Children(func() {
+				ui.Checkbox(c, &d.snapTileEdges, "Neighbour edges")
+				ui.Checkbox(c, &d.snapTileMiddles, "Neighbour middles")
+				ui.Checkbox(c, &d.snapWindowEdges, "Page edges")
+				ui.Checkbox(c, &d.snapWindowMiddle, "Page middle")
+				ui.Checkbox(c, &d.snapOldPlace, "Where the tile was")
+				ui.Checkbox(c, &d.snapVideoShape, "The video's shape when resizing")
+				ui.Checkbox(c, &d.snapEqualGaps, "Even gaps")
+			})
 		})
 		ui.Field(c, a.tr("SettingsDialog", "Free overlap"), func() {
 			ui.Checkbox(c, &d.overlap, "Allow free tiles to overlap")
@@ -525,7 +545,13 @@ func (a *app) currentSettingsDraft() settingsDraft {
 		d.sponsorModes[i] = sponsorModeName(a.sponsorModes[category.Name])
 	}
 	a.sponsorMu.Unlock()
-	d.snap = a.snap
+	d.snapTileEdges = a.snaps.Has(grid.SnapTileEdges)
+	d.snapTileMiddles = a.snaps.Has(grid.SnapTileMiddles)
+	d.snapWindowEdges = a.snaps.Has(grid.SnapWindowEdges)
+	d.snapWindowMiddle = a.snaps.Has(grid.SnapWindowMiddle)
+	d.snapOldPlace = a.snaps.Has(grid.SnapOldPlace)
+	d.snapVideoShape = a.snaps.Has(grid.SnapVideoShape)
+	d.snapEqualGaps = a.snaps.Has(grid.SnapEqualGaps)
 	d.overlap = a.overlap
 	d.showGridLines = a.showGridLines
 	d.showAllCells = a.cfg.Preallocate
@@ -704,7 +730,14 @@ func (a *app) applySettingsDraft(d settingsDraft) {
 	a.autoReloadMin.Store(int64(clampInt(atoi(d.autoReload, 0), 0, 1000)))
 	a.setListFailPolicy(listFailValue(d.listFail), atoi(d.listFailWait, defaultListFailWait))
 	d.autoReload = fmt.Sprint(a.autoReloadMin.Load())
-	a.snap = d.snap
+	a.snaps = grid.SnapKinds(0).
+		With(grid.SnapTileEdges, d.snapTileEdges).
+		With(grid.SnapTileMiddles, d.snapTileMiddles).
+		With(grid.SnapWindowEdges, d.snapWindowEdges).
+		With(grid.SnapWindowMiddle, d.snapWindowMiddle).
+		With(grid.SnapOldPlace, d.snapOldPlace).
+		With(grid.SnapVideoShape, d.snapVideoShape).
+		With(grid.SnapEqualGaps, d.snapEqualGaps)
 	a.overlap = d.overlap
 	a.showGridLines = d.showGridLines
 	a.applyShotDraft(d)
