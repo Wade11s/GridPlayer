@@ -629,19 +629,21 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 	switch {
 	case tiled:
 		// Entering or staying in a tiled layout keeps the tiles, as the
-		// frozen _make_tiled keeps the other mode's; nothing is re-read.
+		// frozen _make_tiled keeps the other mode's; nothing is re-read, but
+		// a mode change is still a grid change to remember.
+		a.pushGridUndoIfChanged(next, free, mosaic, single, a.template != "")
 	case next.Mode == grid.Fixed:
 		// A smaller fixed grid asks before closing, as _apply_fixed does; a
 		// declined dialog leaves the cells, tiles and locks untouched.
 		if !a.confirmOverflow(next) {
 			return false
 		}
-		a.pushGridUndoIfChanged(next, free, mosaic, single)
+		a.pushGridUndoIfChanged(next, free, mosaic, single, a.template != "")
 		a.closeOverflow(next)
 	default:
 		// Leaving a tiled layout for a plain grid re-reads the tiles, as the
 		// frozen _leave_free does.
-		a.pushGridUndoIfChanged(next, free, mosaic, single)
+		a.pushGridUndoIfChanged(next, free, mosaic, single, a.template != "")
 		a.leaveTiledLayout()
 	}
 	a.cfg = next

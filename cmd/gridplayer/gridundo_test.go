@@ -223,15 +223,75 @@ func TestArrangingAnArrangedMosaicDoesNotPush(t *testing.T) {
 
 func TestRestoreWithAnotherVideoSetResetsTheTiles(t *testing.T) {
 	a := freeApp(2)
+	// Boxes that differ from the default layout, so keeping the snapshot's
+	// tiles (the pre-fix behaviour) is visible rather than coincidentally
+	// equal to a fresh FreeLayout.
+	a.freeTiles = []grid.Tile{
+		{Box: [4]float64{0.2, 0.2, 0.5, 0.5}},
+		{Box: [4]float64{0.55, 0.6, 0.9, 0.9}},
+	}
 	snap := a.captureGrid()
 	// Same count, different videos: the snapshot's boxes must not be reused.
 	a.cells = []*cell{{path: "x.mp4"}, {path: "y.mp4"}}
-	a.freeTiles = []grid.Tile{{Box: [4]float64{0.5, 0.5, 0.6, 0.6}}, {Box: [4]float64{0.1, 0.1, 0.2, 0.2}}}
 	a.restoreGrid(snap)
 	want := grid.FreeLayout(2)
 	for i := range want {
 		if a.freeTiles[i].Box != want[i].Box {
 			t.Fatalf("stale tiles survived with another video set: %v", a.freeTiles)
 		}
+	}
+}
+
+func TestSettingsTiledModeChangeIsUndoable(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}},
+		cfg:   grid.Config{Mode: grid.AutoRows},
+	}
+	if ok := a.applyGridDraft(settingsDraft{layout: "Free Tiles"}); !ok {
+		t.Fatal("a tiled layout reported declined")
+	}
+	if len(a.gridUndo) != 1 {
+		t.Fatalf("a tiled mode change pushed %d entries", len(a.gridUndo))
+	}
+	a.undoGrid()
+	if a.free {
+		t.Fatal("undo did not leave Free Tiles")
+	}
+}
+
+func TestSettingsClearingATemplateIsUndoable(t *testing.T) {
+	a := &app{
+		cells:    []*cell{{path: "a.mp4"}},
+		cfg:      grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 3},
+		template: "1 + 2",
+	}
+	if ok := a.applyGridDraft(settingsDraft{layout: "Fixed", rows: "2", cols: "3"}); !ok {
+		t.Fatal("the same fixed grid reported declined")
+	}
+	if a.template != "" {
+		t.Fatalf("template = %q, want cleared", a.template)
+	}
+	if len(a.gridUndo) != 1 {
+		t.Fatalf("clearing the template pushed %d entries", len(a.gridUndo))
+	}
+	a.undoGrid()
+	if a.template != "1 + 2" {
+		t.Fatalf("undo did not restore the template: %q", a.template)
+	}
+}
+
+func TestGrowingThePlaylistForgetsTheGridTrail(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}},
+		cfg:   grid.Config{Mode: grid.AutoRows},
+	}
+	a.pushGridUndo()
+	if len(a.gridUndo) != 1 {
+		t.Fatal("setup")
+	}
+	// A set that only grows closes no cell, so the close path cannot forget.
+	a.setPlaylist([]string{"a.mp4", "b.mp4"})
+	if len(a.gridUndo) != 0 || len(a.gridRedo) != 0 {
+		t.Fatalf("a grown playlist kept the trail: undo=%d redo=%d", len(a.gridUndo), len(a.gridRedo))
 	}
 }

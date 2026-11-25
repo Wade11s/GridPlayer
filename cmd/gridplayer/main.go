@@ -767,6 +767,9 @@ func (a *app) setPlaylist(paths []string) {
 	if comparePaths(a.cells, paths) {
 		return
 	}
+	// The video set changes (a growth that closes nothing included): a layout
+	// trail across it would land on other videos.
+	a.forgetGridChanges()
 	for i := len(paths); i < len(a.cells); i++ {
 		a.closeCell(a.cells[i])
 	}
@@ -2856,8 +2859,8 @@ func (a *app) forgetGridChanges() {
 
 // pushGridUndoIfChanged remembers a layout only when it differs from what is
 // on show, as the frozen _remember skips an unchanged state.
-func (a *app) pushGridUndoIfChanged(cfg grid.Config, free, mosaic, single bool) {
-	if cfg == a.cfg && free == a.free && mosaic == a.mosaic && single == a.single {
+func (a *app) pushGridUndoIfChanged(cfg grid.Config, free, mosaic, single, clearsTemplate bool) {
+	if cfg == a.cfg && free == a.free && mosaic == a.mosaic && single == a.single && !clearsTemplate {
 		return
 	}
 	a.pushGridUndo()

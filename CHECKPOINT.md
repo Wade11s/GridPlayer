@@ -14,10 +14,11 @@ never cells or engines. Restoring that order matters because leaving a tiled
 layout permutes the cells. Grid > Undo Grid Change restores it, Redo
 re-applies, a new change drops the redo trail, a change that alters nothing
 skips the push (including arranging an arranged mosaic or re-applying the
-same template), and a change in the video set (a closed, inserted or newly
-opened video) forgets the trail, as the frozen `forget_grid_changes` does.
-The stack keeps 32; a restore with the same count but another video set
-resets the tiles rather than reusing boxes keyed to the old videos.
+same template), and a change in the video set (a closed, inserted, grown or
+newly opened video) forgets the trail, as the frozen `forget_grid_changes`
+does. The Settings Grid tab records tiled-mode changes and clearing a
+template too. The stack keeps 32; a restore with the same count but another
+video set resets the tiles rather than reusing boxes keyed to the old videos.
 The actions that record one: the size presets, templates, Settings' Grid tab
 (only when the layout actually changes), Show All Cells, Arrange Mosaic,
 Lock/Unlock, Bring to Front/Send to Back, Strip Side, and the Free Tiles /
