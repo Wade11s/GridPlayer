@@ -3,7 +3,7 @@
 ## 2026-11-25 screenshot-names candidate
 
 Frozen source is unchanged. Base/main is `0ef3300` (after PR #89). Code
-candidate is `754c51d63c35b94a49a1b369c606a96060e52e71` on
+candidate is `083ac9609db44366ea49f8357699d6619f9970de` on
 `feat/f12-screenshot-names`; the PR binds the final reviewed head.
 
 Added: `internal/screenshots` ports the frozen `utils/screenshots.py` naming
@@ -21,11 +21,11 @@ re-encodes inline on the main thread, where the frozen `ScreenshotJob` uses
 a thread pool, and the name is taken by a stat-then-write rather than an
 exclusive create (safe while the save is synchronous).
 
-Verification on `754c51d` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `083ac96` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
 lines on this tree. A bundled-app run
-at `/tmp/gridplayer-shots2/` with `dir=/tmp/gridplayer-shots2/out`,
+at `/tmp/gridplayer-shots3/` with `dir=/tmp/gridplayer-shots3/out`,
 `filename_template=%F_%n`, `format=jpg` and `jpg_quality=55` wrote
 `plane-a_0001.jpg` and `plane-a_0002.jpg` from two Shot clicks; `file`
 reports both as JPEG 640x360, no temporary `.png` was left in the folder,
