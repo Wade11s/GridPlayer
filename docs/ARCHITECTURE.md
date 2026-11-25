@@ -105,10 +105,11 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   row by row for Free Tiles and Mosaic) and packs the survivors in that order,
   as upstream's `pack_flow` does, and clears the free tiles and locks as
   `_free.clear()` does; Go's cells are the playlist, so the saved order
-  follows the grid. After a big-cell template the cells keep its place order,
-  so a later smaller fixed grid closes by place order, not the frozen visual
-  row order. A loaded document with more videos than cells still extends the
-  rows. The UI renders
+  follows the grid. Leaving Free Tiles or Mosaic for any plain grid re-reads
+  the tiles into it and clears them, as the frozen `_leave_free` does. After a
+  big-cell template the cells keep its place order, so a later smaller fixed
+  grid closes by place order, not the frozen visual row order. A loaded
+  document with more videos than cells still extends the rows. The UI renders
   those rects absolutely and
   keeps the native VLC view in a clipping NSView: Fill computes a cover rect
   (cropped by the clip), Fit uses the cell rect. Resizing re-syncs both.

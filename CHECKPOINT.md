@@ -1,5 +1,35 @@
 # Migration Checkpoints
 
+## 2026-11-25 leave-tiled-for-plain candidate
+
+Frozen source is unchanged. Base/main is `73eddd9` (after PR #88). Code
+candidate is `df7458565e396990c612c911e09c258a07f60f11` on
+`fix/f5-leave-tiled-plain`; the PR binds the final reviewed head.
+
+Fixed: leaving Free Tiles or Mosaic for Auto Rows, Auto Columns or Fit Shapes
+now re-reads the tiles into the flow and clears the free layout, as the frozen
+`_leave_free` does (`_flow.ids = self._free.order()`, `self._free.clear()`).
+PR #88 did this only for a fixed entry; a plain grid kept playlist order and
+the old tiles. A declined fixed entry still changes nothing: the clear runs
+only after the confirm, as `_apply_fixed` does.
+
+Verification on `df74585` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run at `/tmp/gridplayer-leave/` loaded five videos in
+Free Tiles reading e,d,c,b,a and chose Grid > Auto Rows: the auto grid reads
+e,d,c on the first row and b,a on the second (`auto-rows.png`), and the saved
+playlist holds plane-e,d,c,b,a with `grid_layout` auto_rows. Teardown
+finished with all five cells and no process remained. Unit:
+`TestLeavingTiledForAPlainGridPacksAndClears`,
+`TestDeclinedFixedEntryKeepsTheTiles`, `TestTemplateEntryPacksAndCloses`.
+
+Still open: cells keep place order after a big-cell template, so a later
+smaller fixed grid closes by place order rather than the frozen visual row
+order; a loaded document with more videos than its grid extends the rows
+instead of leaving the extras unplaced; closed videos are not remembered for
+a Reopen Closed Video action; the frozen grid undo is absent.
+
 ## 2026-11-25 repack-tiled-order candidate
 
 Frozen source is unchanged. Base/main is `3f0dbc1` (after PR #87). Code
