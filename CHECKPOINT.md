@@ -20,11 +20,11 @@ does. The Settings Grid tab records tiled-mode changes and clearing a
 template too. The stack keeps 32; a restore with the same count but another
 video set resets the tiles rather than reusing boxes keyed to the old videos.
 The actions that record one: the size presets, templates, Settings' Grid tab
-(only when the layout actually changes), Show All Cells, Arrange Mosaic,
-Lock/Unlock, Bring to Front/Send to Back, Strip Side, and the Free Tiles /
-Mosaic / Single Mode toggles.
+(a layout change, a tiled-mode change, or clearing an active template),
+Show All Cells, Arrange Mosaic, Lock/Unlock, Bring to Front/Send to Back,
+Strip Side, and the Free Tiles / Mosaic / Single Mode toggles.
 
-Verification on `a11967f` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `ba289b3` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
 lines. A bundled-app run at `/tmp/gridplayer-undo5/` loaded four videos in
@@ -40,8 +40,9 @@ with `grid_layout` fixed; teardown finished and no process remained. Unit:
 the `gridundo_test.go` cases (restore with the cell order, redo, redo
 cleared by a new change, a declined Settings grid not pushing, no-op
 actions and a same template/arrange not pushing, the trail forgotten when a
-video closes, a restore with another video set resetting the tiles, deep
-snapshot, the 32 cap, tile reset, empty stacks).
+video closes or the playlist grows, a Settings tiled-mode change and a
+cleared template each pushing once, a restore with another video set
+resetting the tiles, deep snapshot, the 32 cap, tile reset, empty stacks).
 
 Still open: tile drags and (future) line edits do not record an undo step;
 there is no keyboard shortcut; a closed video clears the trail (frozen
