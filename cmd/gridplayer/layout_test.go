@@ -390,6 +390,72 @@ func TestTemplateEntryPacksAndCloses(t *testing.T) {
 	}
 }
 
+func TestSettingsApplyKeepsATiledLayout(t *testing.T) {
+	tiles := []grid.Tile{
+		{Box: [4]float64{0.5, 0.02, 0.95, 0.3}},
+		{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},
+		{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},
+	}
+	for _, layout := range []string{"Free Tiles", "Mosaic"} {
+		a := &app{
+			cells:     []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
+			free:      layout == "Free Tiles",
+			mosaic:    layout == "Mosaic",
+			freeTiles: tiles,
+			mosaicTiles: []grid.Tile{
+				{Box: [4]float64{0.5, 0.02, 0.95, 0.3}},
+				{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},
+				{Box: [4]float64{0.02, 0.02, 0.4, 0.3}},
+			},
+			mosaicLocked: map[int]bool{0: true},
+		}
+		if ok := a.applyGridDraft(settingsDraft{layout: layout, rows: "3", cols: "3"}); !ok {
+			t.Fatalf("%s apply reported declined", layout)
+		}
+		// An Apply that keeps the tiled layout must not wipe the arrangement.
+		if layout == "Free Tiles" && len(a.freeTiles) != 3 {
+			t.Fatalf("free tiles were cleared: %d", len(a.freeTiles))
+		}
+		if layout == "Mosaic" {
+			if len(a.mosaicTiles) != 3 || !a.mosaicLocked[0] {
+				t.Fatalf("mosaic tiles or locks were cleared: %d %v", len(a.mosaicTiles), a.mosaicLocked)
+			}
+		}
+		if got := cellPaths(a.cells); got[0] != "a.mp4" || got[1] != "b.mp4" || got[2] != "c.mp4" {
+			t.Fatalf("%s apply reordered the cells: %v", layout, got)
+		}
+	}
+}
+
+func TestSettingsApplyLeavesTiledForPlain(t *testing.T) {
+	a := &app{
+		cells: []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}},
+		free:  true,
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a
+		},
+	}
+	if ok := a.applyGridDraft(settingsDraft{layout: "Auto Rows"}); !ok {
+		t.Fatal("plain apply reported declined")
+	}
+	if a.free || len(a.freeTiles) != 0 {
+		t.Fatalf("free layout survived: free=%v tiles=%d", a.free, len(a.freeTiles))
+	}
+	// The tiles read c (top left), a (top right), b (bottom), so the flow
+	// takes that order.
+	want := []string{"c.mp4", "a.mp4", "b.mp4"}
+	for i, w := range want {
+		if a.cells[i].path != w {
+			t.Fatalf("packed %v, want %v", cellPaths(a.cells), want)
+		}
+	}
+	if a.cfg.Mode != grid.AutoRows {
+		t.Fatalf("cfg = %+v", a.cfg)
+	}
+}
+
 func TestLiveOrderUsesMosaicTilesAndFallsBack(t *testing.T) {
 	mosaicTiles := []grid.Tile{
 		{Box: [4]float64{0.5, 0.5, 0.95, 0.95}},

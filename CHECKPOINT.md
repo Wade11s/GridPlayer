@@ -11,7 +11,10 @@ now re-reads the tiles into the flow and clears the free layout, as the frozen
 `_leave_free` does (`_flow.ids = self._free.order()`, `self._free.clear()`).
 PR #88 did this only for a fixed entry; a plain grid kept playlist order and
 the old tiles. A declined fixed entry still changes nothing: the clear runs
-only after the confirm, as `_apply_fixed` does.
+only after the confirm, as `_apply_fixed` does. The Settings tab separates
+the three cases: a tiled target keeps the tiles (an Apply that only changes
+other settings no longer wipes the arrangement or the mosaic locks), a fixed
+target confirms and closes, and a plain target re-reads and clears.
 
 Verification on `df74585` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,

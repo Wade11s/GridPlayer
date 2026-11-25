@@ -106,7 +106,9 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   as upstream's `pack_flow` does, and clears the free tiles and locks as
   `_free.clear()` does; Go's cells are the playlist, so the saved order
   follows the grid. Leaving Free Tiles or Mosaic for any plain grid re-reads
-  the tiles into it and clears them, as the frozen `_leave_free` does. After a
+  the tiles into it and clears them, as the frozen `_leave_free` does; a
+  Settings Apply that keeps the tiled layout leaves the arrangement and the
+  locks untouched. After a
   big-cell template the cells keep its place order, so a later smaller fixed
   grid closes by place order, not the frozen visual row order. A loaded
   document with more videos than cells still extends the rows. The UI renders

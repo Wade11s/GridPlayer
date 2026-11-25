@@ -603,15 +603,21 @@ func (a *app) applyGridDraft(d settingsDraft) bool {
 	default:
 		next = grid.Config{Mode: grid.AutoRows, Preallocate: d.showAllCells}
 	}
-	fixed := !free && !mosaic && !single
-	if fixed && !a.confirmOverflow(next) {
-		return false
-	}
-	if fixed {
+	tiled := free || mosaic || single
+	switch {
+	case tiled:
+		// Entering or staying in a tiled layout keeps the tiles, as the
+		// frozen _make_tiled keeps the other mode's; nothing is re-read.
+	case next.Mode == grid.Fixed:
+		// A smaller fixed grid asks before closing, as _apply_fixed does; a
+		// declined dialog leaves the cells, tiles and locks untouched.
+		if !a.confirmOverflow(next) {
+			return false
+		}
 		a.closeOverflow(next)
-	} else {
-		// Leaving a tiled layout for a plain one re-reads the tiles, as the
-		// frozen _leave_free does; a decline above leaves everything as it was.
+	default:
+		// Leaving a tiled layout for a plain grid re-reads the tiles, as the
+		// frozen _leave_free does.
 		a.leaveTiledLayout()
 	}
 	a.cfg = next

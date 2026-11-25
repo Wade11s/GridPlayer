@@ -210,9 +210,12 @@ Changes need a new review; thresholds never relax in-implementation.
   flow reads e,d,c / b,a (`auto-rows.png`), and `saved.gpls` holds
   plane-e,d,c,b,a with `grid_layout` auto_rows. All five cells were playing
   at teardown, autoquit exited cleanly, and no `gridplayer`/`poc-hw` process
-  remained. The plain-grid re-pack, the declined fixed entry that keeps its
-  tiles, and the template entry are unit evidence
+  remained. The plain-grid re-pack, the Settings Apply that keeps a tiled
+  layout untouched, the Settings plain-grid re-read, the declined fixed entry
+  that keeps its tiles, and the template entry are unit evidence
   (`TestLeavingTiledForAPlainGridPacksAndClears`,
+  `TestSettingsApplyKeepsATiledLayout`,
+  `TestSettingsApplyLeavesTiledForPlain`,
   `TestDeclinedFixedEntryKeepsTheTiles`, `TestTemplateEntryPacksAndCloses`).
 - 2026-11-25, F5 repack-tiled-order candidate (`84fdbf6`, main `3f0dbc1`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
