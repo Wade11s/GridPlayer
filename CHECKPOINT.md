@@ -3,7 +3,7 @@
 ## 2026-11-25 grid-undo candidate
 
 Frozen source is unchanged. Base/main is `8c8ca7e` (after PR #91). Code
-candidate is `677b90c90e3849ce11259ff69fcb36fd5440bc7c` on
+candidate is `a11967fd442abd870ffea024f4cc7c5cccafe596` on
 `feat/f5-grid-undo`; the PR binds the final reviewed head.
 
 Added: undoing and redoing a grid change, as the frozen `_undoable` /
@@ -23,10 +23,10 @@ The actions that record one: the size presets, templates, Settings' Grid tab
 Lock/Unlock, Bring to Front/Send to Back, Strip Side, and the Free Tiles /
 Mosaic / Single Mode toggles.
 
-Verification on `677b90c` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `a11967f` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines. A bundled-app run at `/tmp/gridplayer-undo4/` loaded four videos in
+lines. A bundled-app run at `/tmp/gridplayer-undo5/` loaded four videos in
 Free Tiles whose reading order was d,c,b,a and chose Grid > Fixed 2x2
 (`after-fixed.png`), which permutes the cells into that order. Grid > Undo
 Grid Change put the Free Tiles layout back with each video in its own tile
