@@ -2666,7 +2666,55 @@ func (a *app) closeOverflow(cfg grid.Config) {
 	if cfg.Mode != grid.Fixed {
 		return
 	}
+	a.repackForFixed()
 	a.closeBeyond(a.liveOrder(), fixedCapacity(cfg))
+}
+
+// repackForFixed puts the cells, and the tiles that travel with them, in the
+// order they are read, as the frozen _apply_fixed does with
+// pack_flow(keep_ids) when it leaves a tiled layout: the top-left place then
+// keeps the top-left video.
+func (a *app) repackForFixed() {
+	n := len(a.cells)
+	if n == 0 || (!a.free && !a.mosaic) {
+		return
+	}
+	order := a.liveOrder()
+	if len(order) != n {
+		return
+	}
+	identity := true
+	for i, from := range order {
+		if from != i {
+			identity = false
+			break
+		}
+	}
+	active := a.activeCell()
+	if !identity {
+		next := make([]*cell, n)
+		for slot, from := range order {
+			next[slot] = a.cells[from]
+		}
+		a.cells = next
+		if active != nil {
+			for i, c := range a.cells {
+				if c == active {
+					a.active = i
+					break
+				}
+			}
+		}
+	}
+	// The frozen _apply_fixed clears the free layout on the way in:
+	// _free.clear() drops the tiles and the locked set, whether or not the
+	// order changes. Keeping them would leave index-keyed locks and boxes
+	// pointing at other videos after a permutation.
+	a.freeTiles = nil
+	a.mosaicTiles = nil
+	a.freeOrder = nil
+	a.mosaicOrder = nil
+	a.mosaicLocked = nil
 }
 
 // liveOrder is the order the videos are laid out in: playlist order for the
@@ -2753,6 +2801,7 @@ func (a *app) setTemplate(name string) {
 	if !a.confirmClose(capacity) {
 		return
 	}
+	a.repackForFixed()
 	a.closeBeyond(a.liveOrder(), capacity)
 	a.cfg = grid.Config{Mode: grid.Fixed, Rows: template.Rows, Cols: template.Cols, Preallocate: a.cfg.Preallocate}
 	a.template = name

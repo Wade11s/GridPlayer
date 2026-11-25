@@ -146,8 +146,10 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	// Playlist order 0..4, but read row by row the top-left tile is 4 and
 	// the bottom-right is 0, so a 2x2 keeps 4,3,2,1 and closes 0.
 	a := &app{
-		cells:  cells(5),
-		active: 2,
+		cells: cells(5),
+		// The reading-last video is active, so it must survive the re-pack
+		// at a different index; index 2 would coincide before and after.
+		active: 4,
 		free:   true,
 		freeTiles: []grid.Tile{
 			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}},
@@ -160,19 +162,25 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	if got := a.liveOrder(); len(got) != 5 || got[0] != 4 || got[1] != 3 || got[2] != 2 || got[3] != 1 || got[4] != 0 {
 		t.Fatalf("live order = %v, want [4 3 2 1 0]", got)
 	}
+	activePtr := a.cells[a.active]
 	a.closeOverflow(grid.Config{Mode: grid.Fixed, Rows: 2, Cols: 2})
 	if len(a.cells) != 4 {
 		t.Fatalf("cells = %d, want 4", len(a.cells))
 	}
-	want := []string{"1.mp4", "2.mp4", "3.mp4", "4.mp4"}
+	// Survivors are re-packed in reading order, so the grid reads
+	// e,d,c,b top to bottom, as the frozen pack_flow does.
+	want := []string{"4.mp4", "3.mp4", "2.mp4", "1.mp4"}
 	for i, w := range want {
 		if a.cells[i].path != w {
 			t.Fatalf("kept %v, want %v", cellPaths(a.cells), want)
 		}
 	}
-	// The active video was index 2 and is still itself after index 0 closed.
-	if got := a.cells[a.active].path; got != "2.mp4" {
-		t.Fatalf("active is %q, want 2.mp4", got)
+	// The active video is still the same cell, by identity, at a new index.
+	if a.cells[a.active] != activePtr {
+		t.Fatalf("active is %q, want %q", a.cells[a.active].path, activePtr.path)
+	}
+	if a.active == 4 {
+		t.Fatalf("active index did not move with its video: %d", a.active)
 	}
 
 	// Closing the active cell itself leaves a valid active index on a
@@ -184,6 +192,97 @@ func TestOverflowCloseFollowsTheTiledReadingOrder(t *testing.T) {
 	}
 	if got := b.cells[b.active].path; got == "4.mp4" {
 		t.Fatalf("active still points at the closed video")
+	}
+}
+
+func TestFixedEntryPacksTiledOrderWithoutOverflow(t *testing.T) {
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{
+		cells:  cells,
+		active: 1,
+		free:   true,
+		freeTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b later in reading order
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a first
+		},
+	}
+	// Reading order is a, c, b: indices 2, 0, 1.
+	if got := a.liveOrder(); len(got) != 3 || got[0] != 2 || got[1] != 0 || got[2] != 1 {
+		t.Fatalf("live order = %v, want [2 0 1]", got)
+	}
+	activePtr := a.cells[a.active]
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3})
+	want := []string{"c.mp4", "a.mp4", "b.mp4"}
+	for i, w := range want {
+		if a.cells[i].path != w {
+			t.Fatalf("packed %v, want %v", cellPaths(a.cells), want)
+		}
+	}
+	if a.cells[a.active] != activePtr {
+		t.Fatalf("active moved to %q", a.cells[a.active].path)
+	}
+	if len(a.cells) != 3 {
+		t.Fatalf("a grid that fits closed cells: %d", len(a.cells))
+	}
+}
+
+func TestFixedEntryClearsTilesAndLocks(t *testing.T) {
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{
+		cells:  cells,
+		active: 1,
+		mosaic: true,
+		mosaicTiles: []grid.Tile{
+			{Box: [4]float64{0.5, 0.02, 0.95, 0.3}}, // b
+			{Box: [4]float64{0.5, 0.6, 0.95, 0.95}}, // c
+			{Box: [4]float64{0.02, 0.02, 0.4, 0.3}}, // a
+		},
+		mosaicLocked: map[int]bool{1: true},
+	}
+	activePtr := a.cells[a.active]
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3})
+	// The frozen _apply_fixed clears the free layout: no tiles, no locks.
+	if a.mosaicLocked != nil {
+		t.Fatalf("locks survived the fixed entry: %v", a.mosaicLocked)
+	}
+	if a.mosaicTiles != nil || a.freeTiles != nil {
+		t.Fatal("tiles survived the fixed entry")
+	}
+	want := []string{"c.mp4", "a.mp4", "b.mp4"}
+	for i, w := range want {
+		if a.cells[i].path != w {
+			t.Fatalf("packed %v, want %v", cellPaths(a.cells), want)
+		}
+	}
+	if a.cells[a.active] != activePtr {
+		t.Fatalf("active moved to %q", a.cells[a.active].path)
+	}
+}
+
+func TestFixedEntryClearsDefaultTilesAndLocks(t *testing.T) {
+	// A default Free/Mosaic layout reads in identity order, so the cells are
+	// not permuted; the frozen _free.clear() still drops the tiles and locks.
+	cells := []*cell{{path: "a.mp4"}, {path: "b.mp4"}, {path: "c.mp4"}}
+	a := &app{
+		cells:        cells,
+		active:       1,
+		mosaic:       true,
+		mosaicTiles:  grid.Mosaic(3),
+		mosaicOrder:  grid.DefaultOrder(3),
+		mosaicLocked: map[int]bool{1: true},
+	}
+	if got := a.liveOrder(); len(got) != 3 || got[0] != 0 || got[1] != 1 || got[2] != 2 {
+		t.Fatalf("default mosaic order = %v, want identity", got)
+	}
+	a.setGrid(grid.Config{Mode: grid.Fixed, Rows: 3, Cols: 3})
+	if a.mosaicLocked != nil || a.mosaicTiles != nil {
+		t.Fatalf("default tiles or locks survived: tiles=%v locks=%v", a.mosaicTiles, a.mosaicLocked)
+	}
+	for i, want := range []string{"a.mp4", "b.mp4", "c.mp4"} {
+		if a.cells[i].path != want {
+			t.Fatalf("identity order changed: %v", cellPaths(a.cells))
+		}
 	}
 }
 
