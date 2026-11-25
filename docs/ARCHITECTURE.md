@@ -91,6 +91,12 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   centred in the area. Cells meet flush because the app passes `cellGap = 0`,
   as the frozen `CellLayout` spacing 0 does. The split search mirrors upstream's
   `justified.py` without the size/reorder controls this build does not expose yet.
+- Screenshots use `internal/screenshots`: the frozen template specifiers
+  (`%f %F %p %P %n %D %T %tX %%`), name sanitising and Windows reserved
+  names, the `%n` counter or a ` (N)` suffix, the data folder's
+  `screenshots` folder when no folder is set, and PNG or JPEG (a temporary
+  PNG re-encoded at the configured quality). The saved frame is the engine
+  frame; cropping it to the view is later.
 - `cmd/gridplayer` uses one `Engine` per cell; it no longer calls `vlcmac`
   directly. `poc-hw`/`poc-cb` stay as isolated probes.
 - `internal/grid` is the layout model (AutoRows/AutoCols/Fixed; one rect per

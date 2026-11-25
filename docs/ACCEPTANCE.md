@@ -202,6 +202,19 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F12 screenshot-names candidate (`083531b`, main `0ef3300`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-shots/` used
+  `settings.ini` with `screenshots/dir=/tmp/gridplayer-shots/out`,
+  `filename_template=%F_%n`, `format=jpg` and `jpg_quality=55`; two Shot
+  clicks wrote `plane-a_0001.jpg` and `plane-a_0002.jpg`, both reported by
+  `file` as JPEG 640x360 with `ffd8` headers. The settings kept all four
+  keys, teardown finished, and no `gridplayer`/`poc-hw` process remained.
+  Naming, sanitising, the counter and suffix, the folder and the format are
+  unit evidence (`internal/screenshots`, plus the app settings round-trip);
+  this run does not cover the PNG path or the cropped-to-view frame, which
+  the frozen worker does and Go does not yet.
 - 2026-11-25, F5 leave-tiled-for-plain candidate (`9c316ae`, main `73eddd9`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4

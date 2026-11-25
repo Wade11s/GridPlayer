@@ -1,5 +1,36 @@
 # Migration Checkpoints
 
+## 2026-11-25 screenshot-names candidate
+
+Frozen source is unchanged. Base/main is `0ef3300` (after PR #89). Code
+candidate is `083531ba48f5c547f1fb780dd20460bf395f6c41` on
+`feat/f12-screenshot-names`; the PR binds the final reviewed head.
+
+Added: `internal/screenshots` ports the frozen `utils/screenshots.py` naming
+— the specifiers `%f %F %p %P %n %D %T %tX %%`, the `%n` counter or a
+` (N)` suffix for a taken name, unsafe-character and Windows-reserved-name
+sanitising, the frozen length limits, the data folder's `screenshots` folder
+when none is set — and the app's screenshot action (Shot button and the
+`take_screenshot` shortcut) now writes there under the `screenshots/dir`,
+`filename_template`, `format` and `jpg_quality` keys, PNG straight from
+libVLC or JPEG by re-encoding a temporary PNG at the configured quality. The
+Settings General tab edits all four.
+
+Verification on `083531b` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run at `/tmp/gridplayer-shots/` with
+`dir=/tmp/gridplayer-shots/out`, `filename_template=%F_%n`, `format=jpg`
+and `jpg_quality=55` wrote `plane-a_0001.jpg` and `plane-a_0002.jpg` from
+two Shot clicks; `file` reports both as JPEG 640x360, `settings.ini` kept
+all four keys, teardown finished, and no process remained. Unit:
+`internal/screenshots` (render, sanitising, unknown specifiers, counter,
+suffix, folder, format, position) and the app's settings round-trip.
+
+Still open: the saved frame is the engine frame, not cropped/transformed to
+the view as the frozen `ScreenshotWorker` does; the all-videos screenshot
+action is absent; complete recovery GUI evidence remains open.
+
 ## 2026-11-25 leave-tiled-for-plain candidate
 
 Frozen source is unchanged. Base/main is `73eddd9` (after PR #88). Code
