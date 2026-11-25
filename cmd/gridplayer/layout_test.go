@@ -869,15 +869,21 @@ func TestScreenshotLengthLimitsCountCharacters(t *testing.T) {
 }
 
 func TestScreenshotCallSitesUseTheAction(t *testing.T) {
-	// No UI harness exists for a click test, so the two call sites are
-	// guarded at the source: a revert to the save dialog would show here.
+	// No UI harness exists for a click test, so the call sites are guarded
+	// at the source: a revert to the save dialog would show here.
 	src, err := os.ReadFile("main.go")
 	if err != nil {
 		t.Fatal(err)
 	}
 	text := string(src)
-	if got := strings.Count(text, "a.takeScreenshot("); got < 2 {
-		t.Fatalf("takeScreenshot call sites = %d, want the Shot button and the shortcut", got)
+	if got := strings.Count(text, "a.takeScreenshot("); got < 3 {
+		t.Fatalf("takeScreenshot call sites = %d, want the Shot button, the shortcut and Screenshot All", got)
+	}
+	if !strings.Contains(text, "func (a *app) takeScreenshotAll()") {
+		t.Fatal("the all-videos screenshot action is gone")
+	}
+	if !strings.Contains(text, "a.takeScreenshotAll()") {
+		t.Fatal("the all-videos action is not wired to a menu item")
 	}
 	if got := strings.Count(text, "a.saveFrame("); got != 1 {
 		t.Fatalf("saveFrame call sites = %d, want only the Save Frame menu item", got)
@@ -941,5 +947,91 @@ func TestTakeScreenshotWithoutADataFolderReportsIt(t *testing.T) {
 	a.takeScreenshot(&cell{path: "movie.mkv", eng: eng})
 	if a.status != "screenshots: no data folder" {
 		t.Fatalf("status = %q", a.status)
+	}
+}
+
+func TestTakeScreenshotAllWritesOnePerCell(t *testing.T) {
+	data := t.TempDir()
+	newEng := func() *engine.Engine {
+		eng := engine.New(func(string, bool, string) (engine.Backend, error) { return dummy.New(), nil })
+		if err := eng.Load("movie.mkv"); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(eng.Close)
+		return eng
+	}
+	a := &app{
+		dataDir:      data,
+		shotDir:      filepath.Join(data, "shots"),
+		shotTemplate: "%F",
+		shotFormat:   screenshots.JPG,
+		shotQuality:  55,
+		cells: []*cell{
+			{path: "a.mkv", eng: newEng()},
+			{path: "b.mkv", eng: newEng()},
+			{path: "no-engine.mkv"},
+		},
+	}
+	a.takeScreenshotAll()
+	for _, name := range []string{"a.jpg", "b.jpg"} {
+		path := filepath.Join(data, "shots", name)
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if len(raw) < 2 || raw[0] != 0xFF || raw[1] != 0xD8 {
+			t.Fatalf("%s is not a JPEG", name)
+		}
+	}
+	if a.status != "saved 2 screenshots" {
+		t.Fatalf("status = %q", a.status)
+	}
+	if _, err := os.Stat(filepath.Join(data, "shots", "no-engine.jpg")); err == nil {
+		t.Fatal("a cell without an engine produced a file")
+	}
+}
+
+func TestTakeScreenshotAllWithoutAVideoReportsIt(t *testing.T) {
+	a := &app{dataDir: t.TempDir(), shotTemplate: "%F", cells: []*cell{{path: "x.mkv"}}}
+	a.takeScreenshotAll()
+	if a.status != "screenshots: no video to save" {
+		t.Fatalf("status = %q", a.status)
+	}
+}
+
+// audioOnlyBackend reports an audio track and no video track, like an
+// audio-only file loaded in a cell.
+type audioOnlyBackend struct{ *dummy.Backend }
+
+func (b audioOnlyBackend) VideoTracks() []engine.Track { return nil }
+func (b audioOnlyBackend) AudioTracks() []engine.Track { return []engine.Track{{ID: 1}} }
+
+func TestTakeScreenshotAllSkipsAudioOnlyCells(t *testing.T) {
+	data := t.TempDir()
+	eng := engine.New(func(string, bool, string) (engine.Backend, error) {
+		return audioOnlyBackend{dummy.New()}, nil
+	})
+	defer eng.Close()
+	if err := eng.Load("song.m4a"); err != nil {
+		t.Fatal(err)
+	}
+	a := &app{
+		dataDir:      data,
+		shotDir:      filepath.Join(data, "shots"),
+		shotTemplate: "%F",
+		shotFormat:   screenshots.JPG,
+		shotQuality:  60,
+		cells:        []*cell{{path: "song.m4a", eng: eng}},
+	}
+	a.takeScreenshotAll()
+	if a.status != "screenshots: no video to save" {
+		t.Fatalf("status = %q", a.status)
+	}
+	entries, err := os.ReadDir(filepath.Join(data, "shots"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("an audio-only cell wrote %d files", len(entries))
 	}
 }

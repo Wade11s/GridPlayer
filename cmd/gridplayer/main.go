@@ -281,10 +281,9 @@ func (a *app) loadSettings() {
 	if err != nil {
 		return
 	}
-	// Keep the folder even when the settings cannot be read, so a screenshot
-	// still lands under the data folder rather than the working directory.
-	// Keep the folder even when the settings cannot be read, so a screenshot
-	// still lands under the data folder rather than nowhere.
+	// Keep the folder even when the settings cannot be read: without it a
+	// screenshot has no default place to write and reports that instead of
+	// guessing.
 	a.dataDir = dir
 	st, err := settings.Load(filepath.Join(dir, "settings.ini"))
 	if err != nil {
@@ -292,7 +291,6 @@ func (a *app) loadSettings() {
 		return
 	}
 	a.settings = st
-	a.dataDir = dir
 	a.loadShotSettings(st)
 	a.language = st.Get("player/language", "en_US")
 	a.loadTranslator()
@@ -3849,15 +3847,15 @@ func (a *app) saveShotSettings() {
 
 // takeScreenshot writes the cell's frame to the screenshots folder under
 // the configured template and format, as the frozen screenshot action does.
-func (a *app) takeScreenshot(c *cell) {
+func (a *app) takeScreenshot(c *cell) bool {
 	if c == nil || c.eng == nil {
-		return
+		return false
 	}
 	if a.shotDir == "" && a.dataDir == "" {
 		// Without the app data folder there is no default place to write;
 		// better a status than a relative "screenshots" folder.
 		a.status = "screenshots: no data folder"
-		return
+		return false
 	}
 	dir := screenshots.Dir(a.shotDir, a.dataDir)
 	title := c.title
@@ -3868,19 +3866,72 @@ func (a *app) takeScreenshot(c *cell) {
 	path, err := screenshots.NextPath(dir, a.shotTemplate, title, c.eng.Snapshot().Time, time.Now(), format.Extension())
 	if err != nil {
 		a.status = err.Error()
-		return
+		return false
 	}
 	if format == screenshots.PNG {
 		if err := c.eng.Screenshot(path); err != nil {
 			a.status = err.Error()
-			return
+			return false
 		}
 	} else if err := c.eng.ScreenshotJPEG(path, a.shotQuality); err != nil {
 		a.status = err.Error()
-		return
+		return false
 	}
 	a.addRecent(path)
 	a.status = "saved " + filepath.Base(path)
+	return true
+}
+
+// cellHasVideo reports whether the cell holds a video: tracks are re-read
+// first, as the frozen action only offers itself for videos, and a cell whose
+// tracks are not known yet is left to the attempt.
+func (a *app) cellHasVideo(c *cell) bool {
+	if c == nil || c.eng == nil {
+		return false
+	}
+	c.eng.RefreshTracks()
+	snap := c.eng.Snapshot()
+	if len(snap.VideoTracks) > 0 {
+		return true
+	}
+	return len(snap.AudioTracks) == 0 && len(snap.SubtitleTracks) == 0
+}
+
+// takeScreenshotAll saves a frame from every cell with a video, as the
+// frozen all-videos action does: one file per video, same template. Cells
+// without a video are skipped, and the first failure is kept so a partly
+// failed run says what went wrong.
+func (a *app) takeScreenshotAll() {
+	saved, failed := 0, 0
+	firstErr := ""
+	for _, c := range a.cells {
+		if c == nil || c.eng == nil {
+			continue
+		}
+		if !a.cellHasVideo(c) {
+			continue
+		}
+		if a.takeScreenshot(c) {
+			saved++
+			continue
+		}
+		failed++
+		if firstErr == "" {
+			firstErr = a.status
+		}
+	}
+	switch {
+	case saved == 0 && failed == 0:
+		a.status = "screenshots: no video to save"
+	case failed == 0 && saved == 1:
+		a.status = "saved 1 screenshot"
+	case failed == 0:
+		a.status = fmt.Sprintf("saved %d screenshots", saved)
+	case saved == 0:
+		a.status = firstErr
+	default:
+		a.status = fmt.Sprintf("saved %d, failed %d: %s", saved, failed, firstErr)
+	}
 }
 
 func (a *app) saveFrame(eng *engine.Engine) {
@@ -4053,6 +4104,7 @@ func (a *app) menu() *mygo.Menu {
 					Click: func(*mygo.MenuItem, *mygo.Window) { a.setListFail(listFailShowError) }},
 			}},
 			{Label: a.tr("Actions", "Save Frame…"), Click: func(*mygo.MenuItem, *mygo.Window) { a.saveFrame(a.activeEngine()) }},
+			{Label: a.tr("Actions", "Screenshot (All)"), Click: func(*mygo.MenuItem, *mygo.Window) { a.takeScreenshotAll() }},
 			{Type: mygo.MenuItemSeparator},
 			{Label: a.tr("Actions", "Seek -5s"), Accelerator: a.keys.Get("seek_back").Accelerator(), Click: func(*mygo.MenuItem, *mygo.Window) {
 				if eng := a.activeEngine(); eng != nil {

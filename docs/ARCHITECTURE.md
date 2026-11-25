@@ -69,8 +69,10 @@ Tests: engine unit / integration (real libVLC) / MyGo GUI (MYGO_AUTOMATION) / .a
   video's own size, and `ScreenshotJPEG` re-encodes a temporary PNG at the
   configured quality. The Shot button and the screenshot shortcut write to
   `screenshots/dir` under the frozen template and format (see
-  `internal/screenshots`); the Go-only "Save Frame…" item still opens a PNG
-  save dialog. `--screenshot PATH` saves the active cell after 3s for
+  `internal/screenshots`), and "Screenshot (All)" does the same for every
+  cell that holds a video, as the frozen all-videos action. The Go-only
+  "Save Frame…" item still opens
+  a PNG save dialog. `--screenshot PATH` saves the active cell after 3s for
   automation and tests.
 - Mosaic (`internal/grid.Mosaic` + `Arrange`): first tile big on the left
   (half for ≤4, third above), rest as equal tiles in a right-hand tier.

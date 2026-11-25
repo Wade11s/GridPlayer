@@ -1,5 +1,45 @@
 # Migration Checkpoints
 
+## 2026-11-25 screenshot-all candidate
+
+Frozen source is unchanged. Base/main is `1a758c3` (after PR #90). Code
+candidate is `bea4ce08b948515a69df4f5f805c39e5fbb4bfae` on
+`feat/f12-screenshot-all`; the PR binds the final reviewed head.
+
+Added: "Screenshot (All)" saves one frame per cell with the configured
+folder, template, format and quality, as the frozen all-videos action does
+(`all_take_screenshot` connected to every video's screenshot). Cells without
+a video are skipped (tracks re-read first, so an audio-only cell is left out
+rather than attempted), and the status counts what was written and keeps the
+first failure. The screenshot action now reports success to its callers, so
+the all-videos run can count. The item stays enabled because MyGo snapshots
+the menu: the frozen `show_if` gating would need a menu refresh on load. The
+duplicated `dataDir` comment and the redundant second assignment (PR #90
+lows) are gone.
+
+Verification on `bea4ce0` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines on this tree. A bundled-app run at `/tmp/gridplayer-shotall5/` with
+three cells and `dir=/tmp/gridplayer-shotall5/out`, `filename_template=%F`, `format=jpg`,
+`jpg_quality=60` chose Playback > Screenshot (All) and wrote `plane-a.jpg`,
+`plane-b.jpg` and `plane-c.jpg` (all JPEG 640x360 per `file`), no temporary
+`.png` left; teardown finished and no process remained. Unit:
+`TestTakeScreenshotAllWritesOnePerCell` (two engines, one without, both JPEGs
+written, status counted), `TestTakeScreenshotAllSkipsAudioOnlyCells` (an
+audio-only backend writes nothing and reports it),
+`TestTakeScreenshotAllWithoutAVideoReportsIt`, plus the extended call-site
+guard.
+
+Still open: the saved frame is the engine frame, not cropped/transformed to
+the view; the JPEG re-encode runs inline on the main thread; the Go-only
+"Save Frame…" dialog ignores the four keys; without the app data folder a
+shot reports a status instead of writing; the all-videos action has no
+shortcut (the frozen binds Shift+Alt+S) and no `show_if` gating because the
+menu is snapshotted; the Settings-dialog populate
+direction and the data-folder placement are unit-unpinned; complete recovery
+GUI evidence remains open.
+
 ## 2026-11-25 screenshot-names candidate
 
 Frozen source is unchanged. Base/main is `0ef3300` (after PR #89). Code
