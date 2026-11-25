@@ -85,6 +85,7 @@ func (a *app) stackActive(front bool) {
 	if !ok || !grid.CanStack(order, tiles, a.active, front, locked) {
 		return
 	}
+	a.pushGridUndo()
 	order = grid.Stack(order, a.active, front, locked)
 	if a.mosaic {
 		a.mosaicOrder = order

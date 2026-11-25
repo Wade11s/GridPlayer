@@ -1,5 +1,53 @@
 # Migration Checkpoints
 
+## 2026-11-25 grid-undo candidate
+
+Frozen source is unchanged. Base/main is `8c8ca7e` (after PR #91). Code
+candidate is `a11967fd442abd870ffea024f4cc7c5cccafe596` on
+`feat/f5-grid-undo`; the PR binds the final reviewed head.
+
+Added: undoing and redoing a grid change, as the frozen `_undoable` /
+`cmd_undo_grid`/`cmd_redo_grid` do. A snapshot holds the grid config,
+template, Free/Mosaic/Single flags, strip side and share, the tiles, the
+stacking orders, the mosaic locks and the order the videos were drawn in —
+never cells or engines. Restoring that order matters because leaving a tiled
+layout permutes the cells. Grid > Undo Grid Change restores it, Redo
+re-applies, a new change drops the redo trail, a change that alters nothing
+skips the push (including arranging an arranged mosaic or re-applying the
+same template), and a change in the video set (a closed, inserted, grown or
+newly opened video) forgets the trail, as the frozen `forget_grid_changes`
+does. The Settings Grid tab records tiled-mode changes and clearing a
+template too. The stack keeps 32; a restore with the same count but another
+video set resets the tiles rather than reusing boxes keyed to the old videos.
+The actions that record one: the size presets, templates, Settings' Grid tab
+(a layout change, a tiled-mode change, or clearing an active template),
+Show All Cells, Arrange Mosaic, Lock/Unlock, Bring to Front/Send to Back,
+Strip Side, and the Free Tiles / Mosaic / Single Mode toggles.
+
+Verification on `ba289b3` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+`go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+`scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
+lines. A bundled-app run at `/tmp/gridplayer-undo5/` loaded four videos in
+Free Tiles whose reading order was d,c,b,a and chose Grid > Fixed 2x2
+(`after-fixed.png`), which permutes the cells into that order. Grid > Undo
+Grid Change put the Free Tiles layout back with each video in its own tile
+(`after-undo.png`: D top-left, C top-right, B bottom-left, A bottom-right,
+tile handles visible; `settings-after-undo.ini` `grid_free=true`,
+`grid_mode=auto_rows`), and Grid > Redo Grid Change made it the 2x2 grid
+again (`after-redo.png`; `settings-after-redo.ini` `grid_free=false`,
+`grid_mode=fixed`). The saved playlist holds the four videos in grid order
+with `grid_layout` fixed; teardown finished and no process remained. Unit:
+the `gridundo_test.go` cases (restore with the cell order, redo, redo
+cleared by a new change, a declined Settings grid not pushing, no-op
+actions and a same template/arrange not pushing, the trail forgotten when a
+video closes or the playlist grows, a Settings tiled-mode change and a
+cleared template each pushing once, a restore with another video set
+resetting the tiles, deep snapshot, the 32 cap, tile reset, empty stacks).
+
+Still open: tile drags and (future) line edits do not record an undo step;
+there is no keyboard shortcut; a closed video clears the trail (frozen
+parity), so a change that closed cells cannot be undone at all.
+
 ## 2026-11-25 screenshot-all candidate
 
 Frozen source is unchanged. Base/main is `1a758c3` (after PR #90). Code

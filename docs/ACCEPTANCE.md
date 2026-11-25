@@ -202,6 +202,24 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
+- 2026-11-25, F5 grid-undo candidate (`a11967f`, main `8c8ca7e`):
+  `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
+  `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-undo5/` loaded four
+  videos in Free Tiles whose reading order was d,c,b,a and chose Grid > Fixed
+  2x2 (`after-fixed.png`), which permutes the cells into that order; Grid >
+  Undo Grid Change restored the Free Tiles layout with each video in its own
+  tile (`after-undo.png`; `settings-after-undo.ini` `grid_free=true`,
+  `grid_mode=auto_rows`), and Grid > Redo Grid Change re-applied the 2x2
+  (`after-redo.png`; `settings-after-redo.ini` `grid_free=false`,
+  `grid_mode=fixed`). `saved.gpls` holds the four videos with `grid_layout`
+  fixed, teardown finished, and no `gridplayer`/`poc-hw` process remained. The
+  per-step settings copies (`settings-after-fixed.ini`, `-undo.ini`,
+  `-redo.ini`) record the transitions. The snapshot (cell order included), the
+  redo trail, the declined-confirm and no-op guards, the trail cleared by a
+  closed video, the 32 cap, the tile reset and the other-set restore are unit
+  evidence (`gridundo_test.go`).
+  Tile drags and line edits are not covered, and there is no shortcut.
 - 2026-11-25, F12 screenshot-all candidate (`bea4ce0`, main `1a758c3`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
