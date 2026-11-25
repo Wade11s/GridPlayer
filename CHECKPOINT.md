@@ -3,7 +3,7 @@
 ## 2026-11-25 leave-tiled-for-plain candidate
 
 Frozen source is unchanged. Base/main is `73eddd9` (after PR #88). Code
-candidate is `df7458565e396990c612c911e09c258a07f60f11` on
+candidate is `9c316aec4af82eed9e9b98cbe8d15756d3b6db3b` on
 `fix/f5-leave-tiled-plain`; the PR binds the final reviewed head.
 
 Fixed: leaving Free Tiles or Mosaic for Auto Rows, Auto Columns or Fit Shapes
@@ -16,15 +16,17 @@ the three cases: a tiled target keeps the tiles (an Apply that only changes
 other settings no longer wipes the arrangement or the mosaic locks), a fixed
 target confirms and closes, and a plain target re-reads and clears.
 
-Verification on `df74585` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
+Verification on `9c316ae` (macOS 27.2.1 arm64, Go 1.27.4, VLC 3.0.24):
 `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
 `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4 VideoToolbox
-lines. A bundled-app run at `/tmp/gridplayer-leave/` loaded five videos in
+lines. A bundled-app run at `/tmp/gridplayer-leave2/` loaded five videos in
 Free Tiles reading e,d,c,b,a and chose Grid > Auto Rows: the auto grid reads
 e,d,c on the first row and b,a on the second (`auto-rows.png`), and the saved
 playlist holds plane-e,d,c,b,a with `grid_layout` auto_rows. Teardown
 finished with all five cells and no process remained. Unit:
 `TestLeavingTiledForAPlainGridPacksAndClears`,
+`TestSettingsApplyKeepsATiledLayout`,
+`TestSettingsApplyLeavesTiledForPlain`,
 `TestDeclinedFixedEntryKeepsTheTiles`, `TestTemplateEntryPacksAndCloses`.
 
 Still open: cells keep place order after a big-cell template, so a later

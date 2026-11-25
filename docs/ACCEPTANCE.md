@@ -202,10 +202,10 @@ Changes need a new review; thresholds never relax in-implementation.
   boundaries are asserted in `TestChapterStopSelection` (250 ms next
   boundary, 3 s Previous boundary) and the end-action helper scope in
   `TestApplyDefaultEndSkipsLoopDefaultForLists`.
-- 2026-11-25, F5 leave-tiled-for-plain candidate (`df74585`, main `73eddd9`):
+- 2026-11-25, F5 leave-tiled-for-plain candidate (`9c316ae`, main `73eddd9`):
   `go vet ./...`, `go test ./... -race -count=1`, `go build ./...`,
   `scripts/build_app.sh`, and `scripts/smoke_app.sh` PASS with 4
-  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-leave/` loaded
+  VideoToolbox lines. A bundled-app run at `/tmp/gridplayer-leave2/` loaded
   five videos in Free Tiles reading e,d,c,b,a and chose Grid > Auto Rows: the
   flow reads e,d,c / b,a (`auto-rows.png`), and `saved.gpls` holds
   plane-e,d,c,b,a with `grid_layout` auto_rows. All five cells were playing
